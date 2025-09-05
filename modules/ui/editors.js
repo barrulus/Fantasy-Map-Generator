@@ -189,7 +189,9 @@ function addBurg(point) {
 
   BurgsAndStates.defineBurgFeatures(burg);
 
-  const newRoute = Routes.connect(cellId);
+  // Do not auto-connect routes for water-placed (flying) burgs
+  const isWater = cells.h[cellId] < 20;
+  const newRoute = isWater ? null : Routes.connect(cellId);
   if (newRoute && layerIsOn("toggleRoutes")) {
     routes
       .select("#" + newRoute.group)
@@ -225,6 +227,45 @@ function moveBurgToGroup(id, g) {
     anchor.setAttribute("x", rn(pack.burgs[id].x - anchorSize * 0.47, 2));
     anchor.setAttribute("y", rn(pack.burgs[id].y - anchorSize * 0.47, 2));
   }
+}
+
+// Ensure a dedicated locked Sky State exists; create if missing and return its id
+function ensureSkyState(anchorBurgId) {
+  const {states, burgs, cultures, cells} = pack;
+  let sky = states.find(s => s && s.i && !s.removed && s.skyRealm);
+  if (sky) return sky.i;
+
+  const b = burgs[anchorBurgId];
+  const i = states.length;
+  const culture = (b && b.culture) || cells.culture?.[b?.cell] || 1;
+  const type = "Generic";
+  const name = "Sky Realm";
+  const color = "#5b8bd4";
+  const coa = COA.generate(null, null, null, cultures[culture]?.type || "Generic");
+  coa.shield = COA.getShield(culture, null);
+
+  const newState = {
+    i,
+    name,
+    type,
+    color,
+    capital: anchorBurgId,
+    center: b.cell,
+    culture,
+    expansionism: 0.1,
+    coa,
+    lock: 1,
+    skyRealm: 1
+  };
+  states.push(newState);
+
+  if (cells && typeof b.cell === "number") cells.state[b.cell] = i;
+  if (b) {
+    b.state = i;
+    b.capital = 1;
+    moveBurgToGroup(anchorBurgId, "cities");
+  }
+  return i;
 }
 
 function moveAllBurgsToGroup(fromGroup, toGroup) {
@@ -316,49 +357,54 @@ function togglePort(burg) {
 function getBurgLink(burg) {
   if (burg.link) return burg.link;
 
+  // Sky burgs prefer city generator with sky options
+  if (burg.flying || burg.skyPort) return createMfcgLink(burg, true);
+
   const population = burg.population * populationRate * urbanization;
   if (population >= options.villageMaxPopulation || burg.citadel || burg.walls || burg.temple || burg.shanty)
-    return createMfcgLink(burg);
+    return createMfcgLink(burg, false);
 
   return createVillageGeneratorLink(burg);
 }
 
-function createMfcgLink(burg) {
+function createMfcgLink(burg, isSky = false) {
   const {cells} = pack;
   const {i, name, population: burgPopulation, cell} = burg;
   const burgSeed = burg.MFCG || seed + String(burg.i).padStart(4, 0);
 
   const sizeRaw = 2.13 * Math.pow((burgPopulation * populationRate) / urbanDensity, 0.385);
-  const size = minmax(Math.ceil(sizeRaw), 6, 100);
+  const size = isSky ? 25 : minmax(Math.ceil(sizeRaw), 6, 100);
   const population = rn(burgPopulation * populationRate * urbanization);
 
-  const river = cells.r[cell] ? 1 : 0;
-  const coast = Number(burg.port > 0);
-  const sea = (() => {
-    if (!coast || !cells.haven[cell]) return null;
-
-    // calculate see direction: 0 = south, 0.5 = west, 1 = north, 1.5 = east
-    const p1 = cells.p[cell];
-    const p2 = cells.p[cells.haven[cell]];
-    let deg = (Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * 180) / Math.PI - 90;
-    if (deg < 0) deg += 360;
-    return rn(normalize(deg, 0, 360) * 2, 2);
-  })();
+  const river = isSky ? 0 : cells.r[cell] ? 1 : 0;
+  const coast = isSky ? 0 : Number(burg.port > 0);
+  const sea = !isSky && coast && cells.haven[cell]
+    ? (() => {
+        // calculate sea direction: 0 = south, 0.5 = west, 1 = north, 1.5 = east
+        const p1 = cells.p[cell];
+        const p2 = cells.p[cells.haven[cell]];
+        let deg = (Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * 180) / Math.PI - 90;
+        if (deg < 0) deg += 360;
+        return rn(normalize(deg, 0, 360) * 2, 2);
+      })()
+    : null;
 
   const arableBiomes = river ? [1, 2, 3, 4, 5, 6, 7, 8] : [5, 6, 7, 8];
-  const farms = +arableBiomes.includes(cells.biome[cell]);
+  const farms = isSky ? 0 : +arableBiomes.includes(cells.biome[cell]);
 
-  const citadel = +burg.citadel;
-  const urban_castle = +(citadel && each(2)(i));
+  const citadel = isSky ? 1 : +burg.citadel;
+  const urban_castle = isSky ? 1 : +(citadel && each(2)(i));
 
-  const hub = Routes.isCrossroad(cell);
-  const walls = +burg.walls;
-  const plaza = +burg.plaza;
-  const temple = +burg.temple;
-  const shantytown = +burg.shanty;
+  const hub = isSky ? 0 : Routes.isCrossroad(cell);
+  const walls = isSky ? 1 : +burg.walls;
+  const plaza = isSky ? 1 : +burg.plaza;
+  const temple = isSky ? 1 : +burg.temple;
+  const shantytown = isSky ? 0 : +burg.shanty;
+  const greens = isSky ? 1 : undefined;
+  const gates = isSky ? 0 : -1;
 
   const url = new URL("https://watabou.github.io/city-generator/");
-  url.search = new URLSearchParams({
+  const params = {
     name,
     population,
     size,
@@ -372,9 +418,11 @@ function createMfcgLink(burg) {
     plaza,
     temple,
     walls,
-    shantytown,
-    gates: -1
-  });
+    shantytown
+  };
+  if (greens !== undefined) params.greens = greens;
+  if (gates !== undefined) params.gates = gates;
+  url.search = new URLSearchParams(params);
   if (sea) url.searchParams.append("sea", sea);
 
   return url.toString();
@@ -428,6 +476,15 @@ function createVillageGeneratorLink(burg) {
   const url = new URL("https://watabou.github.io/village-generator/");
   url.search = new URLSearchParams({pop, name: "", seed: burgSeed, width, height, tags});
   return url.toString();
+}
+
+// helper: draw legend entry for Air routes
+function drawAirRoutesLegend() {
+  const group = document.querySelector("#airroutes");
+  if (!group) return tip("Air routes group not found", false, "error");
+  const stroke = group.getAttribute("stroke") || "#8a2be2";
+  const data = [["airroutes", stroke, "Air routes"]];
+  drawLegend("Routes", data);
 }
 
 // draw legend box

@@ -34,6 +34,7 @@ function editBurg(id) {
   byId("burgCulture").addEventListener("input", changeCulture);
   byId("burgNameReCulture").addEventListener("click", generateNameCulture);
   byId("burgPopulation").addEventListener("change", changePopulation);
+  byId("burgAltitude").addEventListener("change", changeAltitude);
   burgBody.querySelectorAll(".burgFeature").forEach(el => el.addEventListener("click", toggleFeature));
   byId("burgLinkOpen").addEventListener("click", openBurgLink);
   byId("burgLinkEdit").addEventListener("click", changeBurgLink);
@@ -77,13 +78,25 @@ function editBurg(id) {
     byId("burgTemperature").innerHTML = convertTemperature(temperature);
     byId("burgTemperatureLikeIn").dataset.tip =
       "Average yearly temperature is like in " + getTemperatureLikeness(temperature);
-    byId("burgElevation").innerHTML = getHeight(pack.cells.h[b.cell]);
+    const altitudeRow = byId("burgAltitudeRow");
+    if (b.flying) {
+      altitudeRow.style.display = "flex";
+      byId("burgAltitude").value = b.altitude ?? 1000;
+      byId("burgElevation").innerHTML = `${b.altitude ?? 1000} m (sky altitude)`;
+    } else {
+      altitudeRow.style.display = "none";
+      byId("burgElevation").innerHTML = getHeight(pack.cells.h[b.cell]);
+    }
 
     // toggle features
     if (b.capital) byId("burgCapital").classList.remove("inactive");
     else byId("burgCapital").classList.add("inactive");
     if (b.port) byId("burgPort").classList.remove("inactive");
     else byId("burgPort").classList.add("inactive");
+    if (b.skyPort) byId("burgSkyPort").classList.remove("inactive");
+    else byId("burgSkyPort").classList.add("inactive");
+    if (b.flying) byId("burgFlying").classList.remove("inactive");
+    else byId("burgFlying").classList.add("inactive");
     if (b.citadel) byId("burgCitadel").classList.remove("inactive");
     else byId("burgCitadel").classList.add("inactive");
     if (b.walls) byId("burgWalls").classList.remove("inactive");
@@ -298,7 +311,34 @@ function editBurg(id) {
     const feature = this.dataset.feature;
     const turnOn = this.classList.contains("inactive");
     if (feature === "port") togglePort(id);
-    else if (feature === "capital") toggleCapital(id);
+    else if (feature === "skyPort") {
+      burg.skyPort = +turnOn;
+      if (turnOn && !burg.capital) {
+        const skyId = ensureSkyState(id);
+        if (burg.state !== skyId) {
+          pack.cells.state[burg.cell] = skyId; // own the cell
+          burg.state = skyId;
+        }
+      }
+      regenerateRoutes();
+      if (layerIsOn("toggleBurgIcons")) drawBurgIcons();
+    } else if (feature === "flying") {
+      burg.flying = +turnOn;
+      if (turnOn) {
+        try {
+          const skyId = ensureSkyState(id);
+          if (burg.state !== skyId) {
+            pack.cells.state[burg.cell] = skyId;
+            burg.state = skyId;
+          }
+          if (burg.altitude == null) burg.altitude = 1000;
+        } catch (e) {
+          ERROR && console.error(e);
+        }
+      }
+      regenerateRoutes();
+      if (layerIsOn("toggleBurgIcons")) drawBurgIcons();
+    } else if (feature === "capital") toggleCapital(id);
     else burg[feature] = +turnOn;
     if (burg[feature]) this.classList.remove("inactive");
     else if (!burg[feature]) this.classList.add("inactive");
@@ -434,8 +474,10 @@ function editBurg(id) {
     const id = +elSelected.attr("data-id");
     const burg = pack.burgs[id];
 
-    if (cells.h[cell] < 20) {
-      tip("Cannot place burg into the water! Select a land cell", false, "error");
+    const isWater = cells.h[cell] < 20;
+    const allowWater = pack.burgs[id]?.flying || d3.event.altKey;
+    if (isWater && !allowWater) {
+      tip("Hold Alt or mark as Flying to place over water", false, "error");
       return;
     }
 
@@ -477,12 +519,25 @@ function editBurg(id) {
     cells.burg[burg.cell] = 0;
     cells.burg[cell] = id;
     burg.cell = cell;
-    burg.state = newState;
+    if (isWater || burg.flying) {
+      const skyId = ensureSkyState(id);
+      cells.state[cell] = skyId;
+      burg.state = skyId;
+    } else {
+      burg.state = newState;
+    }
     burg.x = x;
     burg.y = y;
-    if (burg.capital) pack.states[newState].center = burg.cell;
-
+    if (burg.capital) pack.states[burg.state].center = burg.cell;
+    
     if (d3.event.shiftKey === false) toggleRelocateBurg();
+  }
+
+  function changeAltitude() {
+    const id = +elSelected.attr("data-id");
+    const burg = pack.burgs[id];
+    burg.altitude = Math.max(0, Math.round(+byId("burgAltitude").value));
+    if (burg.flying) byId("burgElevation").innerHTML = `${burg.altitude} m (sky altitude)`;
   }
 
   function editBurgLegend() {

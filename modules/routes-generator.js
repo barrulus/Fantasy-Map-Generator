@@ -20,6 +20,7 @@ window.Routes = (function () {
     const mainRoads = generateMainRoads();
     const trails = generateTrails();
     const seaRoutes = generateSeaRoutes();
+    const airRoutes = generateAirRoutes();
 
     pack.routes = createRoutesData(lockedRoutes);
     pack.cells.routes = buildLinks(pack.routes);
@@ -36,6 +37,8 @@ window.Routes = (function () {
 
       for (const burg of burgs) {
         if (burg.i && !burg.removed) {
+          // Exclude flying / sky port burgs from land road/trail graphs
+          if (burg.flying || burg.skyPort) continue;
           const {feature, capital, port} = burg;
           addBurg(burgsByFeature, feature, burg);
           if (capital) addBurg(capitalsByFeature, feature, burg);
@@ -155,7 +158,32 @@ window.Routes = (function () {
         routes.push({i: routes.length, group: "searoutes", feature, points});
       }
 
+      for (const {feature, cells, merged, type} of mergeRoutes(airRoutes)) {
+        if (merged) continue;
+        const points = getPoints("airroutes", cells, pointsArray);
+        routes.push({i: routes.length, group: "airroutes", feature, points, type: type || "air"});
+      }
+
       return routes;
+    }
+
+    function generateAirRoutes() {
+      TIME && console.time("generateAirRoutes");
+      const air = [];
+      const skyPorts = pack.burgs.filter(b => b && b.i && !b.removed && (b.skyPort || b.flying));
+      if (skyPorts.length < 2) {
+        TIME && console.timeEnd("generateAirRoutes");
+        return air;
+      }
+      const points = skyPorts.map(b => [b.x, b.y]);
+      const edges = calculateUrquhartEdges(points);
+      edges.forEach(([ai, bi]) => {
+        const a = skyPorts[ai];
+        const b = skyPorts[bi];
+        air.push({feature: -1, cells: [a.cell, b.cell], type: "air"});
+      });
+      TIME && console.timeEnd("generateAirRoutes");
+      return air;
     }
 
     // merge routes so that the last cell of one route is the first cell of the next route
@@ -436,7 +464,8 @@ window.Routes = (function () {
   const models = {
     roads: {burg_suffix: 3, prefix_suffix: 6, the_descriptor_prefix_suffix: 2, the_descriptor_burg_suffix: 1},
     trails: {burg_suffix: 8, prefix_suffix: 1, the_descriptor_burg_suffix: 1},
-    searoutes: {burg_suffix: 4, prefix_suffix: 2, the_descriptor_prefix_suffix: 1}
+    searoutes: {burg_suffix: 4, prefix_suffix: 2, the_descriptor_prefix_suffix: 1},
+    airroutes: {burg_suffix: 3, prefix_suffix: 5, the_descriptor_prefix_suffix: 2}
   };
 
   const prefixes = [
@@ -568,11 +597,22 @@ window.Routes = (function () {
   const suffixes = {
     roads: {road: 7, route: 3, way: 2, highway: 1},
     trails: {trail: 4, path: 1, track: 1, pass: 1},
-    searoutes: {"sea route": 5, lane: 2, passage: 1, seaway: 1}
+    searoutes: {"sea route": 5, lane: 2, passage: 1, seaway: 1},
+    airroutes: {"sky route": 5, "air lane": 3, skyway: 2, airway: 2, "aerial path": 1}
   };
 
   function generateName({group, points}) {
-    if (points.length < 4) return "Unnamed route segment";
+    if (points.length < 4) {
+      const base =
+        group === "searoutes"
+          ? "Sea route"
+          : group === "airroutes"
+          ? "Sky route"
+          : group === "roads"
+          ? "Road"
+          : "Trail";
+      return base;
+    }
 
     const model = rw(models[group]);
     const suffix = rw(suffixes[group]);
@@ -582,7 +622,7 @@ window.Routes = (function () {
     if (model === "prefix_suffix") return `${ra(prefixes)} ${suffix}`;
     if (model === "the_descriptor_prefix_suffix") return `The ${ra(descriptors)} ${ra(prefixes)} ${suffix}`;
     if (model === "the_descriptor_burg_suffix" && burgName) return `The ${ra(descriptors)} ${burgName} ${suffix}`;
-    return "Unnamed route";
+    return group === "searoutes" ? "Sea route" : group === "airroutes" ? "Sky route" : "Route";
 
     function getBurgName() {
       const priority = [points.at(-1), points.at(0), points.slice(1, -1).reverse()];
@@ -598,6 +638,7 @@ window.Routes = (function () {
     roads: d3.curveCatmullRom.alpha(0.1),
     trails: d3.curveCatmullRom.alpha(0.1),
     searoutes: d3.curveCatmullRom.alpha(0.5),
+    airroutes: d3.curveCatmullRom.alpha(0.5),
     default: d3.curveCatmullRom.alpha(0.1)
   };
 

@@ -281,12 +281,22 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
     const point = d3.mouse(this);
     const cell = findCell(...point);
 
-    if (pack.cells.h[cell] < 20)
-      return tip("You cannot place state into the water. Please click on a land cell", false, "error");
+    if (pack.cells.h[cell] < 20 && !d3.event.altKey)
+      return tip("Hold Alt to place a flying burg over water", false, "error");
     if (pack.cells.burg[cell])
       return tip("There is already a burg in this cell. Please select a free cell", false, "error");
 
-    addBurg(point); // add new burg
+    const id = addBurg(point); // add new burg
+    if (pack.cells.h[cell] < 20) {
+      const burg = pack.burgs[id];
+      burg.flying = 1;
+      burg.skyPort = 1;
+      burg.altitude = burg.altitude ?? 1000;
+      const skyStateId = ensureSkyState(id);
+      if (burg.state !== skyStateId) burg.state = skyStateId;
+      burg.port = 0; // not a sea port
+      if (layerIsOn("toggleBurgIcons")) drawBurgIcons();
+    }
 
     if (d3.event.shiftKey === false) {
       exitAddBurgMode();

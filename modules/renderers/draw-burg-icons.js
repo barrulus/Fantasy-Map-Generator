@@ -5,8 +5,8 @@ function drawBurgIcons() {
 
   icons.selectAll("circle, use").remove(); // cleanup
 
-  // capitals
-  const capitals = pack.burgs.filter(b => b.capital && !b.removed);
+  // capitals (exclude sky burgs)
+  const capitals = pack.burgs.filter(b => b.capital && !b.removed && !(b.flying || b.skyPort));
   const capitalIcons = burgIcons.select("#cities");
   const capitalSize = capitalIcons.attr("size") || 1;
   const capitalAnchors = anchors.selectAll("#cities");
@@ -35,8 +35,8 @@ function drawBurgIcons() {
     .attr("width", capitalAnchorsSize)
     .attr("height", capitalAnchorsSize);
 
-  // towns
-  const towns = pack.burgs.filter(b => b.i && !b.capital && !b.removed);
+  // towns (exclude sky burgs)
+  const towns = pack.burgs.filter(b => b.i && !b.capital && !b.removed && !(b.flying || b.skyPort));
   const townIcons = burgIcons.select("#towns");
   const townSize = townIcons.attr("size") || 0.5;
   const townsAnchors = anchors.selectAll("#towns");
@@ -64,6 +64,21 @@ function drawBurgIcons() {
     .attr("y", d => rn(d.y - townsAnchorsSize * 0.47, 2))
     .attr("width", townsAnchorsSize)
     .attr("height", townsAnchorsSize);
+
+  // Sky burgs (flying or sky port)
+  const sky = pack.burgs.filter(b => b.i && !b.removed && (b.flying || b.skyPort));
+  const skyIcons = burgIcons.select("#skyburgs");
+  const skySize = skyIcons.attr("size") || 0.6;
+  skyIcons
+    .selectAll("circle")
+    .data(sky)
+    .enter()
+    .append("circle")
+    .attr("id", d => "burg" + d.i)
+    .attr("data-id", d => d.i)
+    .attr("cx", d => d.x)
+    .attr("cy", d => d.y)
+    .attr("r", skySize);
 
   TIME && console.timeEnd("drawBurgIcons");
 }
