@@ -291,7 +291,13 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
       const burg = pack.burgs[id];
       burg.flying = 1;
       burg.skyPort = 1;
-      burg.altitude = burg.altitude ?? 1000;
+      try {
+        const defAltEl = byId("burgDefaultSkyAltitude");
+        const defAlt = defAltEl ? +defAltEl.value : NaN;
+        burg.altitude = burg.altitude ?? (Number.isFinite(defAlt) && defAlt >= 0 ? defAlt : 1000);
+      } catch (e) {
+        burg.altitude = burg.altitude ?? 1000;
+      }
       const skyStateId = ensureSkyState(id);
       if (burg.state !== skyStateId) burg.state = skyStateId;
       burg.port = 0; // not a sea port
