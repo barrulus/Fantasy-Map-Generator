@@ -13,7 +13,7 @@
  * Example: 1.102.2 -> Major version 1, Minor version 102, Patch version 2
  */
 
-const VERSION = "1.108.11";
+const VERSION = "1.109.0";
 if (parseMapVersion(VERSION) !== VERSION) alert("versioning.js: Invalid format or parsing function");
 
 {
@@ -22,7 +22,7 @@ if (parseMapVersion(VERSION) !== VERSION) alert("versioning.js: Invalid format o
   if (loadingScreenVersion) loadingScreenVersion.innerText = `v${VERSION}`;
 
   const storedVersion = localStorage.getItem("version");
-  if (compareVersions(storedVersion, VERSION, {major: true, minor: true, patch: false}).isOlder) {
+  if (compareVersions(storedVersion, VERSION, { major: true, minor: true, patch: false }).isOlder) {
     setTimeout(showUpdateWindow, 6000);
   }
 
@@ -37,28 +37,22 @@ if (parseMapVersion(VERSION) !== VERSION) alert("versioning.js: Invalid format o
 
       <ul>
         <strong>Latest changes:</strong>
-        <li>Ability to set custom image as Marker or Regiment icon</li>
-        <li>Submap and Transform tools rework</li>
-        <li>Azgaar Bot to answer questions and provide help</li>
-        <li>Labels: ability to set letter spacing</li>
-        <li>Zones performance improvement</li>
-        <li>Notes Editor: on-demand AI text generation</li>
-        <li>New style preset: Dark Seas</li>
-        <li>New routes generation algorithm</li>
-        <li>Routes overview tool</li>
-        <li>Configurable longitude</li>
-        <li>Preview villages map</li>
-        <li>Ability to render ocean heightmap</li>
+        <li>Flying cities: Sky burgs join a dedicated locked Sky Realm</li>
+        <li>Air routes: curved, named connections rendered in new <code>#airroutes</code> layer</li>
+        <li>Burg Editor: Sky Port and Flying toggles, plus altitude control</li>
+        <li>Relocation: Flying burgs can be placed over water (Alt or Flying)</li>
+        <li>Heightmap reapply: Flying burgs are preserved even over water</li>
+        <li>Styling: separate <code>#burgIcons &gt; #skyburgs</code> group for sky burg icons</li>
       </ul>
 
-      <p>Join our <a href="${discord}" target="_blank">Discord server</a> and <a href="${reddit}" target="_blank">Reddit community</a> to ask questions, share maps, discuss the Generator and Worlbuilding, report bugs and propose new features.</p>
+      <p>Join our <a href="${discord}" target="_blank">Discord server</a> and <a href="${reddit}" target="_blank">Reddit community</a> to ask questions, share maps, discuss the Generator and Worldbuilding, report bugs and propose new features.</p>
       <span><i>Thanks for all supporters on <a href="${patreon}" target="_blank">Patreon</a>!</i></span>`;
 
     $("#alert").dialog({
       resizable: false,
       title: "Fantasy Map Generator update",
       width: "28em",
-      position: {my: "center center-4em", at: "center", of: "svg"},
+      position: { my: "center center-4em", at: "center", of: "svg" },
       buttons: {
         "Clear cache": () => cleanupData(),
         "Don't show again": function () {
@@ -106,8 +100,8 @@ function isValidVersion(versionString) {
   return !isNaN(major) && !isNaN(minor) && !isNaN(patch);
 }
 
-function compareVersions(version1, version2, options = {major: true, minor: true, patch: true}) {
-  if (!isValidVersion(version1) || !isValidVersion(version2)) return {isEqual: false, isNewer: false, isOlder: false};
+function compareVersions(version1, version2, options = { major: true, minor: true, patch: true }) {
+  if (!isValidVersion(version1) || !isValidVersion(version2)) return { isEqual: false, isNewer: false, isOlder: false };
 
   let [major1, minor1, patch1] = version1.split(".").map(Number);
   let [major2, minor2, patch2] = version2.split(".").map(Number);
@@ -120,5 +114,5 @@ function compareVersions(version1, version2, options = {major: true, minor: true
   const isNewer = major1 > major2 || (major1 === major2 && (minor1 > minor2 || (minor1 === minor2 && patch1 > patch2)));
   const isOlder = major1 < major2 || (major1 === major2 && (minor1 < minor2 || (minor1 === minor2 && patch1 < patch2)));
 
-  return {isEqual, isNewer, isOlder};
+  return { isEqual, isNewer, isOlder };
 }

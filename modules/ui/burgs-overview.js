@@ -288,17 +288,23 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
       return tip("There is already a burg in this cell. Please select a free cell", false, "error");
 
     const id = addBurg(point); // add new burg
-
     // Mark flying burgs and assign to Sky State, make them sky ports
     if (pack.cells.h[cell] < 20) {
       const burg = pack.burgs[id];
       burg.flying = 1;
       burg.skyPort = 1;
-      if (burg.altitude == null) burg.altitude = 1000;
+      try {
+        const defAltEl = byId("burgDefaultSkyAltitude");
+        const defAlt = defAltEl ? +defAltEl.value : NaN;
+        burg.altitude = burg.altitude ?? (Number.isFinite(defAlt) && defAlt >= 0 ? defAlt : 1000);
+      } catch (e) {
+        burg.altitude = burg.altitude ?? 1000;
+      }
       const skyStateId = ensureSkyState(id);
       if (burg.state !== skyStateId) burg.state = skyStateId;
       // Keep as non-sea port
       burg.port = 0;
+      if (layerIsOn("toggleBurgIcons")) drawBurgIcons();
     }
 
     if (d3.event.shiftKey === false) {
