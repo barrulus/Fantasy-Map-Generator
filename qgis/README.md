@@ -3,21 +3,9 @@
 This folder contains ready-to-use QGIS (.qml) styles that match the Fantasy Map Generator exports.
 
 How to use
-- Import each GeoJSON into QGIS.
+- Import each GeoJSON into QGIS (GeoJSON is now WGS84 / EPSG:4326).
 - Right‑click the layer → Properties → Symbology → Style → Load Style… → pick the matching .qml from `qgis/styles`.
-- Set layer CRS to the custom Fantasy Map Cartesian CRS:
-
-```
-ENGCRS["Fantasy Map Cartesian (meters)",
-    EDATUM["Fantasy Map Datum"],
-    CS[Cartesian,2],
-        AXIS["easting (X)",east,
-            ORDER[1],
-            LENGTHUNIT["metre",1]],
-        AXIS["northing (Y)",north,
-            ORDER[2],
-            LENGTHUNIT["metre",1]]]
-```
+- If you also load the ASCII Grid height raster (.asc), it is in a local engineering CRS (meters). Set the Project CRS to a suitable projected CRS for measurements, or reproject the raster as needed.
 
 Included styles
 - cells.qml: Graduated fill by `height` (water → mountains).

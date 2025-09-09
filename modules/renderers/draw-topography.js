@@ -2,10 +2,20 @@
 
 // Draw topographic hillshade-style fill per grid cell
 function drawTopography() {
+  // Ensure timer is closed even if an error occurs
   TIME && console.time("drawTopography");
+  try {
+    // Ensure the topography group exists
+    let group = d3.select("#topography");
+    if (group.empty()) {
+      // Try to create the group under #viewbox if possible; otherwise under #map
+      const vb = typeof viewbox !== "undefined" ? viewbox : d3.select("#viewbox");
+      const parent = vb && vb.node() ? vb : d3.select("#map");
+      group = parent.append("g").attr("id", "topography");
+    }
 
-  const group = d3.select("#topography");
-  group.selectAll("*").remove();
+    // Clear previous content
+    group.selectAll("*").remove();
 
   const {cells, points, features: gridFeatures} = grid;
 
@@ -50,10 +60,15 @@ function drawTopography() {
   // not used now; we fully replace with provided palette
 
   // Lighting settings (can be overridden by attributes)
-  const azimuth = (+group.attr("azimuth") || 315) * (Math.PI / 180); // degrees → radians
-  const altitude = (+group.attr("altitude") || 45) * (Math.PI / 180);
+  const readNumAttr = (sel, name, fallback) => {
+    if (!sel || typeof sel.empty !== "function" || sel.empty() || !sel.node()) return fallback;
+    const v = +sel.attr(name);
+    return Number.isFinite(v) ? v : fallback;
+  };
+  const azimuth = readNumAttr(group, "azimuth", 315) * (Math.PI / 180); // degrees → radians
+  const altitude = readNumAttr(group, "altitude", 45) * (Math.PI / 180);
   const light = [Math.cos(azimuth) * Math.cos(altitude), Math.sin(azimuth) * Math.cos(altitude), Math.sin(altitude)];
-  const zScale = +group.attr("zscale") || 0.8; // vertical exaggeration for normals
+  const zScale = readNumAttr(group, "zscale", 0.8); // vertical exaggeration for normals
 
   let html = "";
 
@@ -116,10 +131,12 @@ function drawTopography() {
     const poly = getGridPolygon(i)
       .map(p => `${rn(p[0], 2)},${rn(p[1], 2)}`)
       .join(" ");
-    html += `<polygon points="${poly}" fill="${color}" opacity="${(terrs.attr("opacity") || 1) * 1}" />`;
+    const terrsOpacity = typeof terrs !== "undefined" && terrs && typeof terrs.attr === "function" ? +terrs.attr("opacity") || 1 : 1;
+    html += `<polygon points="${poly}" fill="${color}" opacity="${terrsOpacity}" />`;
   }
 
   group.html(html);
-
-  TIME && console.timeEnd("drawTopography");
+  } finally {
+    TIME && console.timeEnd("drawTopography");
+  }
 }

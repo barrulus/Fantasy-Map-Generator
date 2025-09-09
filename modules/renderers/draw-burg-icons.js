@@ -81,20 +81,4 @@ function drawBurgIcons() {
     .attr("r", skySize);
 
   TIME && console.timeEnd("drawBurgIcons");
-
-  // Sky burgs (flying or sky port) — styled separately
-  const sky = pack.burgs.filter(b => b.i && !b.removed && (b.flying || b.skyPort));
-  const skyIcons = burgIcons.select("#skyburgs");
-  const skySize = skyIcons.attr("size") || 0.6;
-
-  skyIcons
-    .selectAll("circle")
-    .data(sky)
-    .enter()
-    .append("circle")
-    .attr("id", d => "burg" + d.i)
-    .attr("data-id", d => d.i)
-    .attr("cx", d => d.x)
-    .attr("cy", d => d.y)
-    .attr("r", skySize);
 }

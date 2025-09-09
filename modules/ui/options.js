@@ -886,7 +886,11 @@ function openExportToPngTiles() {
     title: "Download tiles",
     width: "23em",
     buttons: {
-      Download: () => exportToPngTiles(),
+      Download: () => {
+        const useSvg = byId("formatSVG")?.checked;
+        if (useSvg && typeof exportToSvgTiles === "function") return exportToSvgTiles();
+        return exportToPngTiles();
+      },
       Cancel: function () {
         $(this).dialog("close");
       }
@@ -903,6 +907,15 @@ function updateTilesOptions() {
     const {nextElementSibling: next, previousElementSibling: prev} = this;
     if (next?.tagName === "INPUT") next.value = this.value;
     if (prev?.tagName === "INPUT") prev.value = this.value;
+  }
+
+  // format toggle (PNG or SVG)
+  const formatPNG = byId("formatPNG");
+  const formatSVG = byId("formatSVG");
+  if (formatPNG && formatSVG) {
+    // Keep them mutually exclusive if they are checkboxes; if radios this is harmless
+    if (this === formatPNG && formatPNG.checked) formatSVG.checked = false;
+    if (this === formatSVG && formatSVG.checked) formatPNG.checked = false;
   }
 
   const tileSize = byId("tileSize");

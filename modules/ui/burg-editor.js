@@ -526,8 +526,7 @@ function editBurg(id) {
     cells.burg[burg.cell] = 0;
     cells.burg[cell] = id;
     burg.cell = cell;
-    if (isWater) {
-    
+
     // Set target state based on terrain and sky features
     if (isWater) {
       const skyId = ensureSkyState(id);

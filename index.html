@@ -6037,7 +6037,7 @@
           </button>
           <button
             onclick="openExportToPngTiles()"
-            data-tip="Split map into smaller png tiles and download as zip archive"
+            data-tip="Split map into smaller tiles (PNG or SVG) and download as zip archive"
           >
             tiles
           </button>
@@ -6103,7 +6103,8 @@
         </div>
         <p>
           Load the .asc in QGIS as a raster layer. Use Raster → Extraction → Contour to make contour lines,
-          and Raster → Analysis → Hillshade for shaded relief. CRS: Fantasy Map Cartesian (meters).
+          and Raster → Analysis → Hillshade for shaded relief. Note: the height raster is in a local engineering CRS (meters);
+          set a suitable projected CRS for measurements or reproject after import. GeoJSON exports are WGS84 (EPSG:4326).
         </p>
 
         <div style="margin: 1em 0 0.3em; font-weight: bold">Export To JSON</div>
@@ -6195,6 +6196,11 @@
 
       <div id="exportToPngTilesScreen" style="display: none" class="dialog">
         <p>Map will be split into tiles and downloaded as a single zip file. Avoid saving too large images</p>
+        <div data-tip="Output format" style="margin-bottom: 0.3em">
+          <div class="label">Format:</div>
+          <label style="margin-right: .5em"><input id="formatPNG" name="tileFormat" type="radio" checked /> PNG</label>
+          <label><input id="formatSVG" name="tileFormat" type="radio" /> SVG (georeferenced)</label>
+        </div>
         <div data-tip="Number of columns" style="margin-bottom: 0.3em">
           <div class="label">Columns:</div>
           <input

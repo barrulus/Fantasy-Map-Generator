@@ -93,6 +93,14 @@ async function exportToPngTiles() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   zip.file("schema.png", blob);
 
+  // Add world file for schema (WGS84 degrees)
+  const {dppX, dppY} = computeWgs84Transform();
+  const A_schema = dppX; // deg per pixel X at schema scale (1:1)
+  const E_schema = -dppY; // negative for north-up
+  const [lonTL_schema, latTL_schema] = pixelsToLonLat(0.5, 0.5, 12); // center of top-left pixel
+  const pgwSchema = [A_schema, 0, 0, E_schema, lonTL_schema, latTL_schema].join("\n");
+  zip.file("schema.pgw", pgwSchema);
+
   // download tiles
   const url = await getMapURL("tiles", {fullMap: true});
   const tilesX = +byId("tileColsOutput").value || 2;
@@ -119,6 +127,11 @@ async function exportToPngTiles() {
     return first + last;
   }
 
+  // Precompute constant degrees-per-output-pixel using world transform
+  // Each tile covers tileW x tileH map pixels; output image size is width x height
+  const A_tile = (dppX * tileW) / width; // deg/pixel X in output tile images
+  const E_tile = -((dppY * tileH) / height); // deg/pixel Y (negative)
+
   for (let y = 0, row = 0, id = 1; y + tileH <= graphHeight; y += tileH, row++) {
     const rowName = getRowLabel(row);
 
@@ -127,7 +140,13 @@ async function exportToPngTiles() {
       ctx.drawImage(img, x, y, tileW, tileH, 0, 0, width, height);
       const blob = await canvasToBlob(canvas, "image/png");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      zip.file(`${rowName}${cell}.png`, blob);
+      const baseName = `${rowName}${cell}`;
+      zip.file(`${baseName}.png`, blob);
+
+      // Add world file for this tile (WGS84 degrees)
+      const [lonTL, latTL] = pixelsToLonLat(x + 0.5, y + 0.5, 12); // center of top-left tile pixel
+      const pgw = [A_tile, 0, 0, E_tile, lonTL, latTL].join("\n");
+      zip.file(`${baseName}.pgw`, pgw);
     }
   }
 
@@ -165,6 +184,104 @@ async function exportToPngTiles() {
       );
     });
   }
+}
+
+// Export georeferenced SVG tiles with WGS84 bbox in metadata
+async function exportToSvgTiles() {
+  const status = byId("tileStatus");
+  status.innerHTML = "Preparing SVG...";
+
+  // Get a fully inlined, full-extent SVG
+  const url = await getMapURL("svg", {fullMap: true});
+  const resp = await fetch(url);
+  const baseSvg = await resp.text();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+  await import("../../libs/jszip.min.js");
+  const zip = new window.JSZip();
+
+  const tilesX = +byId("tileColsOutput").value || 2;
+  const tilesY = +byId("tileRowsOutput").value || 2;
+  const scale = +byId("tileScaleOutput").value || 1;
+
+  const tileW = (graphWidth / tilesX) | 0;
+  const tileH = (graphHeight / tilesY) | 0;
+
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  function getRowLabel(row) {
+    const first = row >= alphabet.length ? alphabet[Math.floor(row / alphabet.length) - 1] : "";
+    const last = alphabet[row % alphabet.length];
+    return first + last;
+  }
+
+  function buildTileSvgString(x, y, w, h) {
+    // Parse original SVG
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(baseSvg, "image/svg+xml");
+    const svg = doc.documentElement;
+    // Apply tile viewBox and pixel size
+    svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+    svg.setAttribute("width", String(w * scale));
+    svg.setAttribute("height", String(h * scale));
+    svg.setAttribute("preserveAspectRatio", "none");
+    // Add GML metadata with WGS84 envelope
+    const [lonW, latN] = pixelsToLonLat(x, y, 6);
+    const [lonE, latS] = pixelsToLonLat(x + w, y + h, 6);
+    const minLat = Math.max(-90, Math.min(latN, latS));
+    const maxLat = Math.min(90, Math.max(latN, latS));
+    const minLon = Math.max(-180, Math.min(lonW, lonE));
+    const maxLon = Math.min(180, Math.max(lonW, lonE));
+
+    // Ensure GML namespace present
+    svg.setAttribute("xmlns:gml", "http://www.opengis.net/gml/3.2");
+    // Create or reuse metadata node
+    let meta = svg.querySelector("metadata");
+    if (!meta) {
+      meta = doc.createElementNS("http://www.w3.org/2000/svg", "metadata");
+      svg.insertBefore(meta, svg.firstChild);
+    }
+    // Build boundedBy element
+    const gmlNS = "http://www.opengis.net/gml/3.2";
+    const boundedBy = doc.createElementNS(gmlNS, "gml:boundedBy");
+    const env = doc.createElementNS(gmlNS, "gml:Envelope");
+    env.setAttribute("srsName", "urn:ogc:def:crs:EPSG::4326");
+    env.setAttribute("srsDimension", "2");
+    env.setAttribute("axisLabels", "Lat Long");
+    env.setAttribute("uomLabels", "deg deg");
+    const lower = doc.createElementNS(gmlNS, "gml:lowerCorner");
+    lower.textContent = `${minLat} ${minLon}`; // Lat Lon order
+    const upper = doc.createElementNS(gmlNS, "gml:upperCorner");
+    upper.textContent = `${maxLat} ${maxLon}`; // Lat Lon order
+    env.appendChild(lower);
+    env.appendChild(upper);
+    boundedBy.appendChild(env);
+
+    // Replace existing boundedBy if present
+    const existing = meta.querySelector("gml\\:boundedBy, boundedBy");
+    if (existing) existing.remove();
+    meta.appendChild(boundedBy);
+
+    // Serialize back to string
+    return new XMLSerializer().serializeToString(doc);
+  }
+
+  let id = 1;
+  for (let y = 0, row = 0; y + tileH <= graphHeight; y += tileH, row++) {
+    const rowName = getRowLabel(row);
+    for (let x = 0, col = 1; x + tileW <= graphWidth; x += tileW, col++, id++) {
+      status.innerHTML = `Rendering SVG tile ${rowName}${col} (${id})...`;
+      const svgStr = buildTileSvgString(x, y, tileW, tileH);
+      zip.file(`${rowName}${col}.svg`, svgStr);
+    }
+  }
+
+  status.innerHTML = "Zipping files...";
+  const blob = await zip.generateAsync({type: "blob"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = getFileName() + "-svg-tiles.zip";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 5000);
 }
 
 // parse map svg to object url
@@ -508,56 +625,46 @@ function getMetersPerPixel() {
   }
 }
 
-// Convert from map pixel coordinates to fantasy world coordinates
-// Using the exact same values as prepareMapData
-function getFantasyCoordinates(x, y, decimals = 2) {
-  // Convert distanceScale to meters based on the unit
-  let pixelScaleInMeters;
-  const unit = distanceUnitInput.value.toLowerCase();
+// Convert from map pixel coordinates to WGS84 lon/lat degrees (EPSG:4326)
+// Uses an equirectangular mapping centered on map center with uniform scale
+function computeWgs84Transform() {
+  const mpp = getMetersPerPixel();
+  const lat0 = +latitudeOutput.value || 0;
+  const lon0 = +longitudeOutput.value || 0;
+  const degPerMeterLat = 1 / 111320; // approximate meters per degree of latitude
+  const degPerMeterLon = 1 / (111320 * Math.cos((lat0 * Math.PI) / 180));
+  return {
+    lat0,
+    lon0,
+    dppX: mpp * degPerMeterLon, // degrees per pixel (longitude)
+    dppY: mpp * degPerMeterLat // degrees per pixel (latitude), positive upwards
+  };
+}
 
-  switch(unit) {
-    case 'km':
-      pixelScaleInMeters = distanceScale * 1000; // km to meters
-      break;
-    case 'm':
-    case 'meter':
-    case 'meters':
-      pixelScaleInMeters = distanceScale; // already in meters
-      break;
-    case 'mi':
-    case 'mile':
-    case 'miles':
-      pixelScaleInMeters = distanceScale * 1609.344; // miles to meters
-      break;
-    case 'yd':
-    case 'yard':
-    case 'yards':
-      pixelScaleInMeters = distanceScale * 0.9144; // yards to meters
-      break;
-    case 'ft':
-    case 'foot':
-    case 'feet':
-      pixelScaleInMeters = distanceScale * 0.3048; // feet to meters
-      break;
-    case 'league':
-    case 'leagues':
-      pixelScaleInMeters = distanceScale * 4828.032; // leagues (3 miles) to meters
-      break;
-    default:
-      // Default to km if unit is not recognized
-      console.warn(`Unknown distance unit: ${unit}, defaulting to km`);
-      pixelScaleInMeters = distanceScale * 1000;
-  }
+function computeWgs84Bbox() {
+  const {lat0, lon0, dppX, dppY} = computeWgs84Transform();
+  const lonSpan = (graphWidth / 2) * dppX;
+  const latSpan = (graphHeight / 2) * dppY;
+  const minLat = Math.max(-90, lat0 - latSpan);
+  const maxLat = Math.min(90, lat0 + latSpan);
+  // Clamp longitudes to [-180, 180] without wrapping to avoid inverted bbox across the antimeridian
+  const clampLon = v => Math.max(-180, Math.min(180, v));
+  const minLon = clampLon(lon0 - lonSpan);
+  const maxLon = clampLon(lon0 + lonSpan);
+  return [minLon, minLat, maxLon, maxLat];
+}
 
-  // Convert pixel coordinates to world coordinates in meters
-  const worldX = x * pixelScaleInMeters;
-  const worldY = -y * pixelScaleInMeters; // Negative because Y increases downward in pixels
-
-  // Round to specified decimal places
+function pixelsToLonLat(x, y, decimals = 6) {
+  const {lat0, lon0, dppX, dppY} = computeWgs84Transform();
+  // top-left is (-graphWidth/2, -graphHeight/2) in pixel delta from center
+  const lon = lon0 + (x - graphWidth / 2) * dppX;
+  const lat = lat0 - (y - graphHeight / 2) * dppY;
+  const wrapLon = ((((lon + 180) % 360) + 360) % 360) - 180;
+  const clampLat = Math.max(-90, Math.min(90, lat));
   const factor = Math.pow(10, decimals);
   return [
-    Math.round(worldX * factor) / factor,
-    Math.round(worldY * factor) / factor
+    Math.round(wrapLon * factor) / factor,
+    Math.round(clampLat * factor) / factor
   ];
 }
 
@@ -571,6 +678,7 @@ function buildGeoJsonCells() {
   const json = {
     type: "FeatureCollection",
     features: [],
+    bbox: computeWgs84Bbox(),
     // Include metadata using the same sources as prepareMapData
     metadata: {
       generator: "Azgaar's Fantasy Map Generator",
@@ -609,7 +717,6 @@ function buildGeoJsonCells() {
         longitude: longitudeOutput.value,
         precipitation: precOutput.value
       },
-      crs: "Fantasy Map Cartesian (meters)",
       exportedAt: new Date().toISOString()
     }
   };
@@ -624,7 +731,7 @@ function buildGeoJsonCells() {
   function getCellCoordinates(cellVertices) {
     const coordinates = cellVertices.map(vertex => {
       const [x, y] = vertices.p[vertex];
-      return getFantasyCoordinates(x, y, 2);
+      return pixelsToLonLat(x, y, 6);
     });
     return [[...coordinates, coordinates[0]]];
   }
@@ -658,7 +765,7 @@ function saveGeoJsonCells() {
 function buildGeoJsonRoutes() {
   const metersPerPixel = getMetersPerPixel();
   const features = pack.routes.map(({i, points, group, name = null, type, feature}) => {
-    const coordinates = points.map(([x, y]) => getFantasyCoordinates(x, y, 2));
+    const coordinates = points.map(([x, y]) => pixelsToLonLat(x, y, 6));
     return {
       type: "Feature",
       geometry: {type: "LineString", coordinates},
@@ -669,8 +776,8 @@ function buildGeoJsonRoutes() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
@@ -694,7 +801,7 @@ function buildGeoJsonRivers() {
     ({i, cells, points, source, mouth, parent, basin, widthFactor, sourceWidth, discharge, length, width, name, type}) => {
       if (!cells || cells.length < 2) return;
       const meanderedPoints = Rivers.addMeandering(cells, points);
-      const coordinates = meanderedPoints.map(([x, y]) => getFantasyCoordinates(x, y, 2));
+      const coordinates = meanderedPoints.map(([x, y]) => pixelsToLonLat(x, y, 6));
       return {
         type: "Feature",
         geometry: {type: "LineString", coordinates},
@@ -706,8 +813,8 @@ function buildGeoJsonRivers() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
@@ -729,7 +836,7 @@ function buildGeoJsonMarkers() {
   const metersPerPixel = getMetersPerPixel();
   const features = pack.markers.map(marker => {
     const {i, type, icon, x, y, size, fill, stroke} = marker;
-    const coordinates = getFantasyCoordinates(x, y, 2);
+    const coordinates = pixelsToLonLat(x, y, 6);
     // Find the associated note if it exists
     const note = notes.find(note => note.id === `marker${i}`);
     const name = note ? note.name : "Unknown";
@@ -751,8 +858,8 @@ function buildGeoJsonMarkers() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
@@ -775,7 +882,7 @@ function buildGeoJsonBurgs() {
   const valid = pack.burgs.filter(b => b.i && !b.removed);
 
   const features = valid.map(b => {
-    const coordinates = getFantasyCoordinates(b.x, b.y, 2);
+    const coordinates = pixelsToLonLat(b.x, b.y, 6);
     const province = pack.cells.province[b.cell];
     const temperature = grid.cells.temp[pack.cells.g[b.cell]];
 
@@ -823,8 +930,8 @@ function buildGeoJsonBurgs() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
@@ -855,8 +962,8 @@ function buildGeoJsonRegiments() {
   }
 
   const features = allRegiments.map(({regiment: r, state: s}) => {
-    const coordinates = getFantasyCoordinates(r.x, r.y, 2);
-    const baseCoordinates = getFantasyCoordinates(r.bx, r.by, 2);
+    const coordinates = pixelsToLonLat(r.x, r.y, 6);
+    const baseCoordinates = pixelsToLonLat(r.bx, r.by, 6);
 
     // Calculate world coordinates same as CSV export
     const xWorld = r.x * metersPerPixel;
@@ -898,8 +1005,8 @@ function buildGeoJsonRegiments() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
@@ -975,7 +1082,7 @@ function getCellPolygonCoordinates(cellVertices) {
   const {vertices} = pack;
   const coordinates = cellVertices.map(vertex => {
     const [x, y] = vertices.p[vertex];
-    return getFantasyCoordinates(x, y, 2);
+    return pixelsToLonLat(x, y, 6);
   });
   // Close the ring
   return [[...coordinates, coordinates[0]]];
@@ -1058,8 +1165,8 @@ function buildGeoJsonCultures() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
@@ -1108,8 +1215,8 @@ function buildGeoJsonReligions() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
@@ -1161,8 +1268,8 @@ function buildGeoJsonStates() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
@@ -1211,8 +1318,8 @@ function buildGeoJsonProvinces() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
@@ -1256,8 +1363,8 @@ function buildGeoJsonZones() {
   const json = {
     type: "FeatureCollection",
     features,
+    bbox: computeWgs84Bbox(),
     metadata: {
-      crs: "Fantasy Map Cartesian (meters)",
       mapName: mapName.value,
       scale: {
         distance: distanceScale,
