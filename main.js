@@ -52,6 +52,9 @@ let texture = viewbox.append("g").attr("id", "texture");
 let terrs = viewbox.append("g").attr("id", "terrs");
 let topography = viewbox.append("g").attr("id", "topography");
 let biomes = viewbox.append("g").attr("id", "biomes");
+// New categorical terrain/land-use overlay (separate from relief icons in #terrain)
+let landcover = viewbox.append("g").attr("id", "landcover");
+let landcoverOverlay = viewbox.append("g").attr("id", "landcoverOverlay");
 let cells = viewbox.append("g").attr("id", "cells");
 let gridOverlay = viewbox.append("g").attr("id", "gridOverlay");
 let coordinates = viewbox.append("g").attr("id", "coordinates");
@@ -639,9 +642,13 @@ function updateBurgsAndRoutesVisibility() {
       townAnchors.style("display", "none");
       townLabels.style("display", "none");
     } else if (popThreshold === 0) {
+      // Show everything — clear any per-element display overrides from previous buckets
       townIcons.style("display", null);
+      townIcons.selectAll("circle").style("display", null);
       townAnchors.style("display", null);
+      townAnchors.selectAll("use").style("display", null);
       townLabels.style("display", null);
+      townLabels.selectAll("text").style("display", null);
     } else {
       // For performance, bulk show groups, then hide specific small towns
       townIcons.style("display", null);
@@ -777,6 +784,14 @@ async function generate(options) {
     Cultures.generate();
     Cultures.expand();
     BurgsAndStates.generate();
+    // Generate categorical terrain/land-use overlay (basic MVS without farmland)
+    if (window.Terrain?.generate) {
+      try {
+        Terrain.generate({cells: pack.cells, biomesData});
+      } catch (e) {
+        console.error("Terrain generation failed:", e);
+      }
+    }
     updateSuitabilityFromHubs(); // <-- recalculate suitability based on distance from hubs
     Routes.generate();
     Religions.generate();

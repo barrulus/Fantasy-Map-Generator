@@ -762,16 +762,91 @@ function saveGeoJsonCells() {
   downloadFile(JSON.stringify(json), fileName, "application/json");
 }
 
+// Export categorical terrain as MultiPolygons (one feature per terrain class)
+function buildGeoJsonTerrain() {
+  const metersPerPixel = getMetersPerPixel();
+  const {cells} = pack;
+  if (!cells.terrain) return {type: "FeatureCollection", features: []};
+
+  const nameByCode = {
+    1: "ocean",
+    2: "lake",
+    3: "glacier_ice",
+    4: "mountains",
+    5: "highlands",
+    6: "hills",
+    7: "plains",
+    8: "wetland",
+    9: "dunes",
+    10: "cultivated"
+  };
+
+  // Group cells by terrain code
+  const byCode = new Map();
+  for (const i of cells.i) {
+    const code = cells.terrain[i];
+    if (!code) continue;
+    if (!byCode.has(code)) byCode.set(code, []);
+    byCode.get(code).push(i);
+  }
+
+  // For each code, build MultiPolygon from constituent cell polygons
+  const features = [];
+  for (const [code, cellIds] of byCode.entries()) {
+    const polygons = buildMultiPolygonFromCells(cellIds); // already lon/lat via pixelsToLonLat
+    const area = sumAreaByCells(cellIds);
+    const properties = {code, name: nameByCode[code] || String(code), cells: cellIds.length, area};
+    features.push({type: "Feature", geometry: {type: "MultiPolygon", coordinates: polygons}, properties});
+  }
+
+  const json = {
+    type: "FeatureCollection",
+    features,
+    bbox: computeWgs84Bbox(),
+    metadata: {mapName: mapName.value, scale: {distance: distanceScale, unit: distanceUnitInput.value, meters_per_pixel: metersPerPixel}}
+  };
+  return json;
+}
+
+function saveGeoJsonTerrain() {
+  const json = buildGeoJsonTerrain();
+  const fileName = getFileName("Terrain") + ".geojson";
+  downloadFile(JSON.stringify(json), fileName, "application/json");
+}
+
 function buildGeoJsonRoutes() {
   const metersPerPixel = getMetersPerPixel();
-  const features = pack.routes.map(({i, points, group, name = null, type, feature}) => {
-    const coordinates = points.map(([x, y]) => pixelsToLonLat(x, y, 6));
-    return {
-      type: "Feature",
-      geometry: {type: "LineString", coordinates},
-      properties: {id: i, group, name, type, feature}
-    };
-  });
+  const unitLabel = distanceUnitInput.value;
+  const features = pack.routes
+    .map(route => {
+      if (!route?.points || route.points.length < 2) return null;
+      const {i, points, group, type, feature} = route;
+      // Ensure a stable route name even if the Routes Overview panel hasn't been opened
+      const routeName = route.name || Routes.generateName({group, points});
+      const coordinates = points.map(([x, y]) => pixelsToLonLat(x, y, 6));
+
+      // Compute lengths: pixels, map-units (distanceScale), and meters
+      const lengthPx = route.length || Routes.getLength(i);
+      const lengthUnits = rn(lengthPx * distanceScale, 2);
+      const lengthMeters = rn(lengthPx * metersPerPixel, 2);
+
+      return {
+        type: "Feature",
+        geometry: {type: "LineString", coordinates},
+        properties: {
+          id: i,
+          group,
+          name: routeName,
+          type,
+          feature,
+          length_px: lengthPx,
+          length_units: lengthUnits,
+          unit: unitLabel,
+          length_meters: lengthMeters
+        }
+      };
+    })
+    .filter(Boolean);
 
   const json = {
     type: "FeatureCollection",
@@ -1027,7 +1102,7 @@ function saveGeoJsonRegiments() {
   downloadFile(JSON.stringify(json), fileName, "application/json");
 }
 
-// Export heightmap as ESRI ASCII Grid (.asc) for QGIS
+// Export heightmap as ESRI ASCII Grid (.asc) for QGIS (WGS84 / EPSG:4326)
 function saveAsciiGridHeightmap() {
   if (!grid?.cells?.h || !grid.cellsX || !grid.cellsY) {
     tip("Height grid is not available", false, "error");
@@ -1036,12 +1111,22 @@ function saveAsciiGridHeightmap() {
 
   const ncols = grid.cellsX;
   const nrows = grid.cellsY;
-  const metersPerPixel = getMetersPerPixel();
-  const cellsize = (graphWidth / ncols) * metersPerPixel; // meters per grid cell
 
-  // Lower-left origin in world meters matches other exports
-  const xllcorner = 0;
-  const yllcorner = -(graphHeight * metersPerPixel);
+  // Use WGS84 degrees per pixel; derive per-cell size from pixels per grid cell
+  const {dppX, dppY} = computeWgs84Transform();
+  const pxPerCellX = graphWidth / ncols;
+  const pxPerCellY = graphHeight / nrows;
+  const stepX = Math.abs(dppX * pxPerCellX); // degrees per cell in longitude
+  const stepY = Math.abs(dppY * pxPerCellY); // degrees per cell in latitude
+  const cellsize = stepY; // ASCII Grid requires square cellsize; preserve correct N-S spacing
+
+  // Lower-left corner (of the lower-left cell) in WGS84 degrees
+  // Compute from lower-left cell center (in pixels) minus half cell size
+  const [lonLLc, latLLc] = pixelsToLonLat(pxPerCellX / 2, graphHeight - pxPerCellY / 2, 12);
+  // Use half-steps per axis to derive true lower-left corner
+  const xllcorner = rn(lonLLc - stepX / 2, 12);
+  const yllcorner = rn(latLLc - stepY / 2, 12);
+
   const NODATA = -9999;
 
   // Convert FMG height (0..100, 20 sea level) to meters (signed)
@@ -1073,8 +1158,13 @@ function saveAsciiGridHeightmap() {
   }
 
   const content = lines.join("\n");
-  const fileName = getFileName("Heightmap") + ".asc";
+  const fileBase = getFileName("Heightmap");
+  const fileName = fileBase + ".asc";
   downloadFile(content, fileName, "text/plain");
+
+  // Also emit a .prj file for EPSG:4326 so GIS can auto-assign the CRS
+  const prj = getEpsg4326Wkt();
+  downloadFile(prj, fileBase + ".prj", "text/plain");
 }
 
 // Helpers to build MultiPolygons from cell sets
@@ -1389,6 +1479,7 @@ async function saveAllGeoJson() {
 
   const files = [
     {name: getFileName("Cells") + ".geojson", json: buildGeoJsonCells()},
+    {name: getFileName("Terrain") + ".geojson", json: buildGeoJsonTerrain()},
     {name: getFileName("Routes") + ".geojson", json: buildGeoJsonRoutes()},
     {name: getFileName("Rivers") + ".geojson", json: buildGeoJsonRivers()},
     {name: getFileName("Markers") + ".geojson", json: buildGeoJsonMarkers()},
@@ -1409,10 +1500,81 @@ async function saveAllGeoJson() {
     }
   }
 
+  // Also include height raster (.asc) and its CRS (.prj) in the archive
+  try {
+    const {ascContent, prjContent, fileBase} = buildAsciiGridHeightmapData();
+    zip.file(fileBase + ".asc", ascContent);
+    zip.file(fileBase + ".prj", prjContent);
+  } catch (e) {
+    console.error("Failed to add height raster to GeoJSON zip", e);
+  }
+
   const blob = await zip.generateAsync({type: "blob"});
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = getFileName("GeoJSON") + ".zip";
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+}
+
+// Build ASCII Grid (.asc) and corresponding .prj (EPSG:4326) content without downloading
+function buildAsciiGridHeightmapData() {
+  if (!grid?.cells?.h || !grid.cellsX || !grid.cellsY) throw new Error("Height grid is not available");
+
+  const ncols = grid.cellsX;
+  const nrows = grid.cellsY;
+  const {dppX, dppY} = computeWgs84Transform();
+  const pxPerCellX = graphWidth / ncols;
+  const pxPerCellY = graphHeight / nrows;
+  const stepX = Math.abs(dppX * pxPerCellX);
+  const stepY = Math.abs(dppY * pxPerCellY);
+  const cellsize = stepY;
+
+  const [lonLLc, latLLc] = pixelsToLonLat(pxPerCellX / 2, graphHeight - pxPerCellY / 2, 12);
+  const xllcorner = rn(lonLLc - stepX / 2, 12);
+  const yllcorner = rn(latLLc - stepY / 2, 12);
+  const NODATA = -9999;
+
+  const exp = +heightExponentInput.value;
+  function elevationInMeters(h) {
+    if (h >= 20) return Math.pow(h - 18, exp);
+    if (h > 0) return ((h - 20) / h) * 50;
+    return 0;
+  }
+
+  const lines = [];
+  lines.push(`ncols ${ncols}`);
+  lines.push(`nrows ${nrows}`);
+  lines.push(`xllcorner ${xllcorner}`);
+  lines.push(`yllcorner ${yllcorner}`);
+  lines.push(`cellsize ${cellsize}`);
+  lines.push(`NODATA_value ${NODATA}`);
+  for (let row = 0; row < nrows; row++) {
+    const vals = new Array(ncols);
+    for (let col = 0; col < ncols; col++) {
+      const i = col + row * ncols;
+      const h = grid.cells.h[i];
+      const z = elevationInMeters(h);
+      vals[col] = Number.isFinite(z) ? rn(z, 2) : NODATA;
+    }
+    lines.push(vals.join(" "));
+  }
+
+  const ascContent = lines.join("\n");
+  const prjContent = getEpsg4326Wkt();
+  const fileBase = getFileName("Heightmap");
+  return {ascContent, prjContent, fileBase};
+}
+
+// Classic WKT for EPSG:4326 (WGS 84)
+function getEpsg4326Wkt() {
+  return (
+    'GEOGCS["WGS 84",' +
+    'DATUM["WGS_1984",' +
+    'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],' +
+    'AUTHORITY["EPSG","6326"]],' +
+    'PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],' +
+    'UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],' +
+    'AUTHORITY["EPSG","4326"]]'
+  );
 }

@@ -511,6 +511,21 @@
               <u>B</u>iomes
             </li>
             <li
+              id="toggleTerrainFull"
+              data-tip="Categorical terrain/land-use overlay: click to toggle, drag to raise or lower the layer"
+              data-shortcut="; (semicolon)"
+              onclick="toggleTerrainFull(event)"
+            >
+              Ter<u>r</u>ain (full)
+            </li>
+            <li
+              id="toggleCultivatedOverlay"
+              data-tip="Cultivated intensity overlay: click to toggle. Ctrl + click to open Terrain options"
+              onclick="toggleCultivatedOverlay(event)"
+            >
+              Cultivated overlay
+            </li>
+            <li
               id="toggleCells"
               data-tip="Cells structure: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
               data-shortcut="E"
@@ -715,6 +730,14 @@
           </ul>
           <div class="tip">Click to toggle, drag to raise or lower the layer</div>
           <div class="tip">Ctrl + click to edit layer style</div>
+
+          <div style="margin-top:.5em;">
+            <button onclick="TerrainPanel.open()" data-tip="Open terrain classification and farmland options">Terrain options</button>
+            <label style="margin-left:1em;"><input id="terrainShowWetlands" type="checkbox" checked onchange="TerrainPanel.toggleOption('showWetlands', this.checked); drawTerrain();"/> Wetlands texture</label>
+            <label style="margin-left:1em;"><input id="terrainShowDunes" type="checkbox" checked onchange="TerrainPanel.toggleOption('showDunes', this.checked); drawTerrain();"/> Dunes texture</label>
+            <label style="margin-left:1em;"><input id="terrainShowOverlay" type="checkbox" onchange="TerrainPanel.toggleOption('showCultivatedOverlay', this.checked); if (this.checked) { if (!layerIsOn('toggleCultivatedOverlay')) turnButtonOn('toggleCultivatedOverlay'); drawCultivatedOverlay(); } else { d3.select('#landcoverOverlay').selectAll('*').remove(); turnButtonOff('toggleCultivatedOverlay'); }"/> Cultivated overlay</label>
+            <button style="margin-left:1em;" onclick="toggleTerrainLegend()" data-tip="Toggle terrain legend">Terrain legend</button>
+          </div>
 
           <div id="viewMode" data-tip="Set view node">
             <p>View mode:</p>
@@ -6072,12 +6095,26 @@
 
         <p>Generator uses pop-up window to download files. Please ensure your browser does not block popups.</p>
 
+        <div style="margin: 1em 0 0.3em; font-weight: bold">Export height raster (QGIS)</div>
+        <div>
+          <button onclick="saveAsciiGridHeightmap()" data-tip="Export heightmap as ESRI ASCII Grid (.asc) for QGIS">
+            height (.asc)
+          </button>
+        </div>
+        <p>
+          Load the .asc in QGIS as a raster layer. Use Raster → Extraction → Contour to make contour lines,
+          and Raster → Analysis → Hillshade for shaded relief. Note: the height raster is exported in WGS84 geographic coordinates
+          (EPSG:4326, degrees). Elevations are in meters. For accurate metric measurements, reproject the raster to a suitable
+          projected CRS after import. GeoJSON exports are also WGS84 (EPSG:4326).
+        </p>
+
         <div style="margin: 1em 0 0.3em; font-weight: bold">Export to GeoJSON</div>
         <div>
           <button onclick="saveGeoJsonCells()" data-tip="Download cells data in GeoJSON format">cells</button>
+          <button onclick="saveGeoJsonTerrain()" data-tip="Download terrain (landcover) in GeoJSON format">terrain</button>
           <button onclick="saveGeoJsonRoutes()" data-tip="Download routes data in GeoJSON format">routes</button>
           <button onclick="saveGeoJsonRivers()" data-tip="Download rivers data in GeoJSON format">rivers</button>
-          <button onclick="saveGeoJsonMarkers()" data-tip="Download markers data in GeoJSON format">markers</button>
+          <button onclick="saveGeoJsonMarkers()" data-tip="Download markers data in GeoJSON format">markers</button><br />
           <button onclick="saveGeoJsonBurgs()" data-tip="Download burgs data in GeoJSON format">burgs</button>
           <button onclick="saveGeoJsonRegiments()" data-tip="Download regiments data in GeoJSON format">regiments</button>
           <br />
@@ -6087,24 +6124,12 @@
           <button onclick="saveGeoJsonReligions()" data-tip="Download religions in GeoJSON format">religions</button>
           <button onclick="saveGeoJsonZones()" data-tip="Download zones in GeoJSON format">zones</button>
           <br />
-          <button onclick="saveAllGeoJson()" data-tip="Download all GeoJSON datasets as a ZIP">all (zip)</button>
+          <button onclick="saveAllGeoJson()" data-tip="Download all GeoJSON datasets + height raster (.asc, .prj) as a ZIP">all (zip)</button>
         </div>
         <p>
           GeoJSON format is used in GIS tools such as QGIS. Check out
           <a href="https://github.com/Azgaar/Fantasy-Map-Generator/wiki/GIS-data-export" target="_blank">wiki-page</a>
           for guidance.
-        </p>
-
-        <div style="margin: 1em 0 0.3em; font-weight: bold">Export height raster (QGIS)</div>
-        <div>
-          <button onclick="saveAsciiGridHeightmap()" data-tip="Export heightmap as ESRI ASCII Grid (.asc) for QGIS">
-            height (.asc)
-          </button>
-        </div>
-        <p>
-          Load the .asc in QGIS as a raster layer. Use Raster → Extraction → Contour to make contour lines,
-          and Raster → Analysis → Hillshade for shaded relief. Note: the height raster is in a local engineering CRS (meters);
-          set a suitable projected CRS for measurements or reproject after import. GeoJSON exports are WGS84 (EPSG:4326).
         </p>
 
         <div style="margin: 1em 0 0.3em; font-weight: bold">Export To JSON</div>
@@ -8154,6 +8179,10 @@
     <script src="modules/river-generator.js?v=1.106.7"></script>
     <script src="modules/lakes.js?v=1.99.00"></script>
     <script src="modules/biomes.js?v=1.99.00"></script>
+    <script src="modules/env-surfaces.js?v=0.1.0"></script>
+    <script src="modules/terrain-generator.js?v=0.1.0"></script>
+    <script src="modules/renderers/render-terrain.js?v=0.1.0"></script>
+    <script src="modules/farmland-allocator.js?v=0.1.0"></script>
     <script src="modules/names-generator.js?v=1.105.11"></script>
     <script src="modules/cultures-generator.js?v=1.106.0"></script>
     <script src="modules/performance-optimizer.js?v=1.0.0"></script>
@@ -8208,6 +8237,7 @@
     <script defer src="modules/ui/zones-editor.js?v=1.105.20"></script>
     <script defer src="modules/ui/burgs-overview.js?v=1.109.0"></script>
     <script defer src="modules/ui/routes-overview.js?v=1.104.3"></script>
+    <script defer src="modules/ui/terrain-panel.js?v=0.1.0"></script>
     <script defer src="modules/ui/rivers-overview.js?v=1.99.00"></script>
     <script defer src="modules/ui/military-overview.js?v=1.108.5"></script>
     <script defer src="modules/ui/regiments-overview.js?v=1.108.5"></script>

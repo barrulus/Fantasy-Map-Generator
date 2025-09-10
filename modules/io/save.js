@@ -155,7 +155,13 @@ function prepareMapData() {
     markers,
     cellRoutes,
     routes,
-    zones
+    zones,
+    // New terrain arrays (optional in older maps)
+    pack.cells.terrain || [],
+    pack.cells.terrainSubtype || [],
+    pack.cells.terrainBase || [],
+    pack.cells.cultivatedIntensity || [],
+    pack.cells.cultivatedBy || []
   ].join("\r\n");
   return mapData;
 }

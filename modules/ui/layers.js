@@ -188,6 +188,7 @@ function drawLayers() {
   if (layerIsOn("toggleHeight")) drawHeightmap();
   if (layerIsOn("toggleTopography")) drawTopography();
   if (layerIsOn("toggleBiomes")) drawBiomes();
+  if (layerIsOn("toggleTerrainFull")) drawTerrain();
   if (layerIsOn("toggleCells")) drawCells();
   if (layerIsOn("toggleGrid")) drawGrid();
   if (layerIsOn("toggleCoordinates")) drawCoordinates();
@@ -266,6 +267,86 @@ function toggleBiomes(event) {
     biomes.selectAll("path").remove();
     turnButtonOff("toggleBiomes");
   }
+}
+
+// Toggle categorical terrain/land-use overlay (separate from Relief icons)
+function toggleTerrainFull(event) {
+  const el = d3.select('#landcover');
+  const isEmpty = !el.selectAll('*').size();
+  if (!layerIsOn('toggleTerrainFull')) {
+    turnButtonOn('toggleTerrainFull');
+    if (isEmpty) drawTerrain();
+    $("#landcover").fadeIn();
+    if (event && isCtrlClick(event)) TerrainPanel.open();
+  } else {
+    if (event && isCtrlClick(event)) return TerrainPanel.open();
+    $("#landcover").fadeOut();
+    turnButtonOff('toggleTerrainFull');
+  }
+}
+
+function drawTerrain() {
+  TIME && console.time('drawTerrain');
+  const cells = pack.cells;
+  if (!cells.terrain) { console.warn('No terrain classification found; run Terrain.generate first'); return; }
+
+  const opts = TerrainPanel.getOptions();
+  RenderTerrain.ensureDefs(opts);
+  const palette = RenderTerrain.getPalette(opts);
+
+  const isolines = getIsolines(pack, cellId => cells.terrain[cellId], {fill: true, waterGap: true});
+  const bodyPaths = [];
+  Object.entries(isolines).forEach(([code, {fill, waterGap}]) => {
+    const color = palette[code] || '#cccccc';
+    bodyPaths.push(getGappedFillPaths('terrain', fill, waterGap, color, code));
+  });
+
+  byId('landcover').innerHTML = bodyPaths.join('');
+  // Optional overlay auto-display
+  if (opts.showCultivatedOverlay) {
+    if (!layerIsOn('toggleCultivatedOverlay')) turnButtonOn('toggleCultivatedOverlay');
+    drawCultivatedOverlay();
+  }
+  // Update legend if Terrain legend is shown
+  if (legend.select('#legendLabel').size() && legend.select('#legendLabel').text() === 'Terrain') {
+    drawTerrainLegend();
+  }
+  TIME && console.timeEnd('drawTerrain');
+}
+
+function toggleCultivatedOverlay(event) {
+  if (!layerIsOn('toggleCultivatedOverlay')) {
+    turnButtonOn('toggleCultivatedOverlay');
+    RenderTerrain.ensureDefs();
+    drawCultivatedOverlay();
+    if (event && isCtrlClick(event)) TerrainPanel.open();
+  } else {
+    if (event && isCtrlClick(event)) return TerrainPanel.open();
+    d3.select('#landcoverOverlay').selectAll('*').remove();
+    turnButtonOff('toggleCultivatedOverlay');
+  }
+}
+
+function drawCultivatedOverlay() {
+  RenderTerrain.drawCultivatedOverlay(TerrainPanel.getOptions());
+}
+
+function drawTerrainLegend() {
+  const opts = TerrainPanel.getOptions();
+  const palette = RenderTerrain.getPalette(opts);
+  const names = {
+    1: 'Ocean', 2: 'Lake', 3: 'Ice/Glacier', 4: 'Mountains', 5: 'Highlands', 6: 'Hills', 7: 'Plains', 8: 'Wetland', 9: 'Dunes', 10: 'Cultivated'
+  };
+  const order = [7,6,5,4,3,8,9,10,2,1];
+  const data = order
+    .filter(code => palette[code])
+    .map(code => [String(code), palette[code], names[code]]);
+  drawLegend('Terrain', data);
+}
+
+function toggleTerrainLegend() {
+  if (legend.selectAll('*').size()) return clearLegend();
+  drawTerrainLegend();
 }
 
 function drawBiomes() {
@@ -997,8 +1078,17 @@ function toggleVignette(event) {
 function getGappedFillPaths(elementName, fill, waterGap, color, index) {
   let html = "";
   if (fill) html += /* html */ `<path d="${fill}" fill="${color}" id="${elementName}${index}" />`;
-  if (waterGap)
-    html += /* html */ `<path d="${waterGap}" fill="none" stroke="${color}" stroke-width="3" id="${elementName}-gap${index}" />`;
+  if (waterGap) {
+    // If fill uses a pattern, pick a reasonable stroke color for the gap
+    let strokeColor = color;
+    const isPattern = typeof color === 'string' && color.startsWith('url(');
+    if (isPattern) {
+      if (String(index) === '8') strokeColor = '#0b9131'; // wetland stroke
+      else if (String(index) === '9') strokeColor = '#d7b773'; // dunes stroke
+      else strokeColor = '#999';
+    }
+    html += /* html */ `<path d="${waterGap}" fill="none" stroke="${strokeColor}" stroke-width="3" id="${elementName}-gap${index}" />`;
+  }
   return html;
 }
 
@@ -1032,6 +1122,8 @@ function getLayer(id) {
   if (id === "toggleHeight") return $("#terrs");
   if (id === "toggleTopography") return $("#topography");
   if (id === "toggleBiomes") return $("#biomes");
+  if (id === "toggleTerrainFull") return $("#landcover");
+  if (id === "toggleCultivatedOverlay") return $("#landcoverOverlay");
   if (id === "toggleCells") return $("#cells");
   if (id === "toggleGrid") return $("#gridOverlay");
   if (id === "toggleCoordinates") return $("#coordinates");

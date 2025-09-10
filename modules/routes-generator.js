@@ -113,6 +113,7 @@ window.Routes = (function () {
       const isPassableWater = new Uint8Array(n);
       const stateId = new Uint32Array(n);
       const burgFactor = new Float32Array(n);
+      const terrainCost = new Float32Array(n);
 
       for (let i = 0; i < n; i++) {
         const h = pack.cells.h[i];
@@ -127,9 +128,23 @@ window.Routes = (function () {
         waterType[i] = ROUTE_TYPE_MODIFIERS[t] || ROUTE_TYPE_MODIFIERS.default;
         const temp = grid.cells.temp[pack.cells.g[i]];
         isPassableWater[i] = h < 20 && temp >= MIN_PASSABLE_SEA_TEMP ? 1 : 0;
+
+        // Terrain-based modifiers (lower = preferred)
+        const terr = pack.cells.terrain?.[i] || 0;
+        let tc = 1.0;
+        // 1 ocean, 2 lake handled via water path
+        if (terr === 4) tc = 2.2; // mountains
+        else if (terr === 5) tc = 1.6; // highlands
+        else if (terr === 6) tc = 1.25; // hills
+        else if (terr === 7) tc = 0.95; // plains
+        else if (terr === 8) tc = 3.0; // wetlands
+        else if (terr === 9) tc = 2.0; // dunes
+        else if (terr === 10) tc = 0.85; // cultivated
+        else if (terr === 3) tc = 6.0; // ice/glacier
+        terrainCost[i] = tc;
       }
 
-      return {landHabitability, landHeight, isPassableLand, waterType, isPassableWater, stateId, burgFactor};
+      return {landHabitability, landHeight, isPassableLand, waterType, isPassableWater, stateId, burgFactor, terrainCost};
     }
 
     // Tier 1: Major Sea Routes - Connect capitals and major ports across ALL water bodies
@@ -991,32 +1006,40 @@ window.Routes = (function () {
     return out;
   }
 
-  function createCostEvaluator({isWater, connections, routeType = "market"}) {
-    return isWater ? getWaterPathCost : getLandPathCost;
+    function createCostEvaluator({isWater, connections, routeType = "market"}) {
+      return isWater ? getWaterPathCost : getLandPathCost;
 
-    function getLandPathCost(current, next) {
-      if (!RC || !RC.isPassableLand[next]) return Infinity;
+      function getLandPathCost(current, next) {
+        if (!RC || !RC.isPassableLand[next]) return Infinity;
 
-      const [ax, ay] = pack.cells.p[current];
-      const [bx, by] = pack.cells.p[next];
-      const distanceCost = Math.hypot(ax - bx, ay - by);
-      const habitabilityModifier = RC.landHabitability[next];
-      const heightModifier = RC.landHeight[next];
-      const setA = connections.get(current);
-      const connectionModifier = setA && setA.has(next) ? 0.5 : 1;
-      const burgModifier = RC.burgFactor[next];
-      
-      // Medieval travel constraints
-      const riverCrossingPenalty = pack.cells.r[next] && !pack.cells.burg[next] ? 1.5 : 1; // Bridges rare except at settlements
-      const borderPenalty = getBorderPenalty(current, next, routeType); // Political boundaries affect some routes
-      
-      // Apply route tier modifier
-      const tierModifier = ROUTE_TIER_MODIFIERS[routeType]?.cost || 1;
+        const [ax, ay] = pack.cells.p[current];
+        const [bx, by] = pack.cells.p[next];
+        const distanceCost = Math.hypot(ax - bx, ay - by);
+        const habitabilityModifier = RC.landHabitability[next];
+        const heightModifier = RC.landHeight[next];
+        const setA = connections.get(current);
+        const connectionModifier = setA && setA.has(next) ? 0.5 : 1;
+        const burgModifier = RC.burgFactor[next];
+        const terrainModifier = RC.terrainCost?.[next] || 1;
 
-      const pathCost = distanceCost * habitabilityModifier * heightModifier * connectionModifier * 
-                      burgModifier * riverCrossingPenalty * borderPenalty * tierModifier;
-      return pathCost;
-    }
+        // Medieval travel constraints
+        const riverCrossingPenalty = pack.cells.r[next] && !pack.cells.burg[next] ? 1.5 : 1; // Bridges rare except at settlements
+        const borderPenalty = getBorderPenalty(current, next, routeType); // Political boundaries affect some routes
+
+        // Apply route tier modifier
+        const tierModifier = ROUTE_TIER_MODIFIERS[routeType]?.cost || 1;
+
+        // Encourage skirting cultivated blocks: small penalty when flipping in/out cultivated
+        const cultivated = 10;
+        const curTerr = pack.cells.terrain?.[current] || 0;
+        const nextTerr = pack.cells.terrain?.[next] || 0;
+        const splitPenalty = curTerr === cultivated || nextTerr === cultivated
+          ? (curTerr === nextTerr ? 1 : 1.05) : 1;
+
+        const pathCost = distanceCost * habitabilityModifier * heightModifier * connectionModifier *
+          burgModifier * riverCrossingPenalty * borderPenalty * tierModifier * terrainModifier * splitPenalty;
+        return pathCost;
+      }
 
     function getWaterPathCost(current, next) {
       if (!RC || !RC.isPassableWater[next]) return Infinity;

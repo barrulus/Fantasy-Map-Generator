@@ -1390,6 +1390,17 @@ div.slider .ui-slider-handle {
   width: max-content;
 }
 
+/* Avoid sideways scrolling for export dialog; allow wrapping */
+#exportMapData {
+  max-width: 96vw;
+}
+
+#exportMapData > div {
+  width: auto; /* override max-content so buttons can wrap */
+  max-width: 94vw;
+  white-space: normal;
+}
+
 div.header {
   display: grid;
   width: 0;

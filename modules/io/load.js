@@ -407,6 +407,14 @@ async function parseLoadedData(data, mapVersion) {
       // data[28] had deprecated cells.crossroad
       pack.cells.routes = data[36] ? JSON.parse(data[36]) : {};
 
+      // Optional terrain arrays (appended at the end in newer versions)
+      const n = pack.cells.i.length;
+      pack.cells.terrain = data[39] && data[39].length ? Uint8Array.from(data[39].split(",")) : new Uint8Array(n);
+      pack.cells.terrainSubtype = data[40] && data[40].length ? Uint8Array.from(data[40].split(",")) : new Uint8Array(n);
+      pack.cells.terrainBase = data[41] && data[41].length ? Uint8Array.from(data[41].split(",")) : new Uint8Array(n);
+      pack.cells.cultivatedIntensity = data[42] && data[42].length ? Float32Array.from(data[42].split(",")) : new Float32Array(n);
+      pack.cells.cultivatedBy = data[43] && data[43].length ? Uint16Array.from(data[43].split(",")) : new Uint16Array(n);
+
       if (data[31]) {
         const namesDL = data[31].split("/");
         namesDL.forEach((d, i) => {
