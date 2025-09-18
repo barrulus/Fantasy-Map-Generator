@@ -45,6 +45,38 @@ async function exportToPng() {
   TIME && console.timeEnd("exportToPng");
 }
 
+// Export the full map extent (ignoring current viewport) as PNG
+async function exportFullMapPng() {
+  TIME && console.time("exportFullMapPng");
+  const url = await getMapURL("png", {fullMap: true});
+
+  const link = document.createElement("a");
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  const scale = +pngResolutionInput.value || 1;
+  canvas.width = graphWidth * scale;
+  canvas.height = graphHeight * scale;
+  const img = new Image();
+  img.src = url;
+
+  img.onload = function () {
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    link.download = getFileName() + "_full.png";
+    canvas.toBlob(function (blob) {
+      link.href = window.URL.createObjectURL(blob);
+      link.click();
+      window.setTimeout(function () {
+        canvas.remove();
+        window.URL.revokeObjectURL(link.href);
+        const message = `${link.download} is saved (full extent).`;
+        tip(message, true, "success", 5000);
+      }, 1000);
+    });
+  };
+
+  TIME && console.timeEnd("exportFullMapPng");
+}
+
 async function exportToJpeg() {
   TIME && console.time("exportToJpeg");
   const url = await getMapURL("png");
@@ -631,7 +663,9 @@ function computeWgs84Transform() {
   const mpp = getMetersPerPixel();
   const lat0 = +latitudeOutput.value || 0;
   const lon0 = +longitudeOutput.value || 0;
-  const degPerMeterLat = 1 / 111320; // approximate meters per degree of latitude
+  // Use more accurate mean meters-per-degree for latitude
+  // 1 degree latitude ≈ 110,574 meters
+  const degPerMeterLat = 1 / 110574;
   const degPerMeterLon = 1 / (111320 * Math.cos((lat0 * Math.PI) / 180));
   return {
     lat0,
@@ -652,6 +686,13 @@ function computeWgs84Bbox() {
   const minLon = clampLon(lon0 - lonSpan);
   const maxLon = clampLon(lon0 + lonSpan);
   return [minLon, minLat, maxLon, maxLat];
+}
+
+function computeFantasyBbox() {
+  const metersPerPixel = getMetersPerPixel();
+  const maxX = graphWidth * metersPerPixel;
+  const minY = -graphHeight * metersPerPixel;
+  return [0, minY, maxX, 0]; // [minX, minY, maxX, maxY]
 }
 
 function pixelsToLonLat(x, y, decimals = 6) {
@@ -678,7 +719,7 @@ function buildGeoJsonCells() {
   const json = {
     type: "FeatureCollection",
     features: [],
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     // Include metadata using the same sources as prepareMapData
     metadata: {
       generator: "Azgaar's Fantasy Map Generator",
@@ -736,8 +777,16 @@ function buildGeoJsonCells() {
     return [[...coordinates, coordinates[0]]];
   }
 
+  function getCellCoordinatesFantasy(cellVertices) {
+    const coordinates = cellVertices.map(vertex => {
+      const [x, y] = vertices.p[vertex];
+      return getFantasyCoordinates(x, y, 2);
+    });
+    return [[...coordinates, coordinates[0]]];
+  }
+
   cells.i.forEach(i => {
-    const coordinates = getCellCoordinates(cells.v[i]);
+    const coordinates = getCellCoordinatesFantasy(cells.v[i]);
     const height = getHeight(i);
     const biome = cells.biome[i];
     const type = pack.features[cells.f[i]].type;
@@ -802,7 +851,7 @@ function buildGeoJsonTerrain() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {mapName: mapName.value, scale: {distance: distanceScale, unit: distanceUnitInput.value, meters_per_pixel: metersPerPixel}}
   };
   return json;
@@ -823,7 +872,7 @@ function buildGeoJsonRoutes() {
       const {i, points, group, type, feature} = route;
       // Ensure a stable route name even if the Routes Overview panel hasn't been opened
       const routeName = route.name || Routes.generateName({group, points});
-      const coordinates = points.map(([x, y]) => pixelsToLonLat(x, y, 6));
+      const coordinates = points.map(([x, y]) => getFantasyCoordinates(x, y, 2));
 
       // Compute lengths: pixels, map-units (distanceScale), and meters
       const lengthPx = route.length || Routes.getLength(i);
@@ -851,7 +900,7 @@ function buildGeoJsonRoutes() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -876,7 +925,7 @@ function buildGeoJsonRivers() {
     ({i, cells, points, source, mouth, parent, basin, widthFactor, sourceWidth, discharge, length, width, name, type}) => {
       if (!cells || cells.length < 2) return;
       const meanderedPoints = Rivers.addMeandering(cells, points);
-      const coordinates = meanderedPoints.map(([x, y]) => pixelsToLonLat(x, y, 6));
+      const coordinates = meanderedPoints.map(([x, y]) => getFantasyCoordinates(x, y, 2));
       return {
         type: "Feature",
         geometry: {type: "LineString", coordinates},
@@ -888,7 +937,7 @@ function buildGeoJsonRivers() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -911,7 +960,7 @@ function buildGeoJsonMarkers() {
   const metersPerPixel = getMetersPerPixel();
   const features = pack.markers.map(marker => {
     const {i, type, icon, x, y, size, fill, stroke} = marker;
-    const coordinates = pixelsToLonLat(x, y, 6);
+    const coordinates = getFantasyCoordinates(x, y, 2);
     // Find the associated note if it exists
     const note = notes.find(note => note.id === `marker${i}`);
     const name = note ? note.name : "Unknown";
@@ -933,7 +982,7 @@ function buildGeoJsonMarkers() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -957,7 +1006,7 @@ function buildGeoJsonBurgs() {
   const valid = pack.burgs.filter(b => b.i && !b.removed);
 
   const features = valid.map(b => {
-    const coordinates = pixelsToLonLat(b.x, b.y, 6);
+    const coordinates = getFantasyCoordinates(b.x, b.y, 2);
     const province = pack.cells.province[b.cell];
     const temperature = grid.cells.temp[pack.cells.g[b.cell]];
 
@@ -1005,7 +1054,7 @@ function buildGeoJsonBurgs() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -1037,8 +1086,8 @@ function buildGeoJsonRegiments() {
   }
 
   const features = allRegiments.map(({regiment: r, state: s}) => {
-    const coordinates = pixelsToLonLat(r.x, r.y, 6);
-    const baseCoordinates = pixelsToLonLat(r.bx, r.by, 6);
+    const coordinates = getFantasyCoordinates(r.x, r.y, 2);
+    const baseCoordinates = getFantasyCoordinates(r.bx, r.by, 2);
 
     // Calculate world coordinates same as CSV export
     const xWorld = r.x * metersPerPixel;
@@ -1080,7 +1129,7 @@ function buildGeoJsonRegiments() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -1102,7 +1151,7 @@ function saveGeoJsonRegiments() {
   downloadFile(JSON.stringify(json), fileName, "application/json");
 }
 
-// Export heightmap as ESRI ASCII Grid (.asc) for QGIS (WGS84 / EPSG:4326)
+// Export heightmap as ESRI ASCII Grid (.asc) for QGIS (Fantasy Map Cartesian)
 function saveAsciiGridHeightmap() {
   if (!grid?.cells?.h || !grid.cellsX || !grid.cellsY) {
     tip("Height grid is not available", false, "error");
@@ -1112,20 +1161,20 @@ function saveAsciiGridHeightmap() {
   const ncols = grid.cellsX;
   const nrows = grid.cellsY;
 
-  // Use WGS84 degrees per pixel; derive per-cell size from pixels per grid cell
-  const {dppX, dppY} = computeWgs84Transform();
+  // Use Fantasy Map Cartesian meters per pixel; derive per-cell size from pixels per grid cell
+  const metersPerPixel = getMetersPerPixel();
   const pxPerCellX = graphWidth / ncols;
   const pxPerCellY = graphHeight / nrows;
-  const stepX = Math.abs(dppX * pxPerCellX); // degrees per cell in longitude
-  const stepY = Math.abs(dppY * pxPerCellY); // degrees per cell in latitude
-  const cellsize = stepY; // ASCII Grid requires square cellsize; preserve correct N-S spacing
+  const stepX = metersPerPixel * pxPerCellX; // meters per cell in X direction
+  const stepY = metersPerPixel * pxPerCellY; // meters per cell in Y direction
+  const cellsize = stepX; // ASCII Grid requires square cellsize; use X spacing
 
-  // Lower-left corner (of the lower-left cell) in WGS84 degrees
+  // Lower-left corner (of the lower-left cell) in Fantasy Map Cartesian meters
   // Compute from lower-left cell center (in pixels) minus half cell size
-  const [lonLLc, latLLc] = pixelsToLonLat(pxPerCellX / 2, graphHeight - pxPerCellY / 2, 12);
+  const [xLLc, yLLc] = getFantasyCoordinates(pxPerCellX / 2, graphHeight - pxPerCellY / 2, 6);
   // Use half-steps per axis to derive true lower-left corner
-  const xllcorner = rn(lonLLc - stepX / 2, 12);
-  const yllcorner = rn(latLLc - stepY / 2, 12);
+  const xllcorner = rn(xLLc - stepX / 2, 6);
+  const yllcorner = rn(yLLc - stepY / 2, 6);
 
   const NODATA = -9999;
 
@@ -1162,8 +1211,8 @@ function saveAsciiGridHeightmap() {
   const fileName = fileBase + ".asc";
   downloadFile(content, fileName, "text/plain");
 
-  // Also emit a .prj file for EPSG:4326 so GIS can auto-assign the CRS
-  const prj = getEpsg4326Wkt();
+  // Also emit a .prj file with Fantasy Map Cartesian CRS so GIS can auto-assign the CRS
+  const prj = getFantasyMapCartesianWkt();
   downloadFile(prj, fileBase + ".prj", "text/plain");
 }
 
@@ -1172,7 +1221,7 @@ function getCellPolygonCoordinates(cellVertices) {
   const {vertices} = pack;
   const coordinates = cellVertices.map(vertex => {
     const [x, y] = vertices.p[vertex];
-    return pixelsToLonLat(x, y, 6);
+    return getFantasyCoordinates(x, y, 2);
   });
   // Close the ring
   return [[...coordinates, coordinates[0]]];
@@ -1255,7 +1304,7 @@ function buildGeoJsonCultures() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -1305,7 +1354,7 @@ function buildGeoJsonReligions() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -1358,7 +1407,7 @@ function buildGeoJsonStates() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -1408,7 +1457,7 @@ function buildGeoJsonProvinces() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -1453,7 +1502,7 @@ function buildGeoJsonZones() {
   const json = {
     type: "FeatureCollection",
     features,
-    bbox: computeWgs84Bbox(),
+    bbox: computeFantasyBbox(),
     metadata: {
       mapName: mapName.value,
       scale: {
@@ -1517,22 +1566,22 @@ async function saveAllGeoJson() {
   setTimeout(() => URL.revokeObjectURL(link.href), 5000);
 }
 
-// Build ASCII Grid (.asc) and corresponding .prj (EPSG:4326) content without downloading
+// Build ASCII Grid (.asc) and corresponding .prj (Fantasy Map Cartesian) content without downloading
 function buildAsciiGridHeightmapData() {
   if (!grid?.cells?.h || !grid.cellsX || !grid.cellsY) throw new Error("Height grid is not available");
 
   const ncols = grid.cellsX;
   const nrows = grid.cellsY;
-  const {dppX, dppY} = computeWgs84Transform();
+  const metersPerPixel = getMetersPerPixel();
   const pxPerCellX = graphWidth / ncols;
   const pxPerCellY = graphHeight / nrows;
-  const stepX = Math.abs(dppX * pxPerCellX);
-  const stepY = Math.abs(dppY * pxPerCellY);
-  const cellsize = stepY;
+  const stepX = metersPerPixel * pxPerCellX;
+  const stepY = metersPerPixel * pxPerCellY;
+  const cellsize = stepX;
 
-  const [lonLLc, latLLc] = pixelsToLonLat(pxPerCellX / 2, graphHeight - pxPerCellY / 2, 12);
-  const xllcorner = rn(lonLLc - stepX / 2, 12);
-  const yllcorner = rn(latLLc - stepY / 2, 12);
+  const [xLLc, yLLc] = getFantasyCoordinates(pxPerCellX / 2, graphHeight - pxPerCellY / 2, 6);
+  const xllcorner = rn(xLLc - stepX / 2, 6);
+  const yllcorner = rn(yLLc - stepY / 2, 6);
   const NODATA = -9999;
 
   const exp = +heightExponentInput.value;
@@ -1561,7 +1610,7 @@ function buildAsciiGridHeightmapData() {
   }
 
   const ascContent = lines.join("\n");
-  const prjContent = getEpsg4326Wkt();
+  const prjContent = getFantasyMapCartesianWkt();
   const fileBase = getFileName("Heightmap");
   return {ascContent, prjContent, fileBase};
 }
@@ -1577,4 +1626,32 @@ function getEpsg4326Wkt() {
     'UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],' +
     'AUTHORITY["EPSG","4326"]]'
   );
+}
+
+// Custom WKT for Fantasy Map Cartesian coordinate system
+function getFantasyMapCartesianWkt() {
+  return (
+    'ENGCRS["Fantasy Map Cartesian (meters)",' +
+    'EDATUM["Fantasy Map Datum"],' +
+    'CS[Cartesian,2],' +
+    'AXIS["easting (X)",east,' +
+    'ORDER[1],' +
+    'LENGTHUNIT["metre",1]],' +
+    'AXIS["northing (Y)",north,' +
+    'ORDER[2],' +
+    'LENGTHUNIT["metre",1]]]'
+  );
+}
+
+// Convert from map pixel coordinates to fantasy world coordinates (meters)
+function getFantasyCoordinates(x, y, decimals = 2) {
+  const metersPerPixel = getMetersPerPixel();
+  const worldX = x * metersPerPixel;
+  const worldY = -y * metersPerPixel; // Negative because Y increases downward in pixels
+  
+  const factor = Math.pow(10, decimals);
+  return [
+    Math.round(worldX * factor) / factor,
+    Math.round(worldY * factor) / factor
+  ];
 }

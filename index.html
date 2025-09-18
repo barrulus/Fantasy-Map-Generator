@@ -6052,6 +6052,9 @@
           <button onclick="exportToPng()" data-tip="Download visible part of the map as .png (lossless compressed)">
             .png
           </button>
+          <button onclick="exportFullMapPng()" data-tip="Download full map extent as .png (ignores viewport)">
+            .png (full map)
+          </button>
           <button
             onclick="exportToJpeg()"
             data-tip="Download visible part of the map as .jpeg (lossy compressed) image"
@@ -6063,6 +6066,12 @@
             data-tip="Split map into smaller tiles (PNG or SVG) and download as zip archive"
           >
             tiles
+          </button>
+          <button
+            onclick="openExportGeoTiffPyramid()"
+            data-tip="Export styled map as GeoTIFF tile pyramid (16×16). Optionally output a GDAL job (.fmgpack)"
+          >
+            GeoTIFF pyramid (16×16)
           </button>
           <span data-tip="Check to not allow system to automatically hide labels">
             <input
@@ -6270,6 +6279,59 @@
           <div id="tileSize" style="display: inline-block">1000 x 1000 px</div>
         </div>
         <div id="tileStatus" style="font-style: italic"></div>
+      </div>
+
+      <div id="exportGeoTiffPyramidDialog" style="display: none" class="dialog">
+        <p>Create a 16×16 GeoTIFF tile pyramid (EPSG:4326). Large outputs may take time and memory.</p>
+        <div style="margin-bottom: 0.3em" data-tip="Tiles per side (grid). Fewer tiles = larger tiles.">
+          <div class="label">Tiles per side:</div>
+          <select id="gtiffTiles">
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16" selected>16</option>
+          </select>
+        </div>
+        <div style="margin-bottom: 0.3em" data-tip="Multiplier of the base map size (graph width/height)">
+          <div class="label">Base scale (×):</div>
+          <input id="gtiffBaseScale" type="number" min="1" step="1" value="4" />
+        </div>
+        <div style="margin-bottom: 0.3em">
+          <div class="label">Full output width (px):</div>
+          <input id="gtiffFullWidth" type="number" min="1024" step="256" value="8192" />
+        </div>
+        <div style="margin-bottom: 0.3em">
+          <div class="label">Full output height (px):</div>
+          <input id="gtiffFullHeight" type="number" min="1024" step="256" value="8192" />
+        </div>
+        <div style="margin-bottom: 0.3em">
+          <div class="label">Computed tile size:</div>
+          <span id="gtiffTileSize">—</span>
+        </div>
+        <div style="margin-bottom: 0.3em" data-tip="Internal compression tag to use (client may ignore; passed to GDAL job)">
+          <div class="label">Compression:</div>
+          <select id="gtiffCompression">
+            <option value="DEFLATE" selected>DEFLATE</option>
+            <option value="LZW">LZW</option>
+            <option value="ZSTD">ZSTD</option>
+            <option value="NONE">NONE</option>
+          </select>
+        </div>
+        <div style="margin-bottom: 0.3em" data-tip="Internal block size for COG creation (passed to GDAL job)">
+          <div class="label">Block size:</div>
+          <select id="gtiffBlockSize">
+            <option value="512" selected>512</option>
+            <option value="256">256</option>
+          </select>
+        </div>
+        <div style="margin-bottom: 0.3em" data-tip="NoData value to set on output tiles">
+          <div class="label">NoData:</div>
+          <input id="gtiffNodata" type="number" step="1" placeholder="unset" />
+        </div>
+        <div style="margin-bottom: 0.3em">
+          <label><input id="gtiffMakeCOG" type="checkbox" checked /> Make COG + overviews (GDAL job)</label>
+        </div>
+        <div id="gtiffStatus" style="font-style: italic"></div>
       </div>
 
       <div id="alert" style="display: none" class="dialog">
@@ -8257,6 +8319,7 @@
     <script defer src="modules/io/load.js?v=1.108.0"></script>
     <script defer src="modules/io/cloud.js?v=1.106.0"></script>
     <script defer src="modules/io/export.js?v=1.108.11"></script>
+    <script defer src="modules/export/geotiffPyramid.js?v=0.1.0"></script>
 
     <script defer src="modules/renderers/draw-features.js?v=1.108.2"></script>
     <script defer src="modules/renderers/draw-borders.js?v=1.104.0"></script>

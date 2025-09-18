@@ -33,7 +33,7 @@ CRS used by exports:
 
 ## GeoJSON vs Raster
 
-- GeoJSON: vector features (Point/LineString/Polygon/Multi*). No raster imagery.
+- GeoJSON: vector features (Point/LineString/Polygon/Multi\*). No raster imagery.
 - Raster imagery: PNG/JPEG/GeoTIFF/etc., potentially georeferenced (world file or internal tags).
 
 Current usage pattern:
@@ -48,12 +48,13 @@ Current usage pattern:
 
 Add an export that renders the full map to PNG and writes a world file. Two compatible options:
 
-1) WGS84 degrees: world file in degrees-per-pixel; easy overlay with GeoJSON.
+1. WGS84 degrees: world file in degrees-per-pixel; easy overlay with GeoJSON.
+
    - Pixel size: `A = dppX` (deg/pixel in lon), `E = -dppY` (deg/pixel in lat)
    - Origin: center of top-left pixel in lon/lat
    - CRS: EPSG:4326
 
-2) Local meters: world file in meters-per-pixel; matches the height raster.
+2. Local meters: world file in meters-per-pixel; matches the height raster.
    - Pixel size: `A = getMetersPerPixel() / pngResolution`
    - Origin: center of top-left pixel in local meters
    - CRS: treat as engineering CRS in QGIS; assign a projected CRS for analysis.
@@ -64,7 +65,7 @@ Implementation sketch (new helper; uses existing utilities):
 // modules/io/export.js (new)
 async function exportGeorefPng() {
   // Render the full map at current PNG resolution
-  const url = await getMapURL("png", {fullMap: true});
+  const url = await getMapURL("png", { fullMap: true });
 
   const canvas = document.createElement("canvas");
   canvas.width = graphWidth * pngResolutionInput.value;
@@ -73,11 +74,14 @@ async function exportGeorefPng() {
 
   const img = new Image();
   img.src = url;
-  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+  await new Promise((res, rej) => {
+    img.onload = res;
+    img.onerror = rej;
+  });
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
   // Save PNG
-  const pngBlob = await new Promise(r => canvas.toBlob(r, "image/png"));
+  const pngBlob = await new Promise((r) => canvas.toBlob(r, "image/png"));
   const pngUrl = window.URL.createObjectURL(pngBlob);
   const pngName = getFileName() + ".png";
   const link = document.createElement("a");
@@ -93,7 +97,7 @@ async function exportGeorefPng() {
   const C = A / 2; // top-left pixel center X
   const F = E / 2; // top-left pixel center Y
 
-  const pgw = [A, D, B, E, C, F].map(v => String(v)).join("\n");
+  const pgw = [A, D, B, E, C, F].map((v) => String(v)).join("\n");
   const worldName = pngName.replace(/\.png$/i, ".pgw");
   downloadFile(pgw, worldName, "text/plain");
 
@@ -108,7 +112,12 @@ UI addition:
 - In `index.html:6088`, add a button near existing PNG export (or under “Export height raster”) for the new georeferenced PNG export:
 
 ```html
-<button onclick="exportGeorefPng()" data-tip="Export styled map as georeferenced PNG (+.pgw/.prj)">georef PNG</button>
+<button
+  onclick="exportGeorefPng()"
+  data-tip="Export styled map as georeferenced PNG (+.pgw/.prj)"
+>
+  georef PNG
+</button>
 ```
 
 QGIS usage:
@@ -128,12 +137,12 @@ Notes:
 
 Two paths:
 
-1) Client-side GeoTIFF writer (in-browser):
+1. Client-side GeoTIFF writer (in-browser):
 
 - Add a small library (e.g., `geotiff.js`) and write the GeoTIFF with `ModelPixelScaleTag`, `ModelTiepointTag`, and appropriate CRS tags.
 - Not currently bundled in `libs/`; PNG + PGW is simpler and already compatible with QGIS.
 
-2) Convert in QGIS:
+2. Convert in QGIS:
 
 - Load the PNG + PGW; then:
   - Raster → Conversion → Translate (Convert format), or

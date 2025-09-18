@@ -902,6 +902,94 @@ function openExportToPngTiles() {
   });
 }
 
+// GeoTIFF Pyramid (16×16) export dialog
+function openExportGeoTiffPyramid() {
+  byId("gtiffStatus").innerHTML = "";
+  closeDialogs();
+
+  // Pre-fill defaults based on current PNG resolution
+  const scale = +pngResolutionInput.value || 1;
+  const defW = Math.max(1024, Math.floor(graphWidth * scale));
+  const defH = Math.max(1024, Math.floor(graphHeight * scale));
+  byId("gtiffFullWidth").value = defW;
+  byId("gtiffFullHeight").value = defH;
+  const updateTileSize = () => {
+    const tiles = +byId("gtiffTiles").value || 16;
+    const fw = +byId("gtiffFullWidth").value || defW;
+    const fh = +byId("gtiffFullHeight").value || defH;
+    const tw = Math.floor(fw / tiles);
+    const th = Math.floor(fh / tiles);
+    const el = byId("gtiffTileSize");
+    if (el) el.textContent = `${tw} × ${th} px`;
+  };
+  const updateFullFromBase = () => {
+    const base = Math.max(1, +byId("gtiffBaseScale").value || 1);
+    const fw = graphWidth * base;
+    const fh = graphHeight * base;
+    byId("gtiffFullWidth").value = fw;
+    byId("gtiffFullHeight").value = fh;
+    updateTileSize();
+  };
+  byId("gtiffBaseScale")?.addEventListener("input", updateFullFromBase);
+  ["gtiffTiles","gtiffFullWidth","gtiffFullHeight"].forEach(id => {
+    const el = byId(id);
+    el?.addEventListener("input", updateTileSize);
+  });
+  updateFullFromBase();
+
+  const buttons = [
+    {
+      text: "Export",
+      click: async function () {
+        const opts = {
+          fullWidth: Math.max(16, +byId("gtiffFullWidth").value || defW),
+          fullHeight: Math.max(16, +byId("gtiffFullHeight").value || defH),
+          tiles: Math.max(1, +byId("gtiffTiles").value || 16),
+          compression: byId("gtiffCompression").value || "DEFLATE",
+          blockSize: +byId("gtiffBlockSize").value || 512,
+          nodata: byId("gtiffNodata").value === "" ? undefined : +byId("gtiffNodata").value,
+          makeCOG: !!byId("gtiffMakeCOG").checked
+        };
+        try {
+          byId("gtiffStatus").innerHTML = "Preparing tiles...";
+          // Lazy-load exporter if not yet available (handle race with deferred script)
+          if (typeof exportGeoTiffPyramid16x16 !== "function") {
+            await new Promise((resolve, reject) => {
+              const script = document.createElement("script");
+              // add cache-buster to avoid stale cached copy
+              const cb = Date.now();
+              script.src = `modules/export/geotiffPyramid.js?v=0.1.0&_cb=${cb}`;
+              script.onload = resolve;
+              script.onerror = reject;
+              document.head.appendChild(script);
+            });
+          }
+          if (typeof exportGeoTiffPyramid16x16 !== "function") throw new Error("Exporter not loaded");
+          await exportGeoTiffPyramid16x16(opts);
+          $("#exportGeoTiffPyramidDialog").dialog("close");
+        } catch (e) {
+          console.error(e);
+          byId("gtiffStatus").innerHTML = "Export failed";
+          tip("GeoTIFF export failed", false, "error", 3000);
+        }
+      }
+    },
+    {
+      text: "Cancel",
+      click: function () {
+        $(this).dialog("close");
+      }
+    }
+  ];
+
+  $("#exportGeoTiffPyramidDialog").dialog({
+    resizable: false,
+    title: "GeoTIFF Tile Pyramid (16×16)",
+    width: "28em",
+    buttons
+  });
+}
+
 function updateTilesOptions() {
   if (this?.tagName === "INPUT") {
     const {nextElementSibling: next, previousElementSibling: prev} = this;
