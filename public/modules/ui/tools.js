@@ -371,7 +371,7 @@ function regenerateBurgs() {
   const newBurgs = [0]; // new burgs array
   const burgsTree = d3.quadtree();
 
-  cells.burg = new Uint16Array(cells.i.length); // clear cells burg data
+  cells.burg = new Uint32Array(cells.i.length); // clear cells burg data
   states.filter(s => s.i).forEach(s => (s.capital = 0)); // clear state capitals
   provinces.filter(p => p.i).forEach(p => (p.burg = 0)); // clear province capitals
 
@@ -401,7 +401,7 @@ function regenerateBurgs() {
   const sorted = cells.i.filter(i => score[i] > 0 && cells.culture[i]).sort((a, b) => score[b] - score[a]); // filtered and sorted array of indexes
   const existingStatesCount = states.filter(s => s.i && !s.removed).length;
   const burgsCount =
-    (manorsInput.value === "1000" ? rn(sorted.length / 5 / (grid.points.length / 10000) ** 0.8) : +manorsInput.value) +
+    (manorsInput.value === "100001" ? rn(sorted.length / 5 / (grid.points.length / 10000) ** 0.8) : +manorsInput.value) +
     existingStatesCount;
   const spacing = (graphWidth + graphHeight) / 150 / (burgsCount ** 0.7 / 66); // base min distance between town
 

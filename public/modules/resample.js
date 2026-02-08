@@ -79,7 +79,7 @@ window.Resample = (function () {
     pack.cells.pop = new Float32Array(pack.cells.i.length);
     pack.cells.culture = new Uint16Array(pack.cells.i.length);
     pack.cells.state = new Uint16Array(pack.cells.i.length);
-    pack.cells.burg = new Uint16Array(pack.cells.i.length);
+    pack.cells.burg = new Uint32Array(pack.cells.i.length);
     pack.cells.religion = new Uint16Array(pack.cells.i.length);
     pack.cells.province = new Uint16Array(pack.cells.i.length);
 

@@ -28,7 +28,25 @@ export interface Burg {
   group?: string;
   link?: string;
   MFCG?: string;
+  settlementType?: string;
+  isLargePort?: boolean;
+  isRegionalCenter?: boolean;
+  basePopulation?: number;
+  flying?: number;
+  skyPort?: number;
+  altitude?: number;
 }
+
+// Cultural spacing modifiers for settlement placement
+const CULTURE_SPACING_MODIFIERS: Record<string, number> = {
+  Naval: 0.7,
+  Nomadic: 1.5,
+  River: 0.6,
+  Lake: 0.8,
+  Highland: 1.2,
+  Hunting: 1.3,
+  Generic: 1.0,
+};
 
 class BurgModule {
   shift() {
@@ -40,6 +58,7 @@ class BurgModule {
     const featurePortCandidates: Record<number, Burg[]> = {};
     for (const burg of burgs) {
       if (!burg.i || burg.lock) continue;
+      if (burg.flying) continue; // skip flying burgs
       delete burg.port; // reset port status
       const cellId = burg.cell;
 
@@ -91,7 +110,7 @@ class BurgModule {
 
     // shift non-port river burgs a bit
     for (const burg of burgs) {
-      if (!burg.i || burg.lock || burg.port || !cells.r[burg.cell]) continue;
+      if (!burg.i || burg.lock || burg.port || burg.flying || !cells.r[burg.cell]) continue;
       const cellId = burg.cell;
       const shift = Math.min(cells.fl[cellId] / 150, 1);
       burg.x = cellId % 2 ? rn(burg.x + shift, 2) : rn(burg.x - shift, 2);
@@ -100,12 +119,16 @@ class BurgModule {
     }
   }
 
+  private getCultureSpacingModifier(cultureType: string): number {
+    return CULTURE_SPACING_MODIFIERS[cultureType] || 1.0;
+  }
+
   generate() {
     TIME && console.time("generateBurgs");
     const { cells } = pack;
 
     let burgs: Burg[] = [0 as any]; // burgs array
-    cells.burg = new Uint16Array(cells.i.length);
+    cells.burg = new Uint32Array(cells.i.length);
 
     const populatedCells = cells.i.filter(
       (i) => cells.s[i] > 0 && cells.culture[i],
@@ -133,7 +156,7 @@ class BurgModule {
         const [x, y] = cells.p[cell];
 
         if (burgsQuadtree.find(x, y, spacing) === undefined) {
-          burgs.push({ cell, x, y });
+          burgs.push({ cell, x, y, settlementType: "capital" });
           burgsQuadtree.add([x, y]);
         }
 
@@ -162,26 +185,214 @@ class BurgModule {
       });
     };
 
-    const generateTowns = () => {
+    const identifyLargePorts = () => {
+      // Identify strategic harbor cities among existing capitals that are ports
+      // and place additional large port burgs at key coastal locations
+      const portCells = populatedCells.filter((i) => {
+        if (cells.burg[i]) return false; // already has a burg
+        const haven = cells.haven[i];
+        if (!haven) return false;
+        const harbor = cells.harbor[i];
+        return harbor === 1 && cells.s[i] > 3; // safe harbor with decent population
+      });
+
+      if (!portCells.length) return;
+
+      const randomize = (score: number) => score * (0.6 + Math.random() * 0.4);
+      const score = new Int16Array(cells.s.map(randomize));
+      const sorted = portCells.sort((a, b) => score[b] - score[a]);
+
+      const targetCount = Math.max(2, Math.floor(getCapitalsNumber() * 0.5));
+      const portSpacing = (graphWidth + graphHeight) / 2 / (targetCount * 2);
+      let added = 0;
+
+      for (let i = 0; i < sorted.length && added < targetCount; i++) {
+        const cell = sorted[i];
+        const [x, y] = cells.p[cell];
+
+        if (burgsQuadtree.find(x, y, portSpacing) !== undefined) continue;
+
+        const burgId = burgs.length;
+        const culture = cells.culture[cell];
+        const name = Names.getCulture(culture);
+        const feature = cells.f[cell];
+        burgs.push({
+          cell,
+          x,
+          y,
+          i: burgId,
+          state: 0,
+          culture,
+          name,
+          feature,
+          capital: 0,
+          settlementType: "largePort",
+          isLargePort: true,
+        });
+        burgsQuadtree.add([x, y]);
+        cells.burg[cell] = burgId;
+        added++;
+      }
+    };
+
+    const placeRegionalCenters = () => {
+      // Place regional centers between primary centers (capitals + large ports)
+      const randomize = (score: number) => score * gauss(1, 2, 0, 10, 3);
+      const score = new Int16Array(cells.s.map(randomize));
+      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+
+      const capitalsCount = getCapitalsNumber();
+      const targetCount = Math.max(2, Math.floor(capitalsCount * 1.5));
+      const baseSpacing = (graphWidth + graphHeight) / 2 / (capitalsCount * 3);
+      let added = 0;
+
+      for (let i = 0; i < sorted.length && added < targetCount; i++) {
+        if (cells.burg[sorted[i]]) continue;
+        const cell = sorted[i];
+        const [x, y] = cells.p[cell];
+
+        const culture = cells.culture[cell];
+        const cultureType = pack.cultures[culture]?.type || "Generic";
+        const spacingMod = this.getCultureSpacingModifier(cultureType);
+        const spacing = baseSpacing * spacingMod * gauss(1, 0.3, 0.5, 1.5, 2);
+
+        if (burgsQuadtree.find(x, y, spacing) !== undefined) continue;
+
+        const burgId = burgs.length;
+        const name = Names.getCulture(culture);
+        const feature = cells.f[cell];
+        burgs.push({
+          cell,
+          x,
+          y,
+          i: burgId,
+          state: 0,
+          culture,
+          name,
+          feature,
+          capital: 0,
+          settlementType: "regionalCenter",
+          isRegionalCenter: true,
+        });
+        burgsQuadtree.add([x, y]);
+        cells.burg[cell] = burgId;
+        added++;
+      }
+    };
+
+    const placeMarketTowns = () => {
+      // ~7% of settlements, 15-30km spacing equivalent
       const randomize = (score: number) => score * gauss(1, 3, 0, 20, 3);
       const score = new Int16Array(cells.s.map(randomize));
       const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
 
-      const burgsNumber = getTownsNumber();
-      let spacing =
-        (graphWidth + graphHeight) / 150 / (burgsNumber ** 0.7 / 66); // min distance between town
+      const totalTarget = getTownsNumber();
+      const targetCount = Math.floor(totalTarget * 0.07);
+      const baseSpacing = (graphWidth + graphHeight) / 150 / (totalTarget ** 0.5 / 20);
+      let added = 0;
 
-      for (let added = 0; added < burgsNumber && spacing > 1; ) {
-        for (let i = 0; added < burgsNumber && i < sorted.length; i++) {
+      for (let i = 0; i < sorted.length && added < targetCount; i++) {
+        if (cells.burg[sorted[i]]) continue;
+        const cell = sorted[i];
+        const [x, y] = cells.p[cell];
+
+        const culture = cells.culture[cell];
+        const cultureType = pack.cultures[culture]?.type || "Generic";
+        const spacingMod = this.getCultureSpacingModifier(cultureType);
+        const spacing = baseSpacing * spacingMod * gauss(1, 0.3, 0.5, 2, 2);
+
+        if (burgsQuadtree.find(x, y, spacing) !== undefined) continue;
+
+        const burgId = burgs.length;
+        const name = Names.getCulture(culture);
+        const feature = cells.f[cell];
+        burgs.push({
+          cell,
+          x,
+          y,
+          i: burgId,
+          state: 0,
+          culture,
+          name,
+          feature,
+          capital: 0,
+          settlementType: "marketTown",
+        });
+        burgsQuadtree.add([x, y]);
+        cells.burg[cell] = burgId;
+        added++;
+      }
+    };
+
+    const placeLargeVillages = () => {
+      // ~12% of settlements, 8-12km spacing equivalent
+      const randomize = (score: number) => score * gauss(1, 3, 0, 20, 3);
+      const score = new Int16Array(cells.s.map(randomize));
+      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+
+      const totalTarget = getTownsNumber();
+      const targetCount = Math.floor(totalTarget * 0.12);
+      const baseSpacing = (graphWidth + graphHeight) / 150 / (totalTarget ** 0.6 / 30);
+      let added = 0;
+
+      for (let i = 0; i < sorted.length && added < targetCount; i++) {
+        if (cells.burg[sorted[i]]) continue;
+        const cell = sorted[i];
+        const [x, y] = cells.p[cell];
+
+        const culture = cells.culture[cell];
+        const cultureType = pack.cultures[culture]?.type || "Generic";
+        const spacingMod = this.getCultureSpacingModifier(cultureType);
+        const spacing = baseSpacing * spacingMod * gauss(1, 0.3, 0.3, 1.8, 2);
+
+        if (burgsQuadtree.find(x, y, spacing) !== undefined) continue;
+
+        const burgId = burgs.length;
+        const name = Names.getCulture(culture);
+        const feature = cells.f[cell];
+        burgs.push({
+          cell,
+          x,
+          y,
+          i: burgId,
+          state: 0,
+          culture,
+          name,
+          feature,
+          capital: 0,
+          settlementType: "largeVillage",
+        });
+        burgsQuadtree.add([x, y]);
+        cells.burg[cell] = burgId;
+        added++;
+      }
+    };
+
+    const placeSmallVillages = () => {
+      // ~20% of settlements, 3-6km spacing equivalent
+      const randomize = (score: number) => score * gauss(1, 3, 0, 20, 3);
+      const score = new Int16Array(cells.s.map(randomize));
+      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+
+      const totalTarget = getTownsNumber();
+      const targetCount = Math.floor(totalTarget * 0.20);
+      const baseSpacing = (graphWidth + graphHeight) / 150 / (totalTarget ** 0.65 / 15);
+      let added = 0;
+
+      for (let pass = 0; added < targetCount && pass < 3; pass++) {
+        for (let i = 0; i < sorted.length && added < targetCount; i++) {
           if (cells.burg[sorted[i]]) continue;
           const cell = sorted[i];
           const [x, y] = cells.p[cell];
 
-          const minSpacing = spacing * gauss(1, 0.3, 0.2, 2, 2); // randomize to make placement not uniform
-          if (burgsQuadtree.find(x, y, minSpacing) !== undefined) continue; // to close to existing burg
+          const culture = cells.culture[cell];
+          const cultureType = pack.cultures[culture]?.type || "Generic";
+          const spacingMod = this.getCultureSpacingModifier(cultureType);
+          const spacing = baseSpacing * spacingMod * gauss(1, 0.3, 0.2, 1.5, 2) * (1 / (pass + 1));
+
+          if (burgsQuadtree.find(x, y, spacing) !== undefined) continue;
 
           const burgId = burgs.length;
-          const culture = cells.culture[cell];
           const name = Names.getCulture(culture);
           const feature = cells.f[cell];
           burgs.push({
@@ -194,6 +405,57 @@ class BurgModule {
             name,
             feature,
             capital: 0,
+            settlementType: "smallVillage",
+          });
+          burgsQuadtree.add([x, y]);
+          cells.burg[cell] = burgId;
+          added++;
+        }
+      }
+    };
+
+    const placeHamlets = () => {
+      // remaining ~60% of settlements, 1-3km spacing equivalent
+      const randomize = (score: number) => score * gauss(1, 3, 0, 20, 3);
+      const score = new Int16Array(cells.s.map(randomize));
+      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+
+      const totalTarget = getTownsNumber();
+      const currentCount = burgs.length - 1; // subtract placeholder
+      const targetCount = totalTarget - currentCount;
+      if (targetCount <= 0) return;
+
+      let spacing =
+        (graphWidth + graphHeight) / 150 / (totalTarget ** 0.7 / 66);
+      let added = 0;
+
+      for (; added < targetCount && spacing > 1; ) {
+        for (let i = 0; added < targetCount && i < sorted.length; i++) {
+          if (cells.burg[sorted[i]]) continue;
+          const cell = sorted[i];
+          const [x, y] = cells.p[cell];
+
+          const culture = cells.culture[cell];
+          const cultureType = pack.cultures[culture]?.type || "Generic";
+          const spacingMod = this.getCultureSpacingModifier(cultureType);
+          const minSpacing = spacing * spacingMod * gauss(1, 0.3, 0.2, 2, 2);
+
+          if (burgsQuadtree.find(x, y, minSpacing) !== undefined) continue;
+
+          const burgId = burgs.length;
+          const name = Names.getCulture(culture);
+          const feature = cells.f[cell];
+          burgs.push({
+            cell,
+            x,
+            y,
+            i: burgId,
+            state: 0,
+            culture,
+            name,
+            feature,
+            capital: 0,
+            settlementType: "hamlet",
           });
           added++;
           cells.burg[cell] = burgId;
@@ -203,8 +465,14 @@ class BurgModule {
       }
     };
 
+    // 6-stage hierarchical placement
     generateCapitals();
-    generateTowns();
+    identifyLargePorts();
+    placeRegionalCenters();
+    placeMarketTowns();
+    placeLargeVillages();
+    placeSmallVillages();
+    placeHamlets();
 
     pack.burgs = burgs;
     this.shift();
@@ -227,7 +495,7 @@ class BurgModule {
 
     function getTownsNumber() {
       const manorsInput = byId("manorsInput") as HTMLInputElement;
-      const isAuto = manorsInput.value === "1000"; // '1000' is considered as auto
+      const isAuto = manorsInput.value === "100001"; // '100001' is considered as auto
       if (isAuto)
         return rn(
           populatedCells.length / 5 / (grid.points.length / 10000) ** 0.8,
@@ -261,18 +529,62 @@ class BurgModule {
   }
 
   private definePopulation(burg: Burg) {
+    const sType = burg.settlementType || "hamlet";
+
+    // Tier-based population ranges (population units, multiply by populationRate for actual people)
+    // Capitals: 10k-200k (gauss: mean=50, dev=75, min=10, max=200)
+    // Large ports: 5k-50k (gauss: mean=20, dev=30, min=5, max=50)
+    // Regional centers: 1k-10k (gauss: mean=5.5, dev=4.5, min=1, max=10)
+    // Market towns: 1k-10k (gauss: mean=5.5, dev=4.5, min=1, max=10)
+    // Large villages: 200-1k (gauss: mean=0.6, dev=0.4, min=0.2, max=1)
+    // Small villages: 50-500 (gauss: mean=0.275, dev=0.225, min=0.05, max=0.5)
+    // Hamlets: 10-50 (gauss: mean=0.03, dev=0.02, min=0.01, max=0.05)
+
+    let population: number;
+    switch (sType) {
+      case "capital":
+        population = gauss(50, 75, 10, 200);
+        break;
+      case "largePort":
+        population = gauss(20, 30, 5, 50);
+        break;
+      case "regionalCenter":
+        population = gauss(5.5, 4.5, 1, 10);
+        break;
+      case "marketTown":
+        population = gauss(5.5, 4.5, 1, 10);
+        break;
+      case "largeVillage":
+        population = gauss(0.6, 0.4, 0.2, 1);
+        break;
+      case "smallVillage":
+        population = gauss(0.275, 0.225, 0.05, 0.5);
+        break;
+      case "hamlet":
+      default:
+        population = gauss(0.03, 0.02, 0.01, 0.05);
+        break;
+    }
+
+    // Apply connectivity modifier
     const cellId = burg.cell;
-    let population = pack.cells.s[cellId] / 5;
-    if (burg.capital) population *= 1.5;
     const connectivityRate = Routes.getConnectivityRate(cellId);
     if (connectivityRate) population *= connectivityRate;
-    population *= gauss(1, 1, 0.25, 4, 5); // randomize
-    population += (((burg.i as number) % 100) - (cellId % 100)) / 1000; // unround
+
+    // Unround with small offset
+    population += (((burg.i as number) % 100) - (cellId % 100)) / 1000;
+
+    burg.basePopulation = population;
     burg.population = rn(Math.max(population, 0.01), 3);
   }
 
   private defineEmblem(burg: Burg) {
     burg.type = this.getType(burg.cell, burg.port);
+
+    // Only generate COA for settlements with pop > 0.5 (500 people) or capitals/ports
+    if ((burg.population as number) <= 0.5 && !burg.capital && !burg.port) {
+      return;
+    }
 
     const state = pack.states[burg.state as number];
     const stateCOA = state.coa;
@@ -294,33 +606,61 @@ class BurgModule {
 
   private defineFeatures(burg: Burg) {
     const pop = burg.population as number;
-    burg.citadel = Number(
-      burg.capital || (pop > 50 && P(0.75)) || (pop > 15 && P(0.5)) || P(0.1),
-    );
-    burg.plaza = Number(
-      Routes.isCrossroad(burg.cell) ||
-        (Routes.hasRoad(burg.cell) && P(0.7)) ||
-        pop > 20 ||
-        (pop > 10 && P(0.8)),
-    );
-    burg.walls = Number(
-      burg.capital ||
-        pop > 30 ||
-        (pop > 20 && P(0.75)) ||
-        (pop > 10 && P(0.5)) ||
-        P(0.1),
-    );
-    burg.shanty = Number(
-      pop > 60 || (pop > 40 && P(0.75)) || (pop > 20 && burg.walls && P(0.4)),
-    );
-    const religion = pack.cells.religion[burg.cell] as number;
-    const theocracy = pack.states[burg.state as number].form === "Theocracy";
-    burg.temple = Number(
-      (religion && theocracy && P(0.5)) ||
-        pop > 50 ||
-        (pop > 35 && P(0.75)) ||
-        (pop > 20 && P(0.5)),
-    );
+    const sType = burg.settlementType || "hamlet";
+
+    // Settlement-type-based feature probabilities
+    switch (sType) {
+      case "capital":
+        burg.citadel = 1;
+        burg.plaza = 1;
+        burg.walls = 1;
+        burg.shanty = Number(pop > 60 || (pop > 40 && P(0.75)));
+        burg.temple = Number(pop > 20 || P(0.7));
+        break;
+      case "largePort":
+        burg.citadel = Number(P(0.6));
+        burg.plaza = 1;
+        burg.walls = Number(pop > 10 || P(0.7));
+        burg.shanty = Number(pop > 30 && P(0.5));
+        burg.temple = Number(pop > 15 || P(0.4));
+        break;
+      case "regionalCenter":
+        burg.citadel = Number(pop > 5 && P(0.6));
+        burg.plaza = Number(P(0.8));
+        burg.walls = Number(pop > 5 || P(0.5));
+        burg.shanty = Number(pop > 20 && P(0.3));
+        burg.temple = Number(pop > 10 || P(0.5));
+        break;
+      case "marketTown":
+        burg.citadel = Number(pop > 5 && P(0.3));
+        burg.plaza = 1; // market towns always get plaza
+        burg.walls = Number(pop > 5 || P(0.3));
+        burg.shanty = 0;
+        burg.temple = Number(pop > 5 || P(0.3));
+        break;
+      case "largeVillage":
+        burg.citadel = Number(P(0.15));
+        burg.plaza = Number(P(0.4));
+        burg.walls = Number(P(0.2));
+        burg.shanty = 0;
+        burg.temple = Number(P(0.3));
+        break;
+      case "smallVillage":
+        burg.citadel = Number(P(0.05));
+        burg.plaza = Number(P(0.15));
+        burg.walls = Number(P(0.05));
+        burg.shanty = 0;
+        burg.temple = Number(P(0.15));
+        break;
+      case "hamlet":
+      default:
+        burg.citadel = 0;
+        burg.plaza = 0;
+        burg.walls = 0;
+        burg.shanty = 0;
+        burg.temple = Number(P(0.05));
+        break;
+    }
   }
 
   getDefaultGroups() {
@@ -387,6 +727,12 @@ class BurgModule {
         preview: "watabou-village",
       },
       {
+        name: "skyburg",
+        active: true,
+        order: 10,
+        features: { flying: true },
+      },
+      {
         name: "town",
         active: true,
         order: 7,
@@ -405,6 +751,12 @@ class BurgModule {
       if (group) return;
     }
 
+    // Flying burgs always go to skyburg group
+    if (burg.flying) {
+      burg.group = "skyburg";
+      return;
+    }
+
     const defaultGroup = options.burgs.groups.find((g: any) => g.isDefault);
     if (!defaultGroup) {
       ERROR && console.error("No default group defined");
@@ -414,6 +766,7 @@ class BurgModule {
 
     for (const group of options.burgs.groups) {
       if (!group.active) continue;
+      if (group.name === "skyburg") continue; // skip skyburg for non-flying burgs
 
       if (group.min) {
         const isFit = (burg.population as number) >= group.min;
@@ -673,6 +1026,7 @@ class BurgModule {
       feature,
       capital: 0,
       port: 0,
+      settlementType: "hamlet",
     };
     this.definePopulation(burg);
     this.defineEmblem(burg);

@@ -350,10 +350,24 @@ class StatesModule {
       // collect stats
       states[s].cells! += 1;
       states[s].area! += cells.area[i];
-      states[s].rural! += cells.pop[i];
+
       if (cells.burg[i]) {
-        states[s].urban! += pack.burgs[cells.burg[i]].population!;
+        const burg = pack.burgs[cells.burg[i]];
+        const burgPop = burg.population || 0;
         states[s].burgs!++;
+
+        // Small burgs (pop <= 0.1 i.e. <= 100 people) classified as rural
+        // Large burgs (pop > 0.1) classified as urban
+        if (burgPop > 0.1) {
+          states[s].urban! += burgPop;
+        } else {
+          states[s].rural! += burgPop;
+        }
+      }
+
+      // Add non-burg cell population as rural
+      if (!cells.burg[i]) {
+        states[s].rural! += cells.pop[i];
       }
     }
 

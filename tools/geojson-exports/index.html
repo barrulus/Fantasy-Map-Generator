@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FMG GeoJSON Export Bookmarklets</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #f5f5f5;
+      color: #333;
+    }
+    h1 { margin-bottom: 0.5rem; color: #2c3e50; }
+    .subtitle { color: #666; margin-bottom: 2rem; font-size: 0.95rem; }
+    .instructions {
+      background: #e8f4fd;
+      border: 1px solid #b3d9f2;
+      border-radius: 8px;
+      padding: 1.2rem;
+      margin-bottom: 2rem;
+    }
+    .instructions h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #2980b9; }
+    .instructions ol { padding-left: 1.5rem; }
+    .instructions li { margin-bottom: 0.4rem; }
+    .bookmarklet-list { list-style: none; }
+    .bookmarklet-item {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .bookmarklet-info { flex: 1; }
+    .bookmarklet-info h3 { font-size: 1rem; margin-bottom: 0.2rem; }
+    .bookmarklet-info p { font-size: 0.85rem; color: #666; }
+    .bookmarklet-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+    a.bookmarklet-link {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background: #3498db;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: grab;
+      white-space: nowrap;
+    }
+    a.bookmarklet-link:hover { background: #2980b9; }
+    button.copy-btn {
+      padding: 0.5rem 0.8rem;
+      background: #95a5a6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    button.copy-btn:hover { background: #7f8c8d; }
+    button.copy-btn.copied { background: #27ae60; }
+    .note {
+      margin-top: 2rem;
+      font-size: 0.85rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1>FMG GeoJSON Export Bookmarklets</h1>
+  <p class="subtitle">Export Fantasy Map Generator data as standard GeoJSON files</p>
+
+  <div class="instructions">
+    <h2>How to Use</h2>
+    <ol>
+      <li><strong>Drag</strong> any blue bookmarklet button to your browser's bookmark bar</li>
+      <li>Open <a href="https://azgaar.github.io/Fantasy-Map-Generator/" target="_blank">Fantasy Map Generator</a> and generate or load a map</li>
+      <li><strong>Click</strong> the bookmarklet in your bookmark bar to export</li>
+      <li>The GeoJSON file will download automatically</li>
+    </ol>
+    <p style="margin-top: 0.5rem; font-size: 0.85rem;">
+      Alternatively, click <strong>Copy</strong> to copy the script, then paste it into the browser console (F12 > Console) on the FMG page.
+    </p>
+  </div>
+
+  <ul class="bookmarklet-list" id="bookmarkletList"></ul>
+
+  <p class="note">
+    GeoJSON files use WGS84 (EPSG:4326) coordinates and can be opened in
+    <a href="https://geojson.io" target="_blank">geojson.io</a>, QGIS, or any GIS software.
+  </p>
+
+  <script>
+    var scripts = [
+      {
+        name: "Export Burgs",
+        desc: "Settlements as Points with population, type, and metadata",
+        file: "export-burgs.js"
+      },
+      {
+        name: "Export States",
+        desc: "Political boundaries as MultiPolygons with area and population",
+        file: "export-states.js"
+      },
+      {
+        name: "Export Provinces",
+        desc: "Province boundaries as MultiPolygons",
+        file: "export-provinces.js"
+      },
+      {
+        name: "Export Cultures",
+        desc: "Cultural regions as MultiPolygons",
+        file: "export-cultures.js"
+      },
+      {
+        name: "Export Religions",
+        desc: "Religious regions as MultiPolygons",
+        file: "export-religions.js"
+      },
+      {
+        name: "Export Routes",
+        desc: "Roads, trails, sea routes, and air routes as LineStrings",
+        file: "export-routes.js"
+      },
+      {
+        name: "Export Rivers",
+        desc: "Rivers as LineStrings",
+        file: "export-rivers.js"
+      },
+      {
+        name: "Export Cells",
+        desc: "Voronoi cells as Polygons with all attributes",
+        file: "export-cells.js"
+      },
+      {
+        name: "Export Markers",
+        desc: "Map markers as Points",
+        file: "export-markers.js"
+      },
+      {
+        name: "Export All (ZIP)",
+        desc: "All layers bundled into a single ZIP file (loads JSZip)",
+        file: "export-all.js"
+      }
+    ];
+
+    var loadedScripts = {};
+
+    function loadScript(file, callback) {
+      if (loadedScripts[file]) return callback(loadedScripts[file]);
+      fetch(file)
+        .then(function(r) { return r.text(); })
+        .then(function(text) {
+          loadedScripts[file] = text;
+          callback(text);
+        })
+        .catch(function() {
+          callback("alert('Failed to load script: " + file + "');");
+        });
+    }
+
+    function makeBookmarklet(code) {
+      return "javascript:void(" + encodeURIComponent(code) + ")";
+    }
+
+    var list = document.getElementById("bookmarkletList");
+
+    scripts.forEach(function(s) {
+      var li = document.createElement("li");
+      li.className = "bookmarklet-item";
+
+      var info = document.createElement("div");
+      info.className = "bookmarklet-info";
+      info.innerHTML = "<h3>" + s.name + "</h3><p>" + s.desc + "</p>";
+
+      var actions = document.createElement("div");
+      actions.className = "bookmarklet-actions";
+
+      var link = document.createElement("a");
+      link.className = "bookmarklet-link";
+      link.textContent = s.name;
+      link.href = "#";
+      link.title = "Drag to bookmark bar";
+
+      var copyBtn = document.createElement("button");
+      copyBtn.className = "copy-btn";
+      copyBtn.textContent = "Copy";
+
+      // Load script and set href
+      loadScript(s.file, function(code) {
+        link.href = makeBookmarklet(code);
+
+        copyBtn.addEventListener("click", function() {
+          navigator.clipboard.writeText(code).then(function() {
+            copyBtn.textContent = "Copied!";
+            copyBtn.classList.add("copied");
+            setTimeout(function() {
+              copyBtn.textContent = "Copy";
+              copyBtn.classList.remove("copied");
+            }, 2000);
+          });
+        });
+      });
+
+      link.addEventListener("click", function(e) {
+        e.preventDefault();
+        alert("Drag this button to your bookmark bar, then click it on the FMG page.");
+      });
+
+      actions.appendChild(link);
+      actions.appendChild(copyBtn);
+      li.appendChild(info);
+      li.appendChild(actions);
+      list.appendChild(li);
+    });
+  </script>
+</body>
+</html>

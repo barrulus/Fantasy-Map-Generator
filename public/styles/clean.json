@@ -219,6 +219,44 @@
     "filter": null,
     "mask": "url(#water)"
   },
+  "#airroutes": {
+    "opacity": 0.8,
+    "stroke": "#8a5fc7",
+    "stroke-width": 0.5,
+    "stroke-dasharray": "2 3",
+    "stroke-linecap": "round",
+    "filter": null,
+    "mask": null
+  },
+  "#burgLabels > g#skyburg": {
+    "opacity": 1,
+    "fill": "#5a3497",
+    "style": "text-shadow: white 0px 0px 4px",
+    "letter-spacing": 0,
+    "data-size": 5,
+    "font-size": 5,
+    "font-family": "Almendra SC",
+    "data-dy": -0.5
+  },
+  "#burgIcons > g#skyburg": {
+    "data-icon": "#icon-diamond",
+    "opacity": 1,
+    "fill": "#e0c0ff",
+    "fill-opacity": 0.8,
+    "font-size": 1.5,
+    "stroke": "#5a3497",
+    "stroke-width": 1,
+    "stroke-dasharray": null,
+    "stroke-linecap": "butt",
+    "stroke-linejoin": "round"
+  },
+  "#anchors > g#skyburg": {
+    "opacity": 1,
+    "fill": "#e0c0ff",
+    "font-size": 1.5,
+    "stroke": "#5a3497",
+    "stroke-width": 1.2
+  },
   "#statesBody": {
     "opacity": 0.3,
     "filter": null

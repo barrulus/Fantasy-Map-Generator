@@ -286,7 +286,7 @@ function editHeightmap(options) {
     const pop = new Uint16Array(l);
     const routes = {};
     const s = new Uint16Array(l);
-    const burg = new Uint16Array(l);
+    const burg = new Uint32Array(l);
     const state = new Uint16Array(l);
     const province = new Uint16Array(l);
     const culture = new Uint16Array(l);
@@ -358,7 +358,7 @@ function editHeightmap(options) {
     pack.cells.pop = new Float32Array(n);
     pack.cells.routes = {};
     pack.cells.s = new Uint16Array(n);
-    pack.cells.burg = new Uint16Array(n);
+    pack.cells.burg = new Uint32Array(n);
     pack.cells.state = new Uint16Array(n);
     pack.cells.province = new Uint16Array(n);
     pack.cells.culture = new Uint16Array(n);

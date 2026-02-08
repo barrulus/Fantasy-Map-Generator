@@ -111,7 +111,7 @@ function updateOutputToFollowInput(ev) {
   const value = ev.target.value;
 
   // specific cases
-  if (id === "manorsInput") return (manorsOutput.value = value == 1000 ? "auto" : value);
+  if (id === "manorsInput") return (manorsOutput.value = value == 100001 ? "auto" : value);
 
   // generic case
   if (id.slice(-5) === "Input") {
@@ -327,7 +327,13 @@ const cellsDensityMap = {
   10: 70000,
   11: 80000,
   12: 90000,
-  13: 100000
+  13: 100000,
+  14: 150000,
+  15: 200000,
+  16: 250000,
+  17: 300000,
+  18: 400000,
+  19: 500000
 };
 
 function changeCellsDensity(value) {
@@ -339,7 +345,7 @@ function changeCellsDensity(value) {
 }
 
 function getCellsDensityColor(cells) {
-  return cells > 50000 ? "#b12117" : cells !== 10000 ? "#dfdf12" : "#053305";
+  return cells > 200000 ? "#b12117" : cells > 50000 ? "#df6812" : cells !== 10000 ? "#dfdf12" : "#053305";
 }
 
 function changeCultureSet() {
@@ -592,7 +598,7 @@ function randomizeOptions() {
   if (randomize || !locked("statesNumber")) statesNumber.value = gauss(18, 5, 2, 30);
   if (randomize || !locked("provincesRatio")) provincesRatio.value = gauss(20, 10, 20, 100);
   if (randomize || !locked("manors")) {
-    manorsInput.value = 1000;
+    manorsInput.value = 100001;
     manorsOutput.value = "auto";
   }
   if (randomize || !locked("religionsNumber")) religionsNumber.value = gauss(6, 3, 2, 10);

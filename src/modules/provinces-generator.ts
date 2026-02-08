@@ -116,17 +116,26 @@ class ProvinceModule {
         s.provinces = provinces.filter((p) => p.state === s.i).map((p) => p.i); // locked provinces ids
       if (s.lock && !regenerateLockedStates) return; // don't regenerate provinces of a locked state
 
+      // Use only major burgs as province centers (capitals, regional centers, market towns, large villages, pop > 1)
+      const majorSettlementTypes = new Set(["capital", "regionalCenter", "marketTown", "largeVillage", "largePort"]);
       const stateBurgs = burgs
-        .filter((b) => b.state === s.i && !b.removed && !provinceIds[b.cell]) // burgs in this state without province assigned
+        .filter((b) => {
+          if (b.state !== s.i || b.removed || provinceIds[b.cell]) return false;
+          // Include capitals always, and major settlements or burgs with pop > 1
+          return b.capital || majorSettlementTypes.has(b.settlementType || "") || (b.population || 0) > 1;
+        })
         .sort(
           (a, b) => b.population! * gauss(1, 0.2, 0.5, 1.5, 3) - a.population!,
         ) // biggest population first
         .sort((a, b) => b.capital! - a.capital!); // capitals first
       if (stateBurgs.length < 2) return; // at least 2 provinces are required
 
-      const provincesNumber = Math.max(
-        Math.ceil((stateBurgs.length * provincesRatio) / 100),
-        2,
+      const provincesNumber = Math.min(
+        Math.max(
+          Math.ceil((stateBurgs.length * provincesRatio) / 100),
+          2,
+        ),
+        20, // cap at max 20 provinces per state
       );
       const form = Object.assign({}, this.forms[s.form!]);
 

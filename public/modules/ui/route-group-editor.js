@@ -40,7 +40,7 @@ function editRouteGroups() {
     byId("routeGroupsEditorBody").innerHTML = lines.join("");
   }
 
-  const DEFAULT_GROUPS = ["roads", "trails", "searoutes"];
+  const DEFAULT_GROUPS = ["roads", "trails", "searoutes", "airroutes"];
 
   function addGroup() {
     prompt("Type group name", {default: "route-group-new"}, v => {

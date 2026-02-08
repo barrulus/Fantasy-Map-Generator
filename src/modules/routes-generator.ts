@@ -40,6 +40,12 @@ const models: Record<string, Record<string, number>> = {
     prefix_suffix: 2,
     the_descriptor_prefix_suffix: 1,
   },
+  airroutes: {
+    burg_suffix: 3,
+    prefix_suffix: 4,
+    the_descriptor_prefix_suffix: 2,
+    the_descriptor_burg_suffix: 1,
+  },
 };
 
 const prefixes: string[] = [
@@ -172,11 +178,12 @@ const suffixes: Record<string, Record<string, number>> = {
   roads: { road: 7, route: 3, way: 2, highway: 1 },
   trails: { trail: 4, path: 1, track: 1, pass: 1 },
   searoutes: { "sea route": 5, lane: 2, passage: 1, seaway: 1 },
+  airroutes: { "sky route": 3, "air lane": 2, skyway: 2, airway: 2, "aerial path": 1 },
 };
 
 export interface Route {
   i: number;
-  group: "roads" | "trails" | "searoutes";
+  group: "roads" | "trails" | "searoutes" | "airroutes";
   feature: number;
   points: number[][];
   cells?: number[];
@@ -211,6 +218,7 @@ class RoutesModule {
     const burgsByFeature: Record<number, Burg[]> = {};
     const capitalsByFeature: Record<number, Burg[]> = {};
     const portsByFeature: Record<number, Burg[]> = {};
+    const skyPorts: Burg[] = [];
 
     const addBurg = (
       collection: Record<number, Burg[]>,
@@ -223,6 +231,14 @@ class RoutesModule {
 
     for (const burg of burgs) {
       if (burg.i && !burg.removed) {
+        // Collect sky ports separately
+        if (burg.skyPort) {
+          skyPorts.push(burg);
+        }
+
+        // Exclude flying/skyPort burgs from land/sea routes
+        if (burg.flying || burg.skyPort) continue;
+
         const { feature, capital, port } = burg;
         addBurg(burgsByFeature, feature as number, burg);
         if (capital) addBurg(capitalsByFeature, feature as number, burg);
@@ -230,7 +246,7 @@ class RoutesModule {
       }
     }
 
-    return { burgsByFeature, capitalsByFeature, portsByFeature };
+    return { burgsByFeature, capitalsByFeature, portsByFeature, skyPorts };
   }
 
   // Urquhart graph is obtained by removing the longest edge from each triangle in the Delaunay triangulation
@@ -563,10 +579,47 @@ class RoutesModule {
 
     return routesMerged > 1 ? this.mergeRoutes(routes) : routes;
   }
+  private generateAirRoutes() {
+    TIME && console.time("generateAirRoutes");
+    const { skyPorts } = this.sortBurgsByFeature(pack.burgs);
+    const airRoutes: Route[] = [];
+
+    if (skyPorts.length < 2) {
+      TIME && console.timeEnd("generateAirRoutes");
+      return airRoutes;
+    }
+
+    // Air routes use direct connections via Urquhart graph on sky port positions
+    const points = skyPorts.map((burg) => [burg.x, burg.y] as Point);
+    const urquhartEdges = this.calculateUrquhartEdges(points);
+
+    urquhartEdges.forEach(([fromId, toId]) => {
+      const from = skyPorts[fromId];
+      const to = skyPorts[toId];
+
+      // Direct line between sky ports (no terrain cost - flying above obstacles)
+      const airRoutePoints: number[][] = [
+        [from.x, from.y, from.cell],
+        [to.x, to.y, to.cell],
+      ];
+
+      airRoutes.push({
+        i: 0, // will be assigned in createRoutesData
+        group: "airroutes",
+        feature: 0,
+        points: airRoutePoints,
+      });
+    });
+
+    TIME && console.timeEnd("generateAirRoutes");
+    return airRoutes;
+  }
+
   private createRoutesData(routes: Route[], connections: Map<string, boolean>) {
     const mainRoads = this.generateMainRoads(connections);
     const trails = this.generateTrails(connections);
     const seaRoutes = this.generateSeaRoutes(connections);
+    const airRoutes = this.generateAirRoutes();
     const pointsArray = this.preparePointsArray();
 
     for (const { feature, cells, merged } of this.mergeRoutes(mainRoads)) {
@@ -585,6 +638,12 @@ class RoutesModule {
       if (merged) continue;
       const points = this.getPoints("searoutes", cells!, pointsArray);
       routes.push({ i: routes.length, group: "searoutes", feature, points });
+    }
+
+    // Air routes are already point-based (direct lines), no cell merging needed
+    for (const airRoute of airRoutes) {
+      airRoute.i = routes.length;
+      routes.push(airRoute);
     }
 
     return routes;
@@ -711,10 +770,11 @@ class RoutesModule {
     const connections = pack.cells.routes[cellId];
     if (!connections) return 0;
 
-    const connectivityRateMap = {
+    const connectivityRateMap: Record<string, number> = {
       roads: 0.2,
       trails: 0.1,
       searoutes: 0.2,
+      airroutes: 0.15,
       default: 0.1,
     };
 
@@ -770,6 +830,7 @@ class RoutesModule {
       roads: curveCatmullRom.alpha(0.1),
       trails: curveCatmullRom.alpha(0.1),
       searoutes: curveCatmullRom.alpha(0.5),
+      airroutes: curveCatmullRom.alpha(0.3),
       default: curveCatmullRom.alpha(0.1),
     };
     lineGen.curve(ROUTE_CURVES[group] || ROUTE_CURVES.default);

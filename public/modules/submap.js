@@ -130,7 +130,7 @@ window.Submap = (function () {
     const cells = pack.cells;
     cells.culture = new Uint16Array(pn);
     cells.state = new Uint16Array(pn);
-    cells.burg = new Uint16Array(pn);
+    cells.burg = new Uint32Array(pn);
     cells.religion = new Uint16Array(pn);
     cells.province = new Uint16Array(pn);
 
