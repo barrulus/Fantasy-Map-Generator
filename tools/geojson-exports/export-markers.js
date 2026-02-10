@@ -42,9 +42,10 @@
     });
 
   // Also include notes for markers if available
-  if (window.notes) {
+  var notesArray = typeof notes !== "undefined" && Array.isArray(notes) ? notes : [];
+  if (notesArray.length) {
     features.forEach(function (f) {
-      var note = window.notes.find(function (n) {
+      var note = notesArray.find(function (n) {
         return n.id === "marker" + f.properties.id;
       });
       if (note) {

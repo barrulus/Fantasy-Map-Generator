@@ -181,8 +181,9 @@
       .filter(function (m) { return m && !m.removed && m.x != null && m.y != null; })
       .map(function (m) {
         var props = { id: m.i, icon: m.icon || "", type: m.type || "" };
-        if (window.notes) {
-          var note = window.notes.find(function (n) { return n.id === "marker" + m.i; });
+        var notesArray = typeof notes !== "undefined" && Array.isArray(notes) ? notes : [];
+        if (notesArray.length) {
+          var note = notesArray.find(function (n) { return n.id === "marker" + m.i; });
           if (note) { props.name = note.name || ""; props.legend = note.legend || ""; }
         }
         return {
