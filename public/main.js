@@ -723,38 +723,61 @@ function addLakesInDeepDepressions() {
 
   const {cells, features} = grid;
   const {c, h, b} = cells;
+  const cellCount = cells.i.length;
+  const checked = new Uint8Array(cellCount);
+  const drainsToOcean = new Uint8Array(cellCount);
 
+  // collect local minimums and sort by height ascending
+  // processing low-to-high ensures drainsToOcean cache is always valid
+  // (higher thresholds are supersets of lower ones)
+  const minimums = [];
   for (const i of cells.i) {
     if (b[i] || h[i] < 20) continue;
+    const neighbors = c[i];
+    let isMinimum = true;
+    for (let j = 0; j < neighbors.length; j++) {
+      if (h[neighbors[j]] < h[i]) { isMinimum = false; break; }
+    }
+    if (isMinimum) minimums.push(i);
+  }
+  minimums.sort((a, b) => h[a] - h[b]);
 
-    const minHeight = d3.min(c[i].map(c => h[c]));
-    if (h[i] > minHeight) continue;
+  for (const i of minimums) {
+    if (h[i] < 20) continue; // already converted to lake by a previous iteration
 
     let deep = true;
     const threshold = h[i] + elevationLimit;
     const queue = [i];
-    const checked = [];
-    checked[i] = true;
+    const visited = [i];
+    checked[i] = 1;
 
     // check if elevated cell can potentially pour to water
     while (deep && queue.length) {
       const q = queue.pop();
+      const qNeighbors = c[q];
 
-      for (const n of c[q]) {
+      for (let j = 0; j < qNeighbors.length; j++) {
+        const n = qNeighbors[j];
         if (checked[n]) continue;
         if (h[n] >= threshold) continue;
-        if (h[n] < 20) {
+        if (h[n] < 20 || drainsToOcean[n]) {
           deep = false;
           break;
         }
 
-        checked[n] = true;
+        checked[n] = 1;
+        visited.push(n);
         queue.push(n);
       }
     }
 
-    // if not, add a lake
-    if (deep) {
+    // reset checked for visited cells only
+    for (let j = 0; j < visited.length; j++) checked[visited[j]] = 0;
+
+    if (!deep) {
+      // mark all visited cells as draining to ocean
+      for (let j = 0; j < visited.length; j++) drainsToOcean[visited[j]] = 1;
+    } else {
       const lakeCells = [i].concat(c[i].filter(n => h[n] === h[i]));
       addLake(lakeCells);
     }
