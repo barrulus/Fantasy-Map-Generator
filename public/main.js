@@ -498,13 +498,22 @@ function invokeActiveZooming() {
 
   // rescale labels on zoom
   if (labels.style("display") !== "none") {
+    const MIN_ZOOM_DEFAULTS = {
+      states: 2,
+      capital: 1, skyburg: 1,
+      city: 4, town: 6,
+      fort: 7, monastery: 7, caravanserai: 7, trading_post: 7,
+      village: 10, hamlet: 14
+    };
+
     labels.selectAll("g").each(function () {
       if (this.id === "burgLabels") return;
       const desired = +this.dataset.size;
       const relative = Math.max(rn((desired + desired / scale) / 2, 2), 1);
       if (rescaleLabels.checked) this.setAttribute("font-size", relative);
 
-      const hidden = hideLabels.checked && (relative * scale < 6 || relative * scale > 60);
+      const minZoom = +this.dataset.minZoom || MIN_ZOOM_DEFAULTS[this.id] || 0;
+      const hidden = hideLabels.checked && (scale < minZoom || relative * scale < 6 || relative * scale > 60);
       if (hidden) this.classList.add("hidden");
       else this.classList.remove("hidden");
     });
