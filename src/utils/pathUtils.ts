@@ -341,10 +341,14 @@ export const findPath = (
 ): number[] | null => {
   if (isExit(start)) return null;
 
-  const from = [];
-  const cost = [];
+  const cellCount = packedGraph.cells.i.length;
+  const from = new Int32Array(cellCount).fill(-1);
+  const cost = new Float32Array(cellCount);
+  cost.fill(Infinity);
+
   const queue = new window.FlatQueue();
   queue.push(start, 0);
+  cost[start] = 0;
 
   while (queue.length) {
     const currentCost = queue.peekValue();
@@ -353,7 +357,7 @@ export const findPath = (
     for (const next of packedGraph.cells.c[current]) {
       if (isExit(next)) {
         from[next] = current;
-        return restorePath(next, start, from);
+        return restorePath(next, start, from as any);
       }
 
       const nextCost = getCost(current, next);

@@ -174,7 +174,7 @@ class ProvinceModule {
 
     // expand generated provinces
     const queue = new FlatQueue();
-    const cost: number[] = [];
+    const cost = new Float32Array(cells.i.length);
 
     provinces.forEach((p) => {
       if (!p.i || p.removed || isProvinceLocked(p)) return;
@@ -269,7 +269,7 @@ class ProvinceModule {
         provinceIds[center] = provinceId;
 
         // expand province
-        const cost: number[] = [];
+        const cost = new Float32Array(cells.i.length);
         cost[center] = 1;
         queue.push({ e: center, p: 0 }, 0);
         while (queue.length) {

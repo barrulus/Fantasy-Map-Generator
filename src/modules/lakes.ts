@@ -101,6 +101,7 @@ export class LakesModule {
     const ELEVATION_LIMIT = +(
       byId("lakeElevationLimitOutput") as HTMLInputElement
     )?.value;
+    const checked = new Uint8Array(cells.i.length);
 
     pack.features.forEach((feature) => {
       if (feature.type !== "lake") return;
@@ -117,8 +118,8 @@ export class LakesModule {
         (a, b) => h[a] - h[b],
       )[0];
       const queue = [lowestShorelineCell];
-      const checked = [];
-      checked[lowestShorelineCell] = true;
+      const visited = [lowestShorelineCell];
+      checked[lowestShorelineCell] = 1;
 
       while (queue.length && isDeep) {
         const cellId: number = queue.pop() as number;
@@ -133,10 +134,14 @@ export class LakesModule {
               isDeep = false;
           }
 
-          checked[neibCellId] = true;
+          checked[neibCellId] = 1;
+          visited.push(neibCellId);
           queue.push(neibCellId);
         }
       }
+
+      // reset checked for visited cells only
+      for (let j = 0; j < visited.length; j++) checked[visited[j]] = 0;
 
       feature.closed = isDeep;
     });

@@ -1289,7 +1289,7 @@ class CulturesModule {
     const { cells, cultures } = pack;
 
     const queue = new FlatQueue();
-    const cost: number[] = [];
+    const cost = new Float32Array(cells.i.length);
 
     const neutralRate =
       (byId("neutralRate") as HTMLInputElement)?.valueAsNumber || 1;
@@ -1313,6 +1313,7 @@ class CulturesModule {
         { cellId: culture.center, cultureId: culture.i, priority: 0 },
         0,
       );
+      cost[culture.center as number] = 1; // mark as seeded
     }
 
     const getBiomeCost = (c: number, biome: number, type: string) => {

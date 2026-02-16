@@ -265,7 +265,7 @@ class ZonesModule {
     if (!burg) return;
 
     const cellsArray: number[] = [];
-    const cost: number[] = [];
+    const cost = new Float32Array(pack.cells.i.length);
     const maxCells = rand(20, 40);
 
     const queue = new FlatQueue();
@@ -409,7 +409,7 @@ class ZonesModule {
     usedCells[burg.cell] = 1;
 
     const cellsArray: number[] = [];
-    const cost: number[] = [];
+    const cost = new Float32Array(pack.cells.i.length);
     const maxCells = rand(5, 25);
 
     const queue = new FlatQueue();

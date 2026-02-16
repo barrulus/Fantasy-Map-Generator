@@ -1,5 +1,5 @@
 import Alea from "alea";
-import { curveBasis, curveCatmullRom, line, mean, min, sum } from "d3";
+import { curveBasis, curveCatmullRom, line, mean, sum } from "d3";
 import { each, rn, round, rw } from "../utils";
 
 declare global {
@@ -69,16 +69,21 @@ class RiverModule {
         .sort((a: number, b: number) => h[b] - h[a]);
       const lakeOutCells = Lakes.defineClimateData(h);
 
+      // pre-compute map from outCell to qualifying lake features
+      const outCellToLakes = new Map<number, any[]>();
+      for (const feature of features) {
+        if (feature.type !== "lake" || !feature.outCell) continue;
+        if (!(feature.flux > feature.evaporation)) continue;
+        const list = outCellToLakes.get(feature.outCell);
+        if (list) list.push(feature);
+        else outCellToLakes.set(feature.outCell, [feature]);
+      }
+
       for (const i of land) {
         cells.fl[i] += prec[cells.g[i]] / cellsNumberModifier; // add flux from precipitation
 
         // create lake outlet if lake is not in deep depression and flux > evaporation
-        const lakes = lakeOutCells[i]
-          ? features.filter(
-              (feature: any) =>
-                i === feature.outCell && feature.flux > feature.evaporation,
-            )
-          : [];
+        const lakes = (lakeOutCells[i] && outCellToLakes.get(i)) || [];
         for (const lake of lakes) {
           const lakeCell = cells.c[i].find(
             (c: number) => h[c] < 20 && cells.f[c] === lake.i,
@@ -121,34 +126,29 @@ class RiverModule {
         }
 
         // downhill cell (make sure it's not in the source lake)
-        let min = null;
+        let minCell = -1;
         if (lakeOutCells[i]) {
-          const filtered = cells.c[i].filter(
-            (c: number) =>
-              !lakes.map((lake: any) => lake.i).includes(cells.f[c]),
-          );
-          min = filtered.sort((a: number, b: number) => h[a] - h[b])[0];
+          const lakeIds = new Set(lakes.map((lake: any) => lake.i));
+          let minH = Infinity;
+          for (const c of cells.c[i]) {
+            if (lakeIds.has(cells.f[c])) continue;
+            if (h[c] < minH) { minH = h[c]; minCell = c; }
+          }
         } else if (cells.haven[i]) {
-          min = cells.haven[i];
+          minCell = cells.haven[i];
         } else {
-          min = cells.c[i].sort((a: number, b: number) => h[a] - h[b])[0];
+          let minH = Infinity;
+          for (const c of cells.c[i]) {
+            if (h[c] < minH) { minH = h[c]; minCell = c; }
+          }
         }
 
         // cells is depressed
-        if (h[i] <= h[min]) continue;
-
-        // debug
-        //   .append("line")
-        //   .attr("x1", pack.cells.p[i][0])
-        //   .attr("y1", pack.cells.p[i][1])
-        //   .attr("x2", pack.cells.p[min][0])
-        //   .attr("y2", pack.cells.p[min][1])
-        //   .attr("stroke", "#333")
-        //   .attr("stroke-width", 0.2);
+        if (minCell < 0 || h[i] <= h[minCell]) continue;
 
         if (cells.fl[i] < MIN_FLUX_TO_FORM_RIVER) {
           // flux is too small to operate as a river
-          if (h[min] >= 20) cells.fl[min] += cells.fl[i];
+          if (h[minCell] >= 20) cells.fl[minCell] += cells.fl[i];
           continue;
         }
 
@@ -159,7 +159,7 @@ class RiverModule {
           riverNext++;
         }
 
-        flowDown(min, cells.fl[i], cells.r[i]);
+        flowDown(minCell, cells.fl[i], cells.r[i]);
       }
     };
 
@@ -370,28 +370,39 @@ class RiverModule {
       if (iteration < checkLakeMaxIteration) {
         for (const l of lakes) {
           if (l.closed) continue;
-          const minHeight = min(l.shoreline.map((s: number) => h[s])) as number;
+          let minHeight = Infinity;
+          for (let si = 0; si < l.shoreline.length; si++) {
+            const sh = h[l.shoreline[si]];
+            if (sh < minHeight) minHeight = sh;
+          }
           if (minHeight >= 100 || l.height > minHeight) continue;
 
           if (iteration > elevateLakeMaxIteration) {
             l.shoreline.forEach((i: number) => {
               h[i] = cells.h[i];
             });
-            l.height =
-              (min(l.shoreline.map((s: number) => h[s])) as number) - 1;
+            let resetMin = Infinity;
+            for (let si = 0; si < l.shoreline.length; si++) {
+              const sh = h[l.shoreline[si]];
+              if (sh < resetMin) resetMin = sh;
+            }
+            l.height = resetMin - 1;
             l.closed = true;
             continue;
           }
 
           depressions++;
-          l.height = (minHeight as number) + 0.2;
+          l.height = minHeight + 0.2;
         }
       }
 
       for (const i of land) {
-        const minHeight = min(
-          cells.c[i].map((c: number) => height(c)),
-        ) as number;
+        const neighbors = cells.c[i];
+        let minHeight = Infinity;
+        for (let ni = 0; ni < neighbors.length; ni++) {
+          const nh = height(neighbors[ni]);
+          if (nh < minHeight) minHeight = nh;
+        }
         if (minHeight >= 100 || h[i] > minHeight) continue;
 
         depressions++;

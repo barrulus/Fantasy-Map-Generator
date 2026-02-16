@@ -894,7 +894,7 @@ class ReligionsModule {
     const religionIds = this.spreadFolkReligions(religions);
 
     const queue = new FlatQueue();
-    const cost: number[] = [];
+    const cost = new Float32Array(cells.i.length);
 
     // limit cost for organized religions growth
     const maxExpansionCost =

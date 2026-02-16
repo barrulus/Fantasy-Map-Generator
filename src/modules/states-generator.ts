@@ -146,7 +146,7 @@ class StatesModule {
     cells.state = cells.state || new Uint16Array(cells.i.length);
 
     const queue = new FlatQueue();
-    const cost: number[] = [];
+    const cost = new Float32Array(cells.i.length);
 
     const globalGrowthRate =
       (byId("growthRate") as HTMLInputElement)?.valueAsNumber || 1;

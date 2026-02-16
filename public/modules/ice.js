@@ -3,15 +3,13 @@
 // Ice layer data model - separates ice data from SVG rendering
 window.Ice = (function () {
 
-  // Find next available id for new ice element idealy filling gaps
+  // Find next available id for new ice element ideally filling gaps
   function getNextId() {
     if (pack.ice.length === 0) return 0;
-    // find gaps in existing ids
-    const existingIds = pack.ice.map(e => e.i).sort((a, b) => a - b);
-    for (let id = 0; id < existingIds[existingIds.length - 1]; id++) {
-      if (!existingIds.includes(id)) return id;
+    const existingIds = new Set(pack.ice.map(e => e.i));
+    for (let id = 0; ; id++) {
+      if (!existingIds.has(id)) return id;
     }
-    return existingIds[existingIds.length - 1] + 1;
   }
 
   // Generate glaciers and icebergs based on temperature and height
@@ -24,6 +22,7 @@ window.Ice = (function () {
     const ICEBERG_MAX_TEMP = 0;
     const GLACIER_MAX_TEMP = -8;
     const minMaxTemp = d3.min(temp);
+    let nextId = 0; // sequential IDs since we start from clear()
 
     // Generate glaciers on cold land
     {
@@ -36,7 +35,7 @@ window.Ice = (function () {
         isolines[type].polygons.forEach(points => {
           const clipped = clipPoly(points);
           pack.ice.push({
-            i: getNextId(),
+            i: nextId++,
             points: clipped,
             type: "glacier"
           });
@@ -64,7 +63,7 @@ window.Ice = (function () {
       ]);
 
       pack.ice.push({
-        i: getNextId(),
+        i: nextId++,
         points,
         type: "iceberg",
         cellId,
