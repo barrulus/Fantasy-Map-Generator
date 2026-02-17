@@ -26,6 +26,12 @@ const ROUTE_TYPE_MODIFIERS: Record<string, number> = {
   default: 8, // far ocean
 };
 
+const ROUTE_TIER_MODIFIERS: Record<string, { cost: number }> = {
+  royal: { cost: 0.4 },
+  main: { cost: 0.6 },
+  market: { cost: 1.0 },
+};
+
 // name generator data
 const models: Record<string, Record<string, number>> = {
   roads: {
@@ -190,6 +196,7 @@ const suffixes: Record<string, Record<string, number>> = {
 export interface Route {
   i: number;
   group: "roads" | "trails" | "searoutes" | "airroutes";
+  type?: string;
   feature: number;
   points: number[][];
   cells?: number[];
@@ -224,6 +231,11 @@ class RoutesModule {
     const burgsByFeature: Record<number, Burg[]> = {};
     const capitalsByFeature: Record<number, Burg[]> = {};
     const portsByFeature: Record<number, Burg[]> = {};
+    const marketTownsByFeature: Record<number, Burg[]> = {};
+    const regionalCentersByFeature: Record<number, Burg[]> = {};
+    const villagesByFeature: Record<number, Burg[]> = {};
+    const hamletsByFeature: Record<number, Burg[]> = {};
+    const capitalPortsByFeature: Record<number, Burg[]> = {};
     const skyPorts: Burg[] = [];
 
     const addBurg = (
@@ -249,10 +261,30 @@ class RoutesModule {
         addBurg(burgsByFeature, feature as number, burg);
         if (capital) addBurg(capitalsByFeature, feature as number, burg);
         if (port) addBurg(portsByFeature, port as number, burg);
+        if (burg.settlementType === "marketTown" || burg.plaza === 1)
+          addBurg(marketTownsByFeature, feature as number, burg);
+        if (burg.isRegionalCenter || burg.isLargePort)
+          addBurg(regionalCentersByFeature, feature as number, burg);
+        if (burg.settlementType === "largeVillage" || burg.settlementType === "smallVillage")
+          addBurg(villagesByFeature, feature as number, burg);
+        if (burg.settlementType === "hamlet")
+          addBurg(hamletsByFeature, feature as number, burg);
+        if (port && (capital || burg.isLargePort))
+          addBurg(capitalPortsByFeature, port as number, burg);
       }
     }
 
-    return { burgsByFeature, capitalsByFeature, portsByFeature, skyPorts };
+    return {
+      burgsByFeature,
+      capitalsByFeature,
+      portsByFeature,
+      marketTownsByFeature,
+      regionalCentersByFeature,
+      villagesByFeature,
+      hamletsByFeature,
+      capitalPortsByFeature,
+      skyPorts,
+    };
   }
 
   // Urquhart graph is obtained by removing the longest edge from each triangle in the Delaunay triangulation
@@ -297,13 +329,28 @@ class RoutesModule {
     return edges;
   }
 
+  private getBorderPenalty(
+    current: number,
+    next: number,
+    routeType?: string,
+  ): number {
+    if (!routeType || routeType === "royal" || routeType === "main") return 1;
+    if (pack.cells.state[current] !== pack.cells.state[next]) return 1.5;
+    return 1;
+  }
+
   private createCostEvaluator({
     isWater,
     connections,
+    routeType,
   }: {
     isWater: boolean;
     connections: Map<string, boolean>;
+    routeType?: string;
   }) {
+    const tierModifier = ROUTE_TIER_MODIFIERS[routeType!]?.cost ?? 1;
+    const getBorderPenalty = this.getBorderPenalty.bind(this);
+
     function getLandPathCost(current: number, next: number) {
       if (pack.cells.h[next] < 20) return Infinity; // ignore water cells
 
@@ -320,13 +367,16 @@ class RoutesModule {
         ? 0.5
         : 1;
       const burgModifier = pack.cells.burg[next] ? 1 : 3;
+      const borderPenalty = getBorderPenalty(current, next, routeType);
 
       const pathCost =
         distanceCost *
         habitabilityModifier *
         heightModifier *
         connectionModifier *
-        burgModifier;
+        burgModifier *
+        tierModifier *
+        borderPenalty;
       return pathCost;
     }
 
@@ -389,13 +439,15 @@ class RoutesModule {
     connections,
     start,
     exit,
+    routeType,
   }: {
     isWater: boolean;
     connections: Map<string, boolean>;
     start: number;
     exit: number;
+    routeType?: string;
   }) {
-    const getCost = this.createCostEvaluator({ isWater, connections });
+    const getCost = this.createCostEvaluator({ isWater, connections, routeType });
     const pathCells = findPath(
       start,
       (current) => current === exit,
@@ -405,6 +457,112 @@ class RoutesModule {
     if (!pathCells) return [];
     const segments = this.getRouteSegments(pathCells, connections);
     return segments;
+  }
+
+  private generateRoyalRoads(connections: Map<string, boolean>) {
+    TIME && console.time("generateRoyalRoads");
+    const { capitalsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const royalRoads: Route[] = [];
+
+    // Collect all capitals grouped by feature (landmass)
+    for (const [key, featureCapitals] of Object.entries(capitalsByFeature)) {
+      if (featureCapitals.length < 2) continue;
+
+      // Build edges between every pair of capitals on this landmass, sorted by distance
+      const edges: { from: number; to: number; dist: number }[] = [];
+      for (let i = 0; i < featureCapitals.length; i++) {
+        for (let j = i + 1; j < featureCapitals.length; j++) {
+          const a = featureCapitals[i];
+          const b = featureCapitals[j];
+          edges.push({
+            from: i,
+            to: j,
+            dist: distanceSquared([a.x, a.y], [b.x, b.y]),
+          });
+        }
+      }
+      edges.sort((a, b) => a.dist - b.dist);
+
+      // Union-find for Kruskal's MST
+      const parent = new Map<number, number>();
+      function find(x: number): number {
+        if (!parent.has(x)) parent.set(x, x);
+        if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!));
+        return parent.get(x)!;
+      }
+      function union(a: number, b: number): boolean {
+        const ra = find(a);
+        const rb = find(b);
+        if (ra === rb) return false;
+        parent.set(ra, rb);
+        return true;
+      }
+
+      // Build MST
+      for (const edge of edges) {
+        if (!union(edge.from, edge.to)) continue;
+
+        const start = featureCapitals[edge.from].cell;
+        const exit = featureCapitals[edge.to].cell;
+
+        const segments = this.findPathSegments({
+          isWater: false,
+          connections,
+          start,
+          exit,
+          routeType: "royal",
+        });
+        for (const segment of segments) {
+          this.addConnections(segment, connections);
+          royalRoads.push({
+            feature: Number(key),
+            cells: segment,
+            type: "royal",
+          } as Route);
+        }
+      }
+    }
+
+    TIME && console.timeEnd("generateRoyalRoads");
+    return royalRoads;
+  }
+
+  private generateMarketRoads(connections: Map<string, boolean>) {
+    TIME && console.time("generateMarketRoads");
+    const { marketTownsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const marketRoads: Route[] = [];
+    const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
+
+    for (const [key, featureMarketTowns] of Object.entries(marketTownsByFeature)) {
+      if (featureMarketTowns.length < 2) continue;
+
+      const points = featureMarketTowns.map((burg) => [burg.x, burg.y] as Point);
+      const urquhartEdges = this.calculateUrquhartEdges(points);
+
+      for (const [fromId, toId] of urquhartEdges) {
+        const a = featureMarketTowns[fromId];
+        const b = featureMarketTowns[toId];
+
+        // Skip edges exceeding ~35 map-km
+        const kmDistance = Math.sqrt(distanceSquared([a.x, a.y], [b.x, b.y])) / mapScale;
+        if (kmDistance > 35) continue;
+
+        const segments = this.findPathSegments({
+          isWater: false,
+          connections,
+          start: a.cell,
+          exit: b.cell,
+          routeType: "market",
+        });
+        for (const segment of segments) {
+          this.addConnections(segment, connections);
+          marketRoads.push({ feature: Number(key), cells: segment, type: "market" } as Route);
+        }
+      }
+    }
+
+    TIME && console.timeEnd("generateMarketRoads");
+    return marketRoads;
   }
 
   private generateMainRoads(connections: Map<string, boolean>) {
@@ -424,10 +582,11 @@ class RoutesModule {
           connections,
           start,
           exit,
+          routeType: "main",
         });
         for (const segment of segments) {
           this.addConnections(segment, connections);
-          mainRoads.push({ feature: Number(key), cells: segment } as Route);
+          mainRoads.push({ feature: Number(key), cells: segment, type: "main" } as Route);
         }
       });
     }
@@ -449,27 +608,35 @@ class RoutesModule {
 
   private generateTrails(connections: Map<string, boolean>) {
     TIME && console.time("generateTrails");
-    const { burgsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const { villagesByFeature } = this.sortBurgsByFeature(pack.burgs);
     const trails: Route[] = [];
+    const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
 
-    for (const [key, featureBurgs] of Object.entries(burgsByFeature)) {
-      const points = featureBurgs.map((burg) => [burg.x, burg.y] as Point);
+    for (const [key, featureVillages] of Object.entries(villagesByFeature)) {
+      if (featureVillages.length < 2) continue;
+
+      const points = featureVillages.map((burg) => [burg.x, burg.y] as Point);
       const urquhartEdges = this.calculateUrquhartEdges(points);
-      urquhartEdges.forEach(([fromId, toId]) => {
-        const start = featureBurgs[fromId].cell;
-        const exit = featureBurgs[toId].cell;
+
+      for (const [fromId, toId] of urquhartEdges) {
+        const a = featureVillages[fromId];
+        const b = featureVillages[toId];
+
+        const kmDistance = Math.sqrt(distanceSquared([a.x, a.y], [b.x, b.y])) / mapScale;
+        if (kmDistance > 25) continue;
 
         const segments = this.findPathSegments({
           isWater: false,
           connections,
-          start,
-          exit,
+          start: a.cell,
+          exit: b.cell,
+          routeType: "trail",
         });
         for (const segment of segments) {
           this.addConnections(segment, connections);
-          trails.push({ feature: Number(key), cells: segment } as Route);
+          trails.push({ feature: Number(key), cells: segment, type: "trail" } as Route);
         }
-      });
+      }
     }
 
     TIME && console.timeEnd("generateTrails");
@@ -480,14 +647,158 @@ class RoutesModule {
     TIME && console.time("generateSeaRoutes");
     const { portsByFeature } = this.sortBurgsByFeature(pack.burgs);
     const seaRoutes: Route[] = [];
+    const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
 
     for (const [featureId, featurePorts] of Object.entries(portsByFeature)) {
+      if (featurePorts.length < 2) continue;
+
       const points = featurePorts.map((burg) => [burg.x, burg.y] as Point);
       const urquhartEdges = this.calculateUrquhartEdges(points);
 
-      urquhartEdges.forEach(([fromId, toId]) => {
-        const start = featurePorts[fromId].cell;
-        const exit = featurePorts[toId].cell;
+      for (const [fromId, toId] of urquhartEdges) {
+        const a = featurePorts[fromId];
+        const b = featurePorts[toId];
+
+        const kmDistance = Math.sqrt(distanceSquared([a.x, a.y], [b.x, b.y])) / mapScale;
+        if (kmDistance > 50) continue;
+
+        const segments = this.findPathSegments({
+          isWater: true,
+          connections,
+          start: a.cell,
+          exit: b.cell,
+        });
+        for (const segment of segments) {
+          this.addConnections(segment, connections);
+          seaRoutes.push({
+            feature: Number(featureId),
+            cells: segment,
+            type: "local",
+          } as Route);
+        }
+      }
+    }
+
+    TIME && console.timeEnd("generateSeaRoutes");
+    return seaRoutes;
+  }
+
+  private generateTownRoads(connections: Map<string, boolean>) {
+    TIME && console.time("generateTownRoads");
+    const { regionalCentersByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const townRoads: Route[] = [];
+    const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
+
+    for (const [key, featureCenters] of Object.entries(regionalCentersByFeature)) {
+      if (featureCenters.length < 2) continue;
+
+      const points = featureCenters.map((burg) => [burg.x, burg.y] as Point);
+      const urquhartEdges = this.calculateUrquhartEdges(points);
+
+      for (const [fromId, toId] of urquhartEdges) {
+        const a = featureCenters[fromId];
+        const b = featureCenters[toId];
+
+        const kmDistance = Math.sqrt(distanceSquared([a.x, a.y], [b.x, b.y])) / mapScale;
+        if (kmDistance > 40) continue;
+
+        const segments = this.findPathSegments({
+          isWater: false,
+          connections,
+          start: a.cell,
+          exit: b.cell,
+          routeType: "town",
+        });
+        for (const segment of segments) {
+          this.addConnections(segment, connections);
+          townRoads.push({ feature: Number(key), cells: segment, type: "town" } as Route);
+        }
+      }
+    }
+
+    TIME && console.timeEnd("generateTownRoads");
+    return townRoads;
+  }
+
+  private generateFootpaths(connections: Map<string, boolean>) {
+    TIME && console.time("generateFootpaths");
+    const { hamletsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const footpaths: Route[] = [];
+    const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
+
+    for (const [key, featureHamlets] of Object.entries(hamletsByFeature)) {
+      if (featureHamlets.length < 2) continue;
+
+      const points = featureHamlets.map((burg) => [burg.x, burg.y] as Point);
+      const urquhartEdges = this.calculateUrquhartEdges(points);
+
+      for (const [fromId, toId] of urquhartEdges) {
+        const a = featureHamlets[fromId];
+        const b = featureHamlets[toId];
+
+        const kmDistance = Math.sqrt(distanceSquared([a.x, a.y], [b.x, b.y])) / mapScale;
+        if (kmDistance > 15) continue;
+
+        const segments = this.findPathSegments({
+          isWater: false,
+          connections,
+          start: a.cell,
+          exit: b.cell,
+          routeType: "footpath",
+        });
+        for (const segment of segments) {
+          this.addConnections(segment, connections);
+          footpaths.push({ feature: Number(key), cells: segment, type: "footpath" } as Route);
+        }
+      }
+    }
+
+    TIME && console.timeEnd("generateFootpaths");
+    return footpaths;
+  }
+
+  private generateMajorSeaRoutes(connections: Map<string, boolean>) {
+    TIME && console.time("generateMajorSeaRoutes");
+    const { capitalPortsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const majorSeaRoutes: Route[] = [];
+
+    for (const [key, featurePorts] of Object.entries(capitalPortsByFeature)) {
+      if (featurePorts.length < 2) continue;
+
+      const edges: { from: number; to: number; dist: number }[] = [];
+      for (let i = 0; i < featurePorts.length; i++) {
+        for (let j = i + 1; j < featurePorts.length; j++) {
+          const a = featurePorts[i];
+          const b = featurePorts[j];
+          edges.push({
+            from: i,
+            to: j,
+            dist: distanceSquared([a.x, a.y], [b.x, b.y]),
+          });
+        }
+      }
+      edges.sort((a, b) => a.dist - b.dist);
+
+      const parent = new Map<number, number>();
+      function find(x: number): number {
+        if (!parent.has(x)) parent.set(x, x);
+        if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!));
+        return parent.get(x)!;
+      }
+      function union(a: number, b: number): boolean {
+        const ra = find(a);
+        const rb = find(b);
+        if (ra === rb) return false;
+        parent.set(ra, rb);
+        return true;
+      }
+
+      for (const edge of edges) {
+        if (!union(edge.from, edge.to)) continue;
+
+        const start = featurePorts[edge.from].cell;
+        const exit = featurePorts[edge.to].cell;
+
         const segments = this.findPathSegments({
           isWater: true,
           connections,
@@ -496,16 +807,17 @@ class RoutesModule {
         });
         for (const segment of segments) {
           this.addConnections(segment, connections);
-          seaRoutes.push({
-            feature: Number(featureId),
+          majorSeaRoutes.push({
+            feature: Number(key),
             cells: segment,
+            type: "major",
           } as Route);
         }
-      });
+      }
     }
 
-    TIME && console.timeEnd("generateSeaRoutes");
-    return seaRoutes;
+    TIME && console.timeEnd("generateMajorSeaRoutes");
+    return majorSeaRoutes;
   }
 
   private preparePointsArray(): Point[] {
@@ -622,28 +934,63 @@ class RoutesModule {
   }
 
   private createRoutesData(routes: Route[], connections: Map<string, boolean>) {
+    const royalRoads = this.generateRoyalRoads(connections);
     const mainRoads = this.generateMainRoads(connections);
+    const marketRoads = this.generateMarketRoads(connections);
+    const townRoads = this.generateTownRoads(connections);
     const trails = this.generateTrails(connections);
+    const footpaths = this.generateFootpaths(connections);
+    const majorSeaRoutes = this.generateMajorSeaRoutes(connections);
     const seaRoutes = this.generateSeaRoutes(connections);
     const airRoutes = this.generateAirRoutes();
     const pointsArray = this.preparePointsArray();
 
-    for (const { feature, cells, merged } of this.mergeRoutes(mainRoads)) {
+    for (const { feature, cells, merged, type } of this.mergeRoutes(royalRoads)) {
       if (merged) continue;
       const points = this.getPoints("roads", cells!, pointsArray);
-      routes.push({ i: routes.length, group: "roads", feature, points });
+      routes.push({ i: routes.length, group: "roads", type, feature, points });
     }
 
-    for (const { feature, cells, merged } of this.mergeRoutes(trails)) {
+    for (const { feature, cells, merged, type } of this.mergeRoutes(mainRoads)) {
+      if (merged) continue;
+      const points = this.getPoints("roads", cells!, pointsArray);
+      routes.push({ i: routes.length, group: "roads", type, feature, points });
+    }
+
+    for (const { feature, cells, merged, type } of this.mergeRoutes(marketRoads)) {
+      if (merged) continue;
+      const points = this.getPoints("roads", cells!, pointsArray);
+      routes.push({ i: routes.length, group: "roads", type, feature, points });
+    }
+
+    for (const { feature, cells, merged, type } of this.mergeRoutes(townRoads)) {
+      if (merged) continue;
+      const points = this.getPoints("roads", cells!, pointsArray);
+      routes.push({ i: routes.length, group: "roads", type, feature, points });
+    }
+
+    for (const { feature, cells, merged, type } of this.mergeRoutes(trails)) {
       if (merged) continue;
       const points = this.getPoints("trails", cells!, pointsArray);
-      routes.push({ i: routes.length, group: "trails", feature, points });
+      routes.push({ i: routes.length, group: "trails", type, feature, points });
     }
 
-    for (const { feature, cells, merged } of this.mergeRoutes(seaRoutes)) {
+    for (const { feature, cells, merged, type } of this.mergeRoutes(footpaths)) {
+      if (merged) continue;
+      const points = this.getPoints("trails", cells!, pointsArray);
+      routes.push({ i: routes.length, group: "trails", type, feature, points });
+    }
+
+    for (const { feature, cells, merged, type } of this.mergeRoutes(majorSeaRoutes)) {
       if (merged) continue;
       const points = this.getPoints("searoutes", cells!, pointsArray);
-      routes.push({ i: routes.length, group: "searoutes", feature, points });
+      routes.push({ i: routes.length, group: "searoutes", type, feature, points });
+    }
+
+    for (const { feature, cells, merged, type } of this.mergeRoutes(seaRoutes)) {
+      if (merged) continue;
+      const points = this.getPoints("searoutes", cells!, pointsArray);
+      routes.push({ i: routes.length, group: "searoutes", type, feature, points });
     }
 
     // Air routes are already point-based (direct lines), no cell merging needed
