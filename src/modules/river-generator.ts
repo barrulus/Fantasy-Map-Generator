@@ -132,14 +132,20 @@ class RiverModule {
           let minH = Infinity;
           for (const c of cells.c[i]) {
             if (lakeIds.has(cells.f[c])) continue;
-            if (h[c] < minH) { minH = h[c]; minCell = c; }
+            if (h[c] < minH) {
+              minH = h[c];
+              minCell = c;
+            }
           }
         } else if (cells.haven[i]) {
           minCell = cells.haven[i];
         } else {
           let minH = Infinity;
           for (const c of cells.c[i]) {
-            if (h[c] < minH) { minH = h[c]; minCell = c; }
+            if (h[c] < minH) {
+              minH = h[c];
+              minCell = c;
+            }
           }
         }
 

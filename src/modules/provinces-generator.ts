@@ -131,10 +131,7 @@ class ProvinceModule {
       if (stateBurgs.length < 2) return; // at least 2 provinces are required
 
       const provincesNumber = Math.min(
-        Math.max(
-          Math.ceil((stateBurgs.length * provincesRatio) / 100),
-          2,
-        ),
+        Math.max(Math.ceil((stateBurgs.length * provincesRatio) / 100), 2),
         20, // cap at max 20 provinces per state
       );
       const form = Object.assign({}, this.forms[s.form!]);

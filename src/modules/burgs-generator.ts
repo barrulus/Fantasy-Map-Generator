@@ -110,7 +110,14 @@ class BurgModule {
 
     // shift non-port river burgs a bit
     for (const burg of burgs) {
-      if (!burg.i || burg.lock || burg.port || burg.flying || !cells.r[burg.cell]) continue;
+      if (
+        !burg.i ||
+        burg.lock ||
+        burg.port ||
+        burg.flying ||
+        !cells.r[burg.cell]
+      )
+        continue;
       const cellId = burg.cell;
       const shift = Math.min(cells.fl[cellId] / 150, 1);
       burg.x = cellId % 2 ? rn(burg.x + shift, 2) : rn(burg.x - shift, 2);
@@ -288,7 +295,8 @@ class BurgModule {
 
       const totalTarget = getTownsNumber();
       const targetCount = Math.floor(totalTarget * 0.07);
-      const baseSpacing = (graphWidth + graphHeight) / 150 / (totalTarget ** 0.5 / 20);
+      const baseSpacing =
+        (graphWidth + graphHeight) / 150 / (totalTarget ** 0.5 / 20);
       let added = 0;
 
       for (let i = 0; i < sorted.length && added < targetCount; i++) {
@@ -332,7 +340,8 @@ class BurgModule {
 
       const totalTarget = getTownsNumber();
       const targetCount = Math.floor(totalTarget * 0.12);
-      const baseSpacing = (graphWidth + graphHeight) / 150 / (totalTarget ** 0.6 / 30);
+      const baseSpacing =
+        (graphWidth + graphHeight) / 150 / (totalTarget ** 0.6 / 30);
       let added = 0;
 
       for (let i = 0; i < sorted.length && added < targetCount; i++) {
@@ -375,8 +384,9 @@ class BurgModule {
       const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
 
       const totalTarget = getTownsNumber();
-      const targetCount = Math.floor(totalTarget * 0.20);
-      const baseSpacing = (graphWidth + graphHeight) / 150 / (totalTarget ** 0.65 / 15);
+      const targetCount = Math.floor(totalTarget * 0.2);
+      const baseSpacing =
+        (graphWidth + graphHeight) / 150 / (totalTarget ** 0.65 / 15);
       let added = 0;
 
       for (let pass = 0; added < targetCount && pass < 3; pass++) {
@@ -388,7 +398,11 @@ class BurgModule {
           const culture = cells.culture[cell];
           const cultureType = pack.cultures[culture]?.type || "Generic";
           const spacingMod = this.getCultureSpacingModifier(cultureType);
-          const spacing = baseSpacing * spacingMod * gauss(1, 0.3, 0.2, 1.5, 2) * (1 / (pass + 1));
+          const spacing =
+            baseSpacing *
+            spacingMod *
+            gauss(1, 0.3, 0.2, 1.5, 2) *
+            (1 / (pass + 1));
 
           if (burgsQuadtree.find(x, y, spacing) !== undefined) continue;
 

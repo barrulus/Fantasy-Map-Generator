@@ -178,7 +178,13 @@ const suffixes: Record<string, Record<string, number>> = {
   roads: { road: 7, route: 3, way: 2, highway: 1 },
   trails: { trail: 4, path: 1, track: 1, pass: 1 },
   searoutes: { "sea route": 5, lane: 2, passage: 1, seaway: 1 },
-  airroutes: { "sky route": 3, "air lane": 2, skyway: 2, airway: 2, "aerial path": 1 },
+  airroutes: {
+    "sky route": 3,
+    "air lane": 2,
+    skyway: 2,
+    airway: 2,
+    "aerial path": 1,
+  },
 };
 
 export interface Route {
