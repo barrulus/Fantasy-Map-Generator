@@ -791,7 +791,8 @@ function drawRoutes() {
     const {i, group, points} = route;
     if (!points || points.length < 2) continue;
     if (!routePaths[group]) routePaths[group] = [];
-    routePaths[group].push(`<path id="route${i}" d="${Routes.getPath(route)}"/>`);
+    const typeAttr = route.type ? ` data-type="${route.type}"` : "";
+    routePaths[group].push(`<path id="route${i}"${typeAttr} d="${Routes.getPath(route)}"/>`);
   }
 
   routes.selectAll("path").remove();
@@ -803,11 +804,12 @@ function drawRoutes() {
 }
 
 function drawRoute(route) {
-  routes
+  const el = routes
     .select("#" + route.group)
     .append("path")
     .attr("d", Routes.getPath(route))
     .attr("id", "route" + route.i);
+  if (route.type) el.attr("data-type", route.type);
 }
 
 function toggleMilitary(event) {
