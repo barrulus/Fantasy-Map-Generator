@@ -88,6 +88,11 @@ function applyStyle(styleJSON) {
       style.anchors[group] = styleJSON[selector];
     }
 
+    if (selector.startsWith("#routes ")) {
+      const type = selector.split("#").pop();
+      style.routes[type] = styleJSON[selector];
+    }
+
     const el = document.querySelector(selector);
     if (!el) continue;
 
@@ -361,6 +366,11 @@ function addStylePreset() {
       attributes[`#burgIcons > g#${name}`] = burgIconsAttributes;
       attributes[`#anchors > g#${name}`] = anchorsAttributes;
     });
+
+    const routeTypeAttrs = ["stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "opacity"];
+    for (const type of ["royal", "main", "market", "town", "trail", "footpath", "major", "local"]) {
+      attributes[`#routes [id="${type}"]`] = routeTypeAttrs;
+    }
 
     for (const selector in attributes) {
       const el = document.querySelector(selector);

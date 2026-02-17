@@ -228,6 +228,32 @@
     "filter": null,
     "mask": null
   },
+  "#routes #royal": {
+    "stroke-width": 1.26,
+    "stroke-dasharray": null
+  },
+  "#routes #main": {
+    "stroke-width": 0.99,
+    "stroke-dasharray": null
+  },
+  "#routes #market": {
+    "stroke-width": 0.77
+  },
+  "#routes #town": {
+    "stroke-width": 0.59
+  },
+  "#routes #trail": {
+    "stroke-width": 0.2
+  },
+  "#routes #footpath": {
+    "stroke-width": 0.12
+  },
+  "#routes #major": {
+    "stroke-width": 0.84
+  },
+  "#routes #local": {
+    "stroke-width": 0.48
+  },
   "#burgLabels > g#skyburg": {
     "opacity": 1,
     "fill": "#5a1870",

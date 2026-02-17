@@ -778,38 +778,69 @@ function toggleRoutes(event) {
     if (event && isCtrlClick(event)) editStyle("routes");
   } else {
     if (event && isCtrlClick(event)) return editStyle("routes");
-    routes.selectAll("path").remove();
+    routes.selectAll("#roads, #trails, #searoutes, #airroutes").html("");
     turnButtonOff("toggleRoutes");
   }
 }
 
 function drawRoutes() {
   TIME && console.time("drawRoutes");
-  const routePaths = {};
+  const typedPaths = {};
 
   for (const route of pack.routes) {
     const {i, group, points} = route;
     if (!points || points.length < 2) continue;
-    if (!routePaths[group]) routePaths[group] = [];
-    const typeAttr = route.type ? ` data-type="${route.type}"` : "";
-    routePaths[group].push(`<path id="route${i}"${typeAttr} d="${Routes.getPath(route)}"/>`);
+    const type = route.type || "";
+    const key = type ? `${group}/${type}` : group;
+    if (!typedPaths[key]) typedPaths[key] = {group, type, paths: []};
+    typedPaths[key].paths.push(`<path id="route${i}" d="${Routes.getPath(route)}"/>`);
   }
 
-  routes.selectAll("path").remove();
-  for (const group in routePaths) {
-    routes.select("#" + group).html(routePaths[group].join(""));
+  // clear all content from route group elements (sub-groups and paths)
+  routes.selectAll("#roads, #trails, #searoutes, #airroutes").html("");
+
+  for (const key in typedPaths) {
+    const {group, type, paths} = typedPaths[key];
+    const groupEl = routes.select("#" + group);
+    if (groupEl.empty()) continue;
+    if (type) {
+      const subGroup = groupEl.append("g").attr("id", type);
+      applyRouteTypeStyle(subGroup.node(), type);
+      subGroup.html(paths.join(""));
+    } else {
+      groupEl.html(groupEl.html() + paths.join(""));
+    }
   }
 
   TIME && console.timeEnd("drawRoutes");
 }
 
 function drawRoute(route) {
-  const el = routes
-    .select("#" + route.group)
-    .append("path")
-    .attr("d", Routes.getPath(route))
-    .attr("id", "route" + route.i);
-  if (route.type) el.attr("data-type", route.type);
+  const groupEl = routes.select("#" + route.group);
+  if (groupEl.empty()) return;
+  if (route.type) {
+    let subGroup = groupEl.select("#" + route.type);
+    if (subGroup.empty()) {
+      subGroup = groupEl.append("g").attr("id", route.type);
+      applyRouteTypeStyle(subGroup.node(), route.type);
+    }
+    subGroup.append("path").attr("d", Routes.getPath(route)).attr("id", "route" + route.i);
+  } else {
+    groupEl.append("path").attr("d", Routes.getPath(route)).attr("id", "route" + route.i);
+  }
+}
+
+function applyRouteTypeStyle(el, type) {
+  const typeStyle = style.routes[type];
+  if (!typeStyle) return;
+  for (const attr in typeStyle) {
+    const value = typeStyle[attr];
+    if (value === null || value === "null") {
+      el.removeAttribute(attr);
+    } else if (value !== undefined) {
+      el.setAttribute(attr, value);
+    }
+  }
 }
 
 function toggleMilitary(event) {

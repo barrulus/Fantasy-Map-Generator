@@ -227,6 +227,32 @@
     "filter": null,
     "mask": null
   },
+  "#routes #royal": {
+    "stroke-width": 1.47,
+    "stroke-dasharray": null
+  },
+  "#routes #main": {
+    "stroke-width": 1.16,
+    "stroke-dasharray": null
+  },
+  "#routes #market": {
+    "stroke-width": 0.89
+  },
+  "#routes #town": {
+    "stroke-width": 0.68
+  },
+  "#routes #trail": {
+    "stroke-width": 0.43
+  },
+  "#routes #footpath": {
+    "stroke-width": 0.26
+  },
+  "#routes #major": {
+    "stroke-width": 0.63
+  },
+  "#routes #local": {
+    "stroke-width": 0.36
+  },
   "#burgLabels > g#skyburg": {
     "opacity": 1,
     "fill": "#5a3497",

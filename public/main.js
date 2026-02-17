@@ -161,7 +161,7 @@ let options = {
 };
 
 // global style object; in v2.0 to be used for all map styles and render settings
-let style = {burgLabels: {}, burgIcons: {}, anchors: {}};
+let style = {burgLabels: {}, burgIcons: {}, anchors: {}, routes: {}};
 
 let biomesData = Biomes.getDefault();
 let nameBases = Names.getNameBases(); // cultures-related data
@@ -528,10 +528,9 @@ function invokeActiveZooming() {
       footpath: 10
     };
 
-    routes.selectAll("path").each(function () {
-      const type = this.dataset.type;
-      if (!type) return;
-      const minZoom = ROUTE_MIN_ZOOM[type] || 0;
+    routes.selectAll("g g").each(function () {
+      const minZoom = ROUTE_MIN_ZOOM[this.id];
+      if (minZoom === undefined) return;
       if (scale < minZoom) this.classList.add("hidden");
       else this.classList.remove("hidden");
     });
