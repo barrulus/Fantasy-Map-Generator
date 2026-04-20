@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -138,13 +138,32 @@
       }
     </style>
 
-    <link rel="preload" href="index.css?v=1.109.1" as="style" onload="this.onload=null; this.rel='stylesheet'" />
-    <link rel="preload" href="icons.css" as="style" onload="this.onload=null; this.rel='stylesheet'" />
+    <link
+      rel="preload"
+      href="index.css?v=1.113.1"
+      as="style"
+      onload="
+        this.onload = null;
+        this.rel = 'stylesheet';
+      "
+    />
+    <link
+      rel="preload"
+      href="icons.css"
+      as="style"
+      onload="
+        this.onload = null;
+        this.rel = 'stylesheet';
+      "
+    />
     <link
       rel="preload"
       href="libs/jquery-ui.css?v=1.106.5"
       as="style"
-      onload="this.onload=null; this.rel='stylesheet'"
+      onload="
+        this.onload = null;
+        this.rel = 'stylesheet';
+      "
     />
   </head>
   <body>
@@ -2729,23 +2748,38 @@
         <button id="labelSizeShow" data-tip="Show the font size section" class="icon-text-height"></button>
         <div id="labelSizeSection" style="display: none">
           <button id="labelSizeHide" data-tip="Hide the font size section" class="icon-text-height"></button>
-          <input
-            id="labelStartOffset"
-            data-tip="Set starting offset for the particular label"
-            type="range"
-            min="20"
-            max="80"
-            style="width: 8em"
-          />
-          <i class="icon-text-height"></i>
+          <span data-tip="Set relative size for the particular label">Size:</span>
           <input
             id="labelRelativeSize"
-            data-tip="Set relative size for the particular label"
+            data-tip="Set relative size for the particular label (% of group default)"
             type="number"
             min="30"
             max="300"
             step="1"
             style="width: 4.5em"
+          />
+        </div>
+
+        <button id="labelOffsetShow" data-tip="Show the label offset section" class="icon-sliders"></button>
+        <div id="labelOffsetSection" style="display: none">
+          <button id="labelOffsetHide" data-tip="Hide the label offset section" class="icon-sliders"></button>
+          <span data-tip="Set starting offset for the particular label">Offset:</span>
+          <input
+            id="labelStartOffset"
+            data-tip="Set starting offset for the particular label (% along the path)"
+            type="range"
+            min="20"
+            max="80"
+            style="width: 8em"
+          />
+          <input
+            id="labelStartOffsetValue"
+            type="number"
+            min="20"
+            max="80"
+            step="1"
+            style="width: 3.5em"
+            data-tip="Set starting offset numerically"
           />
         </div>
 
@@ -4289,7 +4323,9 @@
             id="templateCA"
             data-tip="Find or share custom template on Cartography Assets portal"
             class="icon-drafting-compass"
-            onclick="openURL('https://cartographyassets.com/asset-category/specific-assets/azgaars-generator/templates')"
+            onclick="
+              openURL('https://cartographyassets.com/asset-category/specific-assets/azgaars-generator/templates')
+            "
           ></button>
           <button
             id="templateTutorial"
@@ -6120,7 +6156,10 @@
               id="showLabels"
               class="checkbox"
               type="checkbox"
-              onchange="hideLabels.checked = !this.checked; invokeActiveZooming()"
+              onchange="
+                hideLabels.checked = !this.checked;
+                invokeActiveZooming();
+              "
               checked=""
             />
             <label for="showLabels" class="checkbox-label">Show all labels</label>
@@ -6152,6 +6191,7 @@
           <button onclick="saveGeoJsonRoutes()" data-tip="Download routes data in GeoJSON format">routes</button>
           <button onclick="saveGeoJsonRivers()" data-tip="Download rivers data in GeoJSON format">rivers</button>
           <button onclick="saveGeoJsonMarkers()" data-tip="Download markers data in GeoJSON format">markers</button>
+          <button onclick="saveGeoJsonZones()" data-tip="Download zones data in GeoJSON format">zones</button>
         </div>
         <p>
           GeoJSON format is used in GIS tools such as QGIS. Check out
@@ -6181,7 +6221,12 @@
       <div id="saveMapData" style="display: none" class="dialog">
         <div style="margin-top: 0.3em">
           <strong>Save map to</strong>
-          <button onclick="saveMap('machine')" data-tip="Download map file to your local disk" data-shortcut="Ctrl + S">
+          <button
+            onclick="saveMap('machine')"
+            data-tip="Download map file to your local disk"
+            data-shortcut="Ctrl + S"
+            style="font-weight: 600"
+          >
             machine
           </button>
           <button onclick="saveMap('dropbox')" data-tip="Save map file to your Dropbox" data-shortcut="Ctrl + C">
@@ -8494,28 +8539,21 @@
 
     <script defer src="config/heightmap-templates.js"></script>
     <script defer src="config/precreated-heightmaps.js"></script>
-    <script defer src="modules/ice.js?v=1.111.0"></script>
-    <script defer src="modules/military-generator.js?v=1.107.0"></script>
-    <script defer src="modules/markers-generator.js?v=1.107.0"></script>
-    <script defer src="modules/coa-generator.js?v=1.99.00"></script>
-    <script defer src="modules/resample.js?v=1.112.1"></script>
     <script defer src="libs/alea.min.js?v1.105.0"></script>
     <script defer src="libs/polylabel.min.js?v1.105.0"></script>
-    <script defer src="libs/lineclip.min.js?v1.105.0"></script>
     <script defer src="libs/simplify.js?v1.105.6"></script>
-    <script defer src="modules/fonts.js?v=1.99.03"></script>
     <script defer src="modules/ui/layers.js?v=1.111.0"></script>
     <script defer src="modules/ui/measurers.js?v=1.99.00"></script>
     <script defer src="modules/ui/style-presets.js?v=1.100.00"></script>
-    <script defer src="modules/ui/general.js?v=1.100.00"></script>
-    <script defer src="modules/ui/options.js?v=1.106.2"></script>
+    <script defer src="modules/ui/general.js?v=1.113.1"></script>
+    <script defer src="modules/ui/options.js?v=1.113.5"></script>
     <script defer src="main.js?v=1.111.0"></script>
 
     <script defer src="modules/ui/style.js?v=1.108.4"></script>
     <script defer src="modules/ui/editors.js?v=1.112.1"></script>
-    <script defer src="modules/ui/tools.js?v=1.111.0"></script>
+    <script defer src="modules/ui/tools.js?v=1.113.3"></script>
     <script defer src="modules/ui/world-configurator.js?v=1.105.4"></script>
-    <script defer src="modules/ui/heightmap-editor.js?v=1.105.2"></script>
+    <script defer src="modules/ui/heightmap-editor.js?v=1.113.0"></script>
     <script defer src="modules/ui/provinces-editor.js?v=1.108.1"></script>
     <script defer src="modules/ui/biomes-editor.js?v=1.112.0"></script>
     <script defer src="modules/ui/namesbase-editor.js?v=1.105.11"></script>
@@ -8527,12 +8565,12 @@
     <script defer src="modules/ui/ice-editor.js?v=1.111.0"></script>
     <script defer src="modules/ui/lakes-editor.js?v=1.106.0"></script>
     <script defer src="modules/ui/coastline-editor.js?v=1.99.00"></script>
-    <script defer src="modules/ui/labels-editor.js?v=1.106.0"></script>
+    <script defer src="modules/ui/labels-editor.js?v=1.113.2"></script>
     <script defer src="modules/ui/rivers-editor.js?v=1.106.0"></script>
     <script defer src="modules/ui/rivers-creator.js?v=1.106.0"></script>
     <script defer src="modules/ui/relief-editor.js?v=1.99.00"></script>
     <script defer src="modules/ui/burg-group-editor.js?v=1.109.5"></script>
-    <script defer src="modules/ui/burg-editor.js?v=1.106.6"></script>
+    <script defer src="modules/ui/burg-editor.js?v=1.114.2"></script>
     <script defer src="modules/ui/units-editor.js?v=1.108.12"></script>
     <script defer src="modules/ui/notes-editor.js?v=1.107.3"></script>
     <script defer src="modules/ui/ai-generator.js?v=1.108.8"></script>
@@ -8552,12 +8590,11 @@
     <script defer src="modules/ui/submap-tool.js?v=1.106.2"></script>
     <script defer src="modules/ui/transform-tool.js?v=1.106.2"></script>
     <script defer src="modules/ui/hotkeys.js?v=1.104.0"></script>
-    <script defer src="modules/coa-renderer.js?v=1.99.00"></script>
     <script defer src="libs/rgbquant.min.js"></script>
     <script defer src="libs/jquery.ui.touch-punch.min.js"></script>
-    <script defer src="modules/io/save.js?v=1.111.0"></script>
-    <script defer src="modules/io/load.js?v=1.111.0"></script>
-    <script defer src="modules/io/cloud.js?v=1.106.0"></script>
-    <script defer src="modules/io/export.js?v=1.108.13"></script>
+    <script defer src="modules/io/save.js?v=1.113.8"></script>
+    <script defer src="modules/io/load.js?v=1.113.0"></script>
+    <script defer src="modules/io/cloud.js?v=1.114.0"></script>
+    <script defer src="modules/io/export.js?v=1.112.2"></script>
   </body>
 </html>

@@ -42,7 +42,10 @@ function editLabel() {
 
   byId("labelSizeShow").on("click", showSizeSection);
   byId("labelSizeHide").on("click", hideSizeSection);
+  byId("labelOffsetShow").on("click", showOffsetSection);
+  byId("labelOffsetHide").on("click", hideOffsetSection);
   byId("labelStartOffset").on("input", changeStartOffset);
+  byId("labelStartOffsetValue").on("input", changeStartOffsetFromValue);
   byId("labelRelativeSize").on("input", changeRelativeSize);
 
   byId("labelLetterSpacingShow").on("click", showLetterSpacingSection);
@@ -83,7 +86,9 @@ function editLabel() {
 
   function updateValues(textPath) {
     byId("labelText").value = [...textPath.querySelectorAll("tspan")].map(tspan => tspan.textContent).join("|");
-    byId("labelStartOffset").value = parseFloat(textPath.getAttribute("startOffset"));
+    const startOffset = parseFloat(textPath.getAttribute("startOffset"));
+    byId("labelStartOffset").value = startOffset;
+    byId("labelStartOffsetValue").value = startOffset;
     byId("labelRelativeSize").value = parseFloat(textPath.getAttribute("font-size"));
     let letterSpacingSize = textPath.getAttribute("letter-spacing") ? textPath.getAttribute("letter-spacing") : 0;
     byId("labelLetterSpacingSize").value = parseFloat(letterSpacingSize);
@@ -346,6 +351,16 @@ function editLabel() {
     byId("labelSizeSection").style.display = "none";
   }
 
+  function showOffsetSection() {
+    document.querySelectorAll("#labelEditor > button").forEach(el => (el.style.display = "none"));
+    byId("labelOffsetSection").style.display = "inline-block";
+  }
+
+  function hideOffsetSection() {
+    document.querySelectorAll("#labelEditor > button").forEach(el => (el.style.display = "inline-block"));
+    byId("labelOffsetSection").style.display = "none";
+  }
+
   function showLetterSpacingSection() {
     document.querySelectorAll("#labelEditor > button").forEach(el => (el.style.display = "none"));
     byId("labelLetterSpacingSection").style.display = "inline-block";
@@ -357,8 +372,18 @@ function editLabel() {
   }
 
   function changeStartOffset() {
-    elSelected.select("textPath").attr("startOffset", this.value + "%");
-    tip("Label offset: " + this.value + "%");
+    const value = this.value;
+    byId("labelStartOffsetValue").value = value;
+    elSelected.select("textPath").attr("startOffset", value + "%");
+    tip("Label offset: " + value + "%");
+  }
+
+  function changeStartOffsetFromValue() {
+    const value = Math.min(80, Math.max(20, this.value));
+    byId("labelStartOffset").value = value;
+    this.value = value;
+    elSelected.select("textPath").attr("startOffset", value + "%");
+    tip("Label offset: " + value + "%");
   }
 
   function changeRelativeSize() {
