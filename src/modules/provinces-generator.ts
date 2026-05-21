@@ -202,52 +202,115 @@ class ProvinceModule {
     }
 
     // add "wild" provinces if some cells don't have a province assigned
-    const noProvince = Array.from(cells.i).filter(i => cells.state[i] && !provinceIds[i]); // cells without province assigned
+    const noProvinceByState = new Map<number, Set<number>>();
+    for (let idx = 0; idx < cells.i.length; idx++) {
+      const i = cells.i[idx];
+      const stateId = cells.state[i];
+      if (!stateId || provinceIds[i]) continue;
+      let set = noProvinceByState.get(stateId);
+      if (!set) {
+        set = new Set();
+        noProvinceByState.set(stateId, set);
+      }
+      set.add(i);
+    }
+
+    const cellCount = cells.i.length;
+    const wildCost = new Float32Array(cellCount);
+    const dirtyCost: number[] = [];
+
+    const passableMark = new Uint32Array(cellCount);
+    let passableGen = 0;
+    const isPassable = (from: number, to: number): boolean => {
+      if (cells.f[from] !== cells.f[to]) return false; // on different islands
+      passableGen++;
+      const state = cells.state[from];
+      const stack: number[] = [from];
+      passableMark[from] = passableGen;
+      while (stack.length) {
+        const current = stack.pop() as number;
+        if (current === to) return true;
+        const neighbors = cells.c[current];
+        for (let n = 0; n < neighbors.length; n++) {
+          const c = neighbors[n];
+          if (passableMark[c] === passableGen) continue;
+          if (cells.h[c] < 20 || cells.state[c] !== state) continue;
+          passableMark[c] = passableGen;
+          stack.push(c);
+        }
+      }
+      return false;
+    };
+
     states.forEach(s => {
       if (!s.i || s.removed) return;
       if (s.lock && !regenerateLockedStates) return;
       if (!s.provinces?.length) return;
 
+      const stateNoProvince = noProvinceByState.get(s.i);
+      if (!stateNoProvince || !stateNoProvince.size) return;
+
       const coreProvinceNames = s.provinces.map(p => provinces[p]?.name);
       const colonyNamePool = [s.name, ...coreProvinceNames].filter(name => name && !/new/i.test(name));
       const getColonyName = () => {
         if (colonyNamePool.length < 1) return null;
-
         const index = rand(colonyNamePool.length - 1);
         const spliced = colonyNamePool.splice(index, 1);
         return spliced[0] ? `New ${spliced[0]}` : null;
       };
 
-      let stateNoProvince = noProvince.filter(i => cells.state[i] === s.i && !provinceIds[i]);
-      while (stateNoProvince.length) {
-        // add new province
+      while (stateNoProvince.size) {
         const provinceId = provinces.length;
-        const burgCell = stateNoProvince.find(i => cells.burg[i]);
-        const center = burgCell ? burgCell : stateNoProvince[0];
-        const burg = burgCell ? cells.burg[burgCell] : 0;
-        provinceIds[center] = provinceId;
 
-        // expand province
-        const cost = new Float32Array(cells.i.length);
-        cost[center] = 1;
+        let center: number = -1;
+        let burgCell = 0;
+        for (const i of stateNoProvince) {
+          if (cells.burg[i]) {
+            burgCell = i;
+            center = i;
+            break;
+          }
+        }
+        if (center === -1) {
+          center = stateNoProvince.values().next().value as number;
+        }
+        const burg = burgCell ? cells.burg[burgCell] : 0;
+
+        for (let d = 0; d < dirtyCost.length; d++) wildCost[dirtyCost[d]] = 0;
+        dirtyCost.length = 0;
+
+        provinceIds[center] = provinceId;
+        stateNoProvince.delete(center);
+        const provCells: number[] = [center];
+
+        wildCost[center] = 1;
+        dirtyCost.push(center);
         queue.push({ e: center, p: 0 }, 0);
+
         while (queue.length) {
           const { e, p } = queue.pop();
-
-          cells.c[e].forEach(nextCellId => {
-            if (provinceIds[nextCellId]) return;
+          const neighbors = cells.c[e];
+          for (let n = 0; n < neighbors.length; n++) {
+            const nextCellId = neighbors[n];
+            if (provinceIds[nextCellId]) continue;
             const land = cells.h[nextCellId] >= 20;
-            if (cells.state[nextCellId] && cells.state[nextCellId] !== s.i) return;
+            if (cells.state[nextCellId] && cells.state[nextCellId] !== s.i) continue;
             const ter = land ? (cells.state[nextCellId] === s.i ? 3 : 20) : cells.t[nextCellId] ? 10 : 30;
             const totalCost = p + ter;
-
-            if (totalCost > maxGrowth) return;
-            if (!cost[nextCellId] || totalCost < cost[nextCellId]) {
-              if (land && cells.state[nextCellId] === s.i) provinceIds[nextCellId] = provinceId; // assign province to a cell
-              cost[nextCellId] = totalCost;
-              queue.push({ e: nextCellId, p: totalCost }, totalCost);
+            if (totalCost > maxGrowth) continue;
+            const prev = wildCost[nextCellId];
+            if (prev && totalCost >= prev) continue;
+            if (land && cells.state[nextCellId] === s.i) {
+              if (provinceIds[nextCellId] !== provinceId) {
+                provinceIds[nextCellId] = provinceId;
+                provCells.push(nextCellId);
+                stateNoProvince.delete(nextCellId);
+              }
             }
-          });
+            if (!prev) dirtyCost.push(nextCellId);
+            wildCost[nextCellId] = totalCost;
+            queue.push({ e: nextCellId, p: totalCost }, totalCost);
+          }
         }
 
         // generate "wild" province name
@@ -255,7 +318,6 @@ class ProvinceModule {
         const f = pack.features[cells.f[center]];
         const color = getMixedColor(s.color!);
 
-        const provCells = stateNoProvince.filter(i => provinceIds[i] === provinceId);
         const singleIsle = provCells.length === f.cells && !provCells.find(i => cells.f[i] !== f.i);
         const isleGroup = !singleIsle && !provCells.find(i => pack.features[cells.f[i]].group !== "isle");
         const colony = !singleIsle && !isleGroup && P(0.5) && !isPassable(s.center, center);
@@ -294,27 +356,6 @@ class ProvinceModule {
           coa
         });
         s.provinces.push(provinceId);
-
-        // check if there is a land way within the same state between two cells
-        function isPassable(from: number, to: number) {
-          if (cells.f[from] !== cells.f[to]) return false; // on different islands
-          const passableQueue = [from],
-            used = new Uint8Array(cells.i.length),
-            state = cells.state[from];
-          while (passableQueue.length) {
-            const current = passableQueue.pop() as number;
-            if (current === to) return true; // way is found
-            cells.c[current].forEach(c => {
-              if (used[c] || cells.h[c] < 20 || cells.state[c] !== state) return;
-              passableQueue.push(c);
-              used[c] = 1;
-            });
-          }
-          return false; // way is not found
-        }
-
-        // re-check
-        stateNoProvince = noProvince.filter(i => cells.state[i] === s.i && !provinceIds[i]);
       }
     });
 
