@@ -252,24 +252,11 @@
           <filter
             id="paper"
             name="Paper"
-            x="-20%"
-            y="-20%"
-            width="140%"
-            height="140%"
             filterUnits="objectBoundingBox"
             primitiveUnits="userSpaceOnUse"
             color-interpolation-filters="sRGB"
           >
-            <feGaussianBlur
-              stdDeviation="1 1"
-              x="0%"
-              y="0%"
-              width="100%"
-              height="100%"
-              in="SourceGraphic"
-              edgeMode="none"
-              result="blur"
-            />
+            <feGaussianBlur stdDeviation="1 1" in="SourceGraphic" edgeMode="none" result="blur" />
             <feTurbulence
               type="fractalNoise"
               baseFrequency="0.05 0.05"
@@ -288,39 +275,17 @@
               <feDistantLight azimuth="45" elevation="20" />
             </feDiffuseLighting>
             <feComposite in="diffuseLighting" in2="blur" operator="lighter" result="composite" />
-            <feComposite
-              in="composite"
-              in2="SourceGraphic"
-              operator="in"
-              x="0%"
-              y="0%"
-              width="100%"
-              height="100%"
-              result="composite1"
-            />
+            <feComposite in="composite" in2="SourceGraphic" operator="in" result="composite1" />
           </filter>
 
           <filter
             id="crumpled"
             name="Crumpled"
-            x="-20%"
-            y="-20%"
-            width="140%"
-            height="140%"
             filterUnits="objectBoundingBox"
             primitiveUnits="userSpaceOnUse"
             color-interpolation-filters="sRGB"
           >
-            <feGaussianBlur
-              stdDeviation="2 2"
-              x="0%"
-              y="0%"
-              width="100%"
-              height="100%"
-              in="SourceGraphic"
-              edgeMode="none"
-              result="blur"
-            />
+            <feGaussianBlur stdDeviation="2 2" in="SourceGraphic" edgeMode="none" result="blur" />
             <feTurbulence
               type="turbulence"
               baseFrequency="0.05 0.05"
@@ -339,16 +304,7 @@
               <feDistantLight azimuth="320" elevation="10" />
             </feDiffuseLighting>
             <feComposite in="diffuseLighting" in2="blur" operator="lighter" result="composite" />
-            <feComposite
-              in="composite"
-              in2="SourceGraphic"
-              operator="in"
-              x="0%"
-              y="0%"
-              width="100%"
-              height="100%"
-              result="composite1"
-            />
+            <feComposite in="composite" in2="SourceGraphic" operator="in" result="composite1" />
           </filter>
 
           <filter id="filter-grayscale" name="Grayscale">
@@ -512,6 +468,14 @@
               onclick="toggleHeight(event)"
             >
               <u>H</u>eightmap
+            </li>
+            <li
+              id="toggleLakes"
+              data-tip="Lakes: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
+              data-shortcut="Q"
+              onclick="toggleLakes(event)"
+            >
+              Lakes
             </li>
             <li
               id="toggleBiomes"
@@ -1481,6 +1445,13 @@
             </tbody>
 
             <tbody id="styleVisibility">
+              <tr data-tip="Completely hide the selected labels group using display:none">
+                <td colspan="2">
+                  <input id="styleLabelsHideGroup" class="checkbox" type="checkbox" />
+                  <label for="styleLabelsHideGroup" class="checkbox-label">Hide selected group</label>
+                </td>
+              </tr>
+
               <tr data-tip="Allow system to hide labels if their size in too small or too big on that scale">
                 <td colspan="2">
                   <input id="hideLabels" class="checkbox" type="checkbox" onchange="invokeActiveZooming()" checked />
@@ -1753,7 +1724,9 @@
               </td>
             </tr>
 
-            <tr data-tip="Define burgs percentage to form a separate province">
+            <tr
+              data-tip="Set what share of eligible burgs in each state will become province centers. Higher values create more provinces"
+            >
               <td>
                 <i data-locked="0" id="lock_provincesRatio" class="icon-lock-open"></i>
               </td>
@@ -2103,6 +2076,13 @@
             <button id="overviewBurgsButton" data-tip="Click to open Burgs Overview" data-shortcut="Shift + T">
               Burgs
             </button>
+            <button
+              id="editCoastlineSettings"
+              data-tip="Click to open Coastline Settings Editor"
+              data-shortcut="Shift + L"
+            >
+              Coastlines
+            </button>
             <button id="editCulturesButton" data-tip="Click to open Cultures Editor" data-shortcut="Shift + C">
               Cultures
             </button>
@@ -2261,6 +2241,9 @@
             >
               Charts
             </button>
+            <button id="openMinimapButton" data-tip="Click to open minimap overview. Click minimap to center view">
+              Minimap
+            </button>
           </div>
 
           <div class="separator">Create</div>
@@ -2352,6 +2335,15 @@
         </div>
 
         <div id="aboutContent" class="tabcontent">
+          <p style="text-align: center; margin-top: 1em">
+            <button
+              id="startTourButton"
+              onclick="UITour.start()"
+              data-tip="Take an interactive tour of the map generator"
+            >
+              &#9654; Take an Interactive Tour
+            </button>
+          </p>
           <p>
             <a href="https://github.com/Azgaar/Fantasy-Map-Generator" target="_blank">Fantasy Map Generator</a> is an
             <a href="https://github.com/Azgaar/Fantasy-Map-Generator/blob/master/LICENSE" target="_blank"
@@ -2983,23 +2975,22 @@
         <div id="elevationGraph" data-tip="Elevation profile"></div>
         <div style="text-align: center">
           <div id="epControls">
-            <span data-tip="Set height scale"
-              >Height scale: <input id="epScaleRange" type="range" min="1" max="100" value="50"
-            /></span>
             <span data-tip="Set curve profile"
               >Curve:
               <select id="epCurve">
                 <option>Linear</option>
-                <option selected>Basis spline</option>
                 <option>Bundle</option>
                 <option>Cubic Catmull-Rom</option>
-                <option>Monotone X</option>
+                <option selected>Monotone X</option>
                 <option>Natural</option>
               </select>
             </span>
             <span
               ><button id="epSave" data-tip="Download the chart data as a CSV file" class="icon-download"></button
             ></span>
+            <span><button id="epSaveSVG" data-tip="Download the chart as an SVG image">SVG</button></span>
+            <span><button id="epSavePNG" data-tip="Download the chart as a PNG image">PNG</button></span>
+            <span id="epstats" style="margin-left: 1em; color: #555; font-size: 0.85em"></span>
           </div>
         </div>
       </div>
@@ -4162,6 +4153,13 @@
             </svg>
           </button>
 
+          <button id="brushFill" data-tip="Fill: click enclosed water or same-height land area to create a cone blob">
+            <svg viewBox="20 10 60 60" height="1em" width="1.6em">
+              <path d="M30,70 h40 M30,70 q0,-20 20,-20 q20,0 20,20" fill="none" stroke="#000" stroke-width="5" />
+              <path d="M50,20 v25 M50,20 l-10,8 M50,20 l10,8" fill="none" stroke="#000" stroke-width="5" />
+            </svg>
+          </button>
+
           <button id="brushLine" data-tip="Line: select two points to change heights along the line">
             <svg viewBox="0 -5 100 100" height="1em" width="1.6em">
               <path d="M0 90 L100 10" fill="none" stroke="#000" stroke-width="7"></path>
@@ -4191,12 +4189,13 @@
           </div>
         </div>
 
-        <div
-          data-tip="Allow brush to change only land cells and hence restrict the coastline modification"
-          style="margin-bottom: 0.6em"
-        >
-          <input id="changeOnlyLand" class="checkbox" type="checkbox" />
-          <label for="changeOnlyLand" class="checkbox-label"><i>change only land cells</i></label>
+        <div data-tip="Restrict brush to specific cell types" style="margin-bottom: 0.6em">
+          <label for="cellTypeFilter"><i>Cells to change:</i></label>
+          <select id="cellTypeFilter">
+            <option value="all" selected>all cells</option>
+            <option value="land">only land cells</option>
+            <option value="water">only water cells</option>
+          </select>
         </div>
 
         <div id="modifyButtons">
@@ -5995,6 +5994,10 @@
         </div>
       </div>
 
+      <div id="minimap" style="display: none" class="dialog stable">
+        <div id="minimapContent"></div>
+      </div>
+
       <div id="options3d" class="dialog stable" style="display: none">
         <div id="options3dMesh" style="display: none">
           <div data-tip="Set map rotation speed. Set to 0 is you want to toggle off the rotation">
@@ -6211,11 +6214,6 @@
           </button>
         </div>
         <p>Export in JSON format can be used as an API replacement.</p>
-
-        <p>
-          It's also possible to export map to <i>Foundry VTT</i>, see
-          <a href="https://github.com/Ethck/azgaar-foundry" target="_blank">the module.</a>
-        </p>
       </div>
 
       <div id="saveMapData" style="display: none" class="dialog">
@@ -8536,65 +8534,73 @@
     <script type="module" src="utils/index.ts"></script>
     <script type="module" src="modules/index.ts"></script>
     <script type="module" src="renderers/index.ts"></script>
+    <script type="module" src="controllers/index.ts"></script>
 
     <script defer src="config/heightmap-templates.js"></script>
     <script defer src="config/precreated-heightmaps.js"></script>
     <script defer src="libs/alea.min.js?v1.105.0"></script>
     <script defer src="libs/polylabel.min.js?v1.105.0"></script>
     <script defer src="libs/simplify.js?v1.105.6"></script>
-    <script defer src="modules/ui/layers.js?v=1.111.0"></script>
+    <script defer src="modules/ui/layers.js?v=1.122.2"></script>
     <script defer src="modules/ui/measurers.js?v=1.99.00"></script>
     <script defer src="modules/ui/style-presets.js?v=1.100.00"></script>
-    <script defer src="modules/ui/general.js?v=1.113.1"></script>
-    <script defer src="modules/ui/options.js?v=1.113.5"></script>
-    <script defer src="main.js?v=1.111.0"></script>
+    <script defer src="modules/ui/general.js?v=1.120.5"></script>
+    <script defer src="modules/ui/options.js?v=1.120.5"></script>
+    <script defer src="main.js?v=1.120.5"></script>
 
-    <script defer src="modules/ui/style.js?v=1.108.4"></script>
-    <script defer src="modules/ui/editors.js?v=1.112.1"></script>
-    <script defer src="modules/ui/tools.js?v=1.113.3"></script>
-    <script defer src="modules/ui/world-configurator.js?v=1.105.4"></script>
-    <script defer src="modules/ui/heightmap-editor.js?v=1.113.0"></script>
-    <script defer src="modules/ui/provinces-editor.js?v=1.108.1"></script>
+    <script defer src="modules/ui/style.js?v=1.122.0"></script>
+    <script defer src="modules/ui/editors.js?v=1.120.5"></script>
+    <script defer src="modules/ui/tools.js?v=1.120.5"></script>
+    <script defer src="modules/ui/world-configurator.js?v=1.120.5"></script>
+    <script defer src="modules/ui/heightmap-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/provinces-editor.js?v=1.120.5"></script>
     <script defer src="modules/ui/biomes-editor.js?v=1.112.0"></script>
-    <script defer src="modules/ui/namesbase-editor.js?v=1.105.11"></script>
-    <script defer src="modules/ui/elevation-profile.js?v=1.99.00"></script>
+    <!-- namesbase-editor migrated to src/controllers/namesbase-editor.ts -->
+    <!-- elevation-profile migrated to src/controllers/elevation-profile.ts -->
     <script defer src="modules/ui/temperature-graph.js?v=1.106.6"></script>
-    <script defer src="modules/ui/routes-editor.js?v=1.104.3"></script>
-    <script defer src="modules/ui/routes-creator.js?v=1.104.3"></script>
-    <script defer src="modules/ui/route-group-editor.js?v=1.103.8"></script>
+    <script defer src="modules/ui/routes-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/routes-creator.js?v=1.120.5"></script>
+    <script defer src="modules/ui/route-group-editor.js?v=1.120.5"></script>
     <script defer src="modules/ui/ice-editor.js?v=1.111.0"></script>
-    <script defer src="modules/ui/lakes-editor.js?v=1.106.0"></script>
-    <script defer src="modules/ui/coastline-editor.js?v=1.99.00"></script>
-    <script defer src="modules/ui/labels-editor.js?v=1.113.2"></script>
-    <script defer src="modules/ui/rivers-editor.js?v=1.106.0"></script>
+    <script defer src="modules/ui/lakes-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/coastline-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/labels-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/rivers-editor.js?v=1.120.5"></script>
     <script defer src="modules/ui/rivers-creator.js?v=1.106.0"></script>
     <script defer src="modules/ui/relief-editor.js?v=1.99.00"></script>
-    <script defer src="modules/ui/burg-group-editor.js?v=1.109.5"></script>
-    <script defer src="modules/ui/burg-editor.js?v=1.114.2"></script>
-    <script defer src="modules/ui/units-editor.js?v=1.108.12"></script>
-    <script defer src="modules/ui/notes-editor.js?v=1.107.3"></script>
-    <script defer src="modules/ui/ai-generator.js?v=1.108.8"></script>
-    <script defer src="modules/ui/diplomacy-editor.js?v=1.99.00"></script>
-    <script defer src="modules/ui/zones-editor.js?v=1.105.20"></script>
-    <script defer src="modules/ui/burgs-overview.js?v=1.111.0"></script>
-    <script defer src="modules/ui/routes-overview.js?v=1.111.0"></script>
-    <script defer src="modules/ui/rivers-overview.js?v=1.111.0"></script>
+    <script defer src="modules/ui/burg-group-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/burg-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/units-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/notes-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/ai-generator.js?v=1.120.5"></script>
+    <script defer src="modules/ui/diplomacy-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/zones-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/burgs-overview.js?v=1.120.5"></script>
+    <script defer src="modules/ui/routes-overview.js?v=1.120.5"></script>
+    <script defer src="modules/ui/rivers-overview.js?v=1.120.5"></script>
     <script defer src="modules/ui/military-overview.js?v=1.108.5"></script>
     <script defer src="modules/ui/regiments-overview.js?v=1.108.5"></script>
-    <script defer src="modules/ui/markers-overview.js?v=1.111.0"></script>
-    <script defer src="modules/ui/regiment-editor.js?v=1.108.5"></script>
-    <script defer src="modules/ui/battle-screen.js?v=1.108.5"></script>
+    <script defer src="modules/ui/markers-overview.js?v=1.120.5"></script>
+    <script defer src="modules/ui/regiment-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/battle-screen.js?v=1.120.5"></script>
     <script defer src="modules/ui/emblems-editor.js?v=1.99.00"></script>
-    <script defer src="modules/ui/markers-editor.js?v=1.108.5"></script>
+    <script defer src="modules/ui/markers-editor.js?v=1.120.5"></script>
     <script defer src="modules/ui/3d.js?v=1.99.00"></script>
-    <script defer src="modules/ui/submap-tool.js?v=1.106.2"></script>
-    <script defer src="modules/ui/transform-tool.js?v=1.106.2"></script>
-    <script defer src="modules/ui/hotkeys.js?v=1.104.0"></script>
+    <script defer src="modules/ui/submap-tool.js?v=1.120.5"></script>
+    <script defer src="modules/ui/transform-tool.js?v=1.120.5"></script>
+    <script defer src="modules/ui/hotkeys.js?v=1.120.5"></script>
     <script defer src="libs/rgbquant.min.js"></script>
     <script defer src="libs/jquery.ui.touch-punch.min.js"></script>
-    <script defer src="modules/io/save.js?v=1.113.8"></script>
-    <script defer src="modules/io/load.js?v=1.113.0"></script>
+    <script defer src="modules/io/save.js?v=1.120.5"></script>
+    <script defer src="modules/io/load.js?v=1.120.5"></script>
     <script defer src="modules/io/cloud.js?v=1.114.0"></script>
-    <script defer src="modules/io/export.js?v=1.112.2"></script>
+    <script defer src="modules/io/export.js?v=1.120.5"></script>
+    <div id="tourPromptButton" style="display: none" data-tip="Take an interactive tour of the map generator">
+      <button type="button" aria-label="Launch UI Tour">
+        <svg preserveAspectRatio="xMidYMid" viewBox="0 0 58 52" height="30px" width="30px">
+          <path d="M20 10 L20 42 L42 26 Z" />
+        </svg>
+      </button>
+    </div>
   </body>
 </html>

@@ -29,20 +29,18 @@ class RiverModule {
   private MAX_FLUX_WIDTH = 1;
   private LENGTH_FACTOR = 200;
   private LENGTH_STEP_WIDTH = 1 / this.LENGTH_FACTOR;
-  private LENGTH_PROGRESSION = [1, 1, 2, 3, 5, 8, 13, 21, 34].map(
-    (n) => n / this.LENGTH_FACTOR,
-  );
+  private LENGTH_PROGRESSION = [1, 1, 2, 3, 5, 8, 13, 21, 34].map(n => n / this.LENGTH_FACTOR);
   private lineGen = line().curve(curveBasis);
 
   riverTypes = {
     main: {
       big: { River: 1 },
-      small: { Creek: 9, River: 3, Brook: 3, Stream: 1 },
+      small: { Creek: 9, River: 3, Brook: 3, Stream: 1 }
     },
     fork: {
       big: { Fork: 1 },
-      small: { Branch: 1 },
-    },
+      small: { Branch: 1 }
+    }
   };
 
   smallLength: number | null = null;
@@ -62,13 +60,10 @@ class RiverModule {
 
     const drainWater = () => {
       const MIN_FLUX_TO_FORM_RIVER = 30;
-      const cellsNumberModifier =
-        ((pointsInput.dataset.cells as any) / 10000) ** 0.25;
+      const cellsNumberModifier = ((pointsInput.dataset.cells as any) / 10000) ** 0.25;
 
       const prec = grid.cells.prec;
-      const land = cells.i
-        .filter((i: number) => h[i] >= 20)
-        .sort((a: number, b: number) => h[b] - h[a]);
+      const land = cells.i.filter((i: number) => h[i] >= 20).sort((a: number, b: number) => h[b] - h[a]);
       const lakeOutCells = Lakes.defineClimateData(h);
 
       // pre-compute map from outCell to qualifying lake features
@@ -87,16 +82,12 @@ class RiverModule {
         // create lake outlet if lake is not in deep depression and flux > evaporation
         const lakes = (lakeOutCells[i] && outCellToLakes.get(i)) || [];
         for (const lake of lakes) {
-          const lakeCell = cells.c[i].find(
-            (c: number) => h[c] < 20 && cells.f[c] === lake.i,
-          )!;
+          const lakeCell = cells.c[i].find((c: number) => h[c] < 20 && cells.f[c] === lake.i)!;
           cells.fl[lakeCell] += Math.max(lake.flux - lake.evaporation, 0); // not evaporated lake water drains to outlet
 
           // allow chain lakes to retain identity
           if (cells.r[lakeCell] !== lake.river) {
-            const sameRiver = cells.c[lakeCell].some(
-              (c: number) => cells.r[c] === lake.river,
-            );
+            const sameRiver = cells.c[lakeCell].some((c: number) => cells.r[c] === lake.river);
 
             if (sameRiver) {
               cells.r[lakeCell] = lake.river as number;
@@ -191,10 +182,7 @@ class RiverModule {
         // pour water to the water body
         const waterBody = features[cells.f[toCell]];
         if (waterBody.type === "lake") {
-          if (
-            !waterBody.river ||
-            fromFlux > (waterBody.enteringFlux as number)
-          ) {
+          if (!waterBody.river || fromFlux > (waterBody.enteringFlux as number)) {
             waterBody.river = river;
             waterBody.enteringFlux = fromFlux;
           }
@@ -216,10 +204,7 @@ class RiverModule {
       cells.conf = new Uint16Array(cells.i.length);
       pack.rivers = [];
 
-      const defaultWidthFactor = rn(
-        1 / ((pointsInput.dataset.cells as any) / 10000) ** 0.25,
-        2,
-      );
+      const defaultWidthFactor = rn(1 / ((pointsInput.dataset.cells as any) / 10000) ** 0.25, 2);
       const mainStemWidthFactor = defaultWidthFactor * 1.2;
 
       for (const key in riversData) {
@@ -239,23 +224,18 @@ class RiverModule {
         const mouth = riverCells[riverCells.length - 2];
         const parent = riverParents[key] || 0;
 
-        const widthFactor =
-          !parent || parent === riverId
-            ? mainStemWidthFactor
-            : defaultWidthFactor;
+        const widthFactor = !parent || parent === riverId ? mainStemWidthFactor : defaultWidthFactor;
         const meanderedPoints = this.addMeandering(riverCells);
         const discharge = cells.fl[mouth]; // m3 in second
-        const length = this.getApproximateLength(
-          meanderedPoints.map(([x, y]) => [x, y]),
-        );
+        const length = this.getApproximateLength(meanderedPoints.map(([x, y]) => [x, y]));
         const sourceWidth = this.getSourceWidth(cells.fl[source]);
         const width = this.getWidth(
           this.getOffset({
             flux: discharge,
             pointIndex: meanderedPoints.length,
             widthFactor,
-            startingWidth: sourceWidth,
-          }),
+            startingWidth: sourceWidth
+          })
         );
 
         pack.rivers.push({
@@ -268,7 +248,7 @@ class RiverModule {
           widthFactor,
           sourceWidth,
           parent,
-          cells: riverCells,
+          cells: riverCells
         } as River);
       }
     };
@@ -280,12 +260,8 @@ class RiverModule {
         if (cells.h[i] < 35) continue; // don't donwcut lowlands
         if (!cells.fl[i]) continue;
 
-        const higherCells = cells.c[i].filter(
-          (c: number) => cells.h[c] > cells.h[i],
-        );
-        const higherFlux =
-          higherCells.reduce((acc: number, c: number) => acc + cells.fl[c], 0) /
-          higherCells.length;
+        const higherCells = cells.c[i].filter((c: number) => cells.h[c] > cells.h[i]);
+        const higherFlux = higherCells.reduce((acc: number, c: number) => acc + cells.fl[c], 0) / higherCells.length;
         if (!higherFlux) continue;
 
         const downcut = Math.floor(cells.fl[i] / higherFlux);
@@ -302,9 +278,8 @@ class RiverModule {
           .map((c: number) => cells.fl[c])
           .sort((a: number, b: number) => b - a);
         cells.conf[i] = sortedInflux.reduce(
-          (acc: number, flux: number, index: number) =>
-            index ? acc + flux : acc,
-          0,
+          (acc: number, flux: number, index: number) => (index ? acc + flux : acc),
+          0
         );
       }
     };
@@ -339,35 +314,27 @@ class RiverModule {
     };
     return Array.from(h).map((h, i) => {
       if (h < 20 || t[i] < 1) return h;
-      return h + t[i] / 100 + (mean(c[i].map((c) => t[c])) as number) / 10000;
+      return h + t[i] / 100 + (mean(c[i].map(c => t[c])) as number) / 10000;
     });
   }
 
   // depression filling algorithm (for a correct water flux modeling)
   resolveDepressions(h: number[]) {
     const { cells, features } = pack;
-    const maxIterations = +(
-      document.getElementById(
-        "resolveDepressionsStepsOutput",
-      ) as HTMLInputElement
-    )?.value;
+    const maxIterations = +(document.getElementById("resolveDepressionsStepsOutput") as HTMLInputElement)?.value;
     const checkLakeMaxIteration = maxIterations * 0.85;
     const elevateLakeMaxIteration = maxIterations * 0.75;
 
     const height = (i: number) => features[cells.f[i]].height || h[i]; // height of lake or specific cell
 
-    const lakes = features.filter((feature) => feature.type === "lake");
+    const lakes = features.filter(feature => feature.type === "lake");
     const land = cells.i.filter((i: number) => h[i] >= 20 && !cells.b[i]); // exclude near-border cells
     land.sort((a: number, b: number) => h[a] - h[b]); // lowest cells go first
 
     const progress = [];
     let depressions = Infinity;
     let prevDepressions = null;
-    for (
-      let iteration = 0;
-      depressions && iteration < maxIterations;
-      iteration++
-    ) {
+    for (let iteration = 0; depressions && iteration < maxIterations; iteration++) {
       if (progress.length > 5 && sum(progress) > 0) {
         // bad progress, abort and set heights back
         h = this.alterHeights();
@@ -423,22 +390,18 @@ class RiverModule {
       prevDepressions = depressions;
     }
 
-    depressions &&
-      WARN &&
-      console.warn(
-        `Unresolved depressions: ${depressions}. Edit heightmap to fix`,
-      );
+    depressions && WARN && console.warn(`Unresolved depressions: ${depressions}. Edit heightmap to fix`);
   }
 
   addMeandering(
     riverCells: number[],
     riverPoints: Point[] | null = null,
-    meandering = 0.5,
+    meandering = 0.5
   ): [number, number, number][] {
     const { fl, h } = pack.cells;
     const meandered = [];
-    const lastStep = riverCells.length - 1;
     const points = this.getRiverPoints(riverCells, riverPoints);
+    const lastStep = points.length - 1;
     let step = h[riverCells[0]] < 20 ? 1 : 10;
 
     for (let i = 0; i <= lastStep; i++, step++) {
@@ -461,8 +424,7 @@ class RiverModule {
       const dist2 = (x2 - x1) ** 2 + (y2 - y1) ** 2; // square distance between cells
       if (dist2 <= 25 && riverCells.length >= 6) continue;
 
-      const meander =
-        meandering + 1 / step + Math.max(meandering - step / 100, 0);
+      const meander = meandering + 1 / step + Math.max(meandering - step / 100, 0);
       const angle = Math.atan2(y2 - y1, x2 - x1);
       const sinMeander = Math.sin(angle) * meander;
       const cosMeander = Math.cos(angle) * meander;
@@ -508,7 +470,7 @@ class RiverModule {
     flux,
     pointIndex,
     widthFactor,
-    startingWidth,
+    startingWidth
   }: {
     flux: number;
     pointIndex: number;
@@ -517,14 +479,10 @@ class RiverModule {
   }) {
     if (pointIndex === 0) return startingWidth;
 
-    const fluxWidth = Math.min(
-      flux ** 0.7 / this.FLUX_FACTOR,
-      this.MAX_FLUX_WIDTH,
-    );
+    const fluxWidth = Math.min(flux ** 0.7 / this.FLUX_FACTOR, this.MAX_FLUX_WIDTH);
     const lengthWidth =
       pointIndex * this.LENGTH_STEP_WIDTH +
-      (this.LENGTH_PROGRESSION[pointIndex] ||
-        (this.LENGTH_PROGRESSION.at(-1) as number));
+      (this.LENGTH_PROGRESSION[pointIndex] || (this.LENGTH_PROGRESSION.at(-1) as number));
     return widthFactor * (lengthWidth + fluxWidth) + startingWidth;
   }
 
@@ -533,11 +491,7 @@ class RiverModule {
   }
 
   // build polygon from a list of points and calculated offset (width)
-  getRiverPath(
-    points: [number, number, number][],
-    widthFactor: number,
-    startingWidth: number,
-  ) {
+  getRiverPath(points: [number, number, number][], widthFactor: number, startingWidth: number) {
     this.lineGen.curve(curveCatmullRom.alpha(0.1));
     const riverPointsLeft: [number, number][] = [];
     const riverPointsRight: [number, number][] = [];
@@ -553,7 +507,7 @@ class RiverModule {
         flux,
         pointIndex,
         widthFactor,
-        startingWidth,
+        startingWidth
       });
       const angle = Math.atan2(y0 - y2, x0 - x2);
       const sinOffset = Math.sin(angle) * offset;
@@ -575,6 +529,7 @@ class RiverModule {
     if (!rivers.length) return;
 
     for (const river of rivers) {
+      river.parent = this.getParent(river.i);
       river.basin = this.getBasin(river.i);
       river.name = this.getName(river.mouth);
       river.type = this.getType(river);
@@ -588,24 +543,16 @@ class RiverModule {
   getType({ i, length, parent }: River) {
     if (this.smallLength === null) {
       const threshold = Math.ceil(pack.rivers.length * 0.15);
-      this.smallLength = pack.rivers
-        .map((r) => r.length || 0)
-        .sort((a: number, b: number) => a - b)[threshold];
+      this.smallLength = pack.rivers.map(r => r.length || 0).sort((a: number, b: number) => a - b)[threshold];
     }
 
     const isSmall: boolean = length < (this.smallLength as number);
     const isFork = each(3)(i) && parent && parent !== i;
-    return rw(
-      this.riverTypes[isFork ? "fork" : "main"][isSmall ? "small" : "big"],
-    );
+    return rw(this.riverTypes[isFork ? "fork" : "main"][isSmall ? "small" : "big"]);
   }
 
   getApproximateLength(points: Point[] = []) {
-    const length = points.reduce(
-      (s, v, i, p) =>
-        s + (i ? Math.hypot(v[0] - p[i - 1][0], v[1] - p[i - 1][1]) : 0),
-      0,
-    );
+    const length = points.reduce((s, v, i, p) => s + (i ? Math.hypot(v[0] - p[i - 1][0], v[1] - p[i - 1][1]) : 0), 0);
     return rn(length, 2);
   }
 
@@ -618,10 +565,8 @@ class RiverModule {
   // remove river and all its tributaries
   remove(id: number) {
     const cells = pack.cells;
-    const riversToRemove = pack.rivers
-      .filter((r) => r.i === id || r.parent === id || r.basin === id)
-      .map((r) => r.i);
-    riversToRemove.forEach((r) => {
+    const riversToRemove = pack.rivers.filter(r => r.i === id || r.parent === id || r.basin === id).map(r => r.i);
+    riversToRemove.forEach(r => {
       rivers.select(`#river${r}`).remove();
     });
     cells.r.forEach((r, i) => {
@@ -630,17 +575,24 @@ class RiverModule {
       cells.fl[i] = grid.cells.prec[cells.g[i]];
       cells.conf[i] = 0;
     });
-    pack.rivers = pack.rivers.filter((r) => !riversToRemove.includes(r.i));
+    pack.rivers = pack.rivers.filter(r => !riversToRemove.includes(r.i));
+  }
+
+  getParent(r: number): number {
+    const parent = pack.rivers.find(river => river.i === r)?.parent;
+    if (!parent || parent === r) return r;
+    if (!pack.rivers.some(river => river.i === parent)) return r;
+    return parent;
   }
 
   getBasin(r: number): number {
-    const parent = pack.rivers.find((river) => river.i === r)?.parent;
-    if (!parent || r === parent) return r;
+    const parent = this.getParent(r);
+    if (parent === r) return r;
     return this.getBasin(parent);
   }
 
   getNextId(rivers: { i: number }[]) {
-    return rivers.length ? Math.max(...rivers.map((r) => r.i)) + 1 : 1;
+    return rivers.length ? Math.max(...rivers.map(r => r.i)) + 1 : 1;
   }
 }
 
