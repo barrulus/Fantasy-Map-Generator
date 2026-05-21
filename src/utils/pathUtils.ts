@@ -47,7 +47,7 @@ const getBorderPath = (vertices: any, vertexChain: number[], discontinue: (verte
  * @param {number[]} from - An array mapping each cell ID to the cell ID it came from.
  * @returns {number[]} An array of cell IDs representing the path from start to exit.
  */
-const restorePath = (exit: number, start: number, from: number[]) => {
+const restorePath = (exit: number, start: number, from: Int32Array | number[]) => {
   const pathCells = [];
 
   let current = exit;
@@ -282,49 +282,81 @@ export const connectVertices = ({
   return chain;
 };
 
-/**
- * Finds the shortest path between two cells using a cost-based pathfinding algorithm.
- * @param {number} start - The ID of the starting cell.
- * @param {(id: number) => boolean} isExit - A function that returns true if the cell is the exit cell.
- * @param {(current: number, next: number) => number} getCost - A function that returns the path cost from current cell to the next cell. Must return `Infinity` for impassable connections.
- * @param {object} packedGraph - The packed graph object containing cells and their connections.
- * @returns {number[] | null} An array of cell IDs of the path from start to exit, or null if no path is found or start and exit are the same.
- */
+let scratchFrom: Int32Array | null = null;
+let scratchCost: Float32Array | null = null;
+let scratchMark: Uint32Array | null = null;
+let scratchGen = 0;
+
+function ensureScratch(cellCount: number) {
+  if (!scratchFrom || scratchFrom.length !== cellCount) {
+    scratchFrom = new Int32Array(cellCount);
+    scratchCost = new Float32Array(cellCount);
+    scratchMark = new Uint32Array(cellCount);
+    scratchGen = 0;
+  }
+}
+
 export const findPath = (
   start: number,
   isExit: (id: number) => boolean,
   getCost: (current: number, next: number) => number,
-  packedGraph: any = {}
+  packedGraph: any = {},
+  goal?: number
 ): number[] | null => {
   if (isExit(start)) return null;
 
   const cellCount = packedGraph.cells.i.length;
-  const from = new Int32Array(cellCount).fill(-1);
-  const cost = new Float32Array(cellCount);
-  cost.fill(Infinity);
+  ensureScratch(cellCount);
+  scratchGen++;
+  const gen = scratchGen;
+  const from = scratchFrom!;
+  const cost = scratchCost!;
+  const mark = scratchMark!;
 
   const queue = new window.FlatQueue();
   queue.push(start, 0);
   cost[start] = 0;
+  from[start] = -1;
+  mark[start] = gen;
+
+  const cellsP = packedGraph.cells.p as [number, number][];
+  const useHeuristic = typeof goal === "number" && goal >= 0 && cellsP[goal] !== undefined;
+  const gx = useHeuristic ? cellsP[goal as number][0] : 0;
+  const gy = useHeuristic ? cellsP[goal as number][1] : 0;
+
+  const heuristic = useHeuristic
+    ? (cellId: number) => {
+        const p = cellsP[cellId];
+        const dx = p[0] - gx;
+        const dy = p[1] - gy;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+    : null;
 
   while (queue.length) {
-    const currentCost = queue.peekValue();
     const current = queue.pop();
+    const currentCost = cost[current];
 
-    for (const next of packedGraph.cells.c[current]) {
+    const neighbors = packedGraph.cells.c[current];
+    for (let i = 0; i < neighbors.length; i++) {
+      const next = neighbors[i];
       if (isExit(next)) {
         from[next] = current;
-        return restorePath(next, start, from as any);
+        return restorePath(next, start, from);
       }
 
       const nextCost = getCost(current, next);
-      if (nextCost === Infinity) continue; // impassable cell
+      if (nextCost === Infinity) continue;
       const totalCost = currentCost + nextCost;
 
-      if (totalCost >= cost[next]) continue; // has cheaper path
+      const existing = mark[next] === gen ? cost[next] : Infinity;
+      if (totalCost >= existing) continue;
+
       from[next] = current;
       cost[next] = totalCost;
-      queue.push(next, totalCost);
+      mark[next] = gen;
+      const priority = heuristic ? totalCost + heuristic(next) : totalCost;
+      queue.push(next, priority);
     }
   }
 
