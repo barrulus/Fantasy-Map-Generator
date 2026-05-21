@@ -717,7 +717,15 @@ class BurgModule {
     ];
   }
 
-  defineGroup(burg: Burg, populations: number[]) {
+  private buildPopIndex(populations: number[]): Map<number, number> {
+    const map = new Map<number, number>();
+    for (let i = 0; i < populations.length; i++) {
+      if (!map.has(populations[i])) map.set(populations[i], i);
+    }
+    return map;
+  }
+
+  defineGroup(burg: Burg, popIndex: Map<number, number>, popCount: number) {
     if (burg.lock && burg.group) {
       // locked burgs: don't change group if it still exists
       const group = options.burgs.groups.find((g: any) => g.name === burg.group);
@@ -764,8 +772,8 @@ class BurgModule {
       }
 
       if (group.percentile) {
-        const index = populations.indexOf(burg.population as number);
-        const isFit = index >= Math.floor((populations.length * group.percentile) / 100);
+        const index = popIndex.get(burg.population as number) ?? -1;
+        const isFit = index >= Math.floor((popCount * group.percentile) / 100);
         if (!isFit) continue;
       }
 
@@ -789,9 +797,11 @@ class BurgModule {
       .map(b => b.population as number)
       .sort((a: number, b: number) => a - b); // ascending
 
+    const popIndex = this.buildPopIndex(populations);
+
     pack.burgs.forEach(burg => {
       if (!burg.i || burg.removed) return;
-      this.defineGroup(burg, populations);
+      this.defineGroup(burg, popIndex, populations.length);
     });
 
     TIME && console.timeEnd("specifyBurgs");
@@ -992,7 +1002,10 @@ class BurgModule {
       .filter(b => b.i && !b.removed)
       .map(b => b.population as number)
       .sort((a: number, b: number) => a - b); // ascending
-    this.defineGroup(burg, populations);
+
+    const popIndex = this.buildPopIndex(populations);
+
+    this.defineGroup(burg, popIndex, populations.length);
 
     pack.burgs.push(burg);
     cells.burg[cellId as number] = burgId;
@@ -1012,7 +1025,8 @@ class BurgModule {
     } else {
       const validBurgs = pack.burgs.filter(b => b.i && !b.removed);
       const populations = validBurgs.map(b => b.population as number).sort((a, b) => a - b);
-      this.defineGroup(burg, populations);
+      const popIndex = this.buildPopIndex(populations);
+      this.defineGroup(burg, popIndex, populations.length);
     }
 
     drawBurgIcon(burg);
