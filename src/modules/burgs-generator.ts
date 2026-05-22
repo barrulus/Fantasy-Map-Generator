@@ -432,10 +432,14 @@ class BurgModule {
       const targetCount = totalTarget - currentCount;
       if (targetCount <= 0) return;
 
+      // For large totalTarget on typical maps the initial spacing is already
+      // sub-pixel, so we bound by pass count (like placeSmallVillages) rather
+      // than spacing magnitude — otherwise the loop never enters and 0 hamlets
+      // are placed.
       let spacing = (graphWidth + graphHeight) / 150 / (totalTarget ** 0.7 / 66);
       let added = 0;
 
-      for (; added < targetCount && spacing > 1; ) {
+      for (let pass = 0; added < targetCount && pass < 10; pass++) {
         for (let i = 0; added < targetCount && i < sorted.length; i++) {
           if (cells.burg[sorted[i]]) continue;
           const cell = sorted[i];
