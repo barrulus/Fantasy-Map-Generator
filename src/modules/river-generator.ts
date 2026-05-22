@@ -1,5 +1,5 @@
 import Alea from "alea";
-import { curveBasis, curveCatmullRom, line, mean, sum } from "d3";
+import { curveBasis, curveCatmullRom, line, mean } from "d3";
 import { each, rn, round, rw } from "../utils";
 import type { Point } from "./voronoi";
 
@@ -319,78 +319,58 @@ class RiverModule {
   }
 
   // depression filling algorithm (for a correct water flux modeling)
+  // Priority-flood (Barnes 2014): each land cell is processed in
+  // monotonically non-decreasing height order from the lowest boundary
+  // cell upward, and any neighbour below the current processing height
+  // is raised to currentHeight + EPSILON, guaranteeing a descent path
+  // from every interior cell to a boundary in one pass.
   resolveDepressions(h: number[]) {
     const { cells, features } = pack;
-    const maxIterations = +(document.getElementById("resolveDepressionsStepsOutput") as HTMLInputElement)?.value;
-    const checkLakeMaxIteration = maxIterations * 0.85;
-    const elevateLakeMaxIteration = maxIterations * 0.75;
+    const lakes = features.filter((feature: any) => feature?.type === "lake");
 
-    const height = (i: number) => features[cells.f[i]].height || h[i]; // height of lake or specific cell
+    const EPSILON = 0.1;
+    const cellCount = cells.h.length;
+    const processed = new Uint8Array(cellCount);
+    const queue = new FlatQueue();
 
-    const lakes = features.filter(feature => feature.type === "lake");
-    const land = cells.i.filter((i: number) => h[i] >= 20 && !cells.b[i]); // exclude near-border cells
-    land.sort((a: number, b: number) => h[a] - h[b]); // lowest cells go first
-
-    const progress = [];
-    let depressions = Infinity;
-    let prevDepressions = null;
-    for (let iteration = 0; depressions && iteration < maxIterations; iteration++) {
-      if (progress.length > 5 && sum(progress) > 0) {
-        // bad progress, abort and set heights back
-        h = this.alterHeights();
-        depressions = progress[0];
-        break;
+    // Seed: every water cell and every border cell at its current height.
+    for (let i = 0; i < cellCount; i++) {
+      if (h[i] < 20 || cells.b[i]) {
+        queue.push(i, h[i]);
+        processed[i] = 1;
       }
-
-      depressions = 0;
-
-      if (iteration < checkLakeMaxIteration) {
-        for (const l of lakes) {
-          if (l.closed) continue;
-          let minHeight = Infinity;
-          for (let si = 0; si < l.shoreline.length; si++) {
-            const sh = h[l.shoreline[si]];
-            if (sh < minHeight) minHeight = sh;
-          }
-          if (minHeight >= 100 || l.height > minHeight) continue;
-
-          if (iteration > elevateLakeMaxIteration) {
-            l.shoreline.forEach((i: number) => {
-              h[i] = cells.h[i];
-            });
-            let resetMin = Infinity;
-            for (let si = 0; si < l.shoreline.length; si++) {
-              const sh = h[l.shoreline[si]];
-              if (sh < resetMin) resetMin = sh;
-            }
-            l.height = resetMin - 1;
-            l.closed = true;
-            continue;
-          }
-
-          depressions++;
-          l.height = minHeight + 0.2;
-        }
-      }
-
-      for (const i of land) {
-        const neighbors = cells.c[i];
-        let minHeight = Infinity;
-        for (let ni = 0; ni < neighbors.length; ni++) {
-          const nh = height(neighbors[ni]);
-          if (nh < minHeight) minHeight = nh;
-        }
-        if (minHeight >= 100 || h[i] > minHeight) continue;
-
-        depressions++;
-        h[i] = minHeight + 0.1;
-      }
-
-      prevDepressions !== null && progress.push(depressions - prevDepressions);
-      prevDepressions = depressions;
     }
 
-    depressions && WARN && console.warn(`Unresolved depressions: ${depressions}. Edit heightmap to fix`);
+    while (queue.length) {
+      const currentHeight = queue.peekValue();
+      const current = queue.pop();
+      const neighbors = cells.c[current];
+      for (let n = 0; n < neighbors.length; n++) {
+        const next = neighbors[n];
+        if (processed[next]) continue;
+        processed[next] = 1;
+        // Carve: ensure next is at least slightly above currentHeight
+        // so flow descends from next → current.
+        if (h[next] <= currentHeight) h[next] = currentHeight + EPSILON;
+        queue.push(next, h[next]);
+      }
+    }
+
+    // Resolve lake heights against the (now-monotonic) heights array.
+    for (const l of lakes as any[]) {
+      if (l.closed) continue;
+      let minHeight = Infinity;
+      for (let si = 0; si < l.shoreline.length; si++) {
+        const sh = h[l.shoreline[si]];
+        if (sh < minHeight) minHeight = sh;
+      }
+      if (minHeight === Infinity || minHeight >= 100) {
+        l.closed = true;
+        continue;
+      }
+      if (l.height > minHeight) continue;
+      l.height = minHeight + 0.2;
+    }
   }
 
   addMeandering(
@@ -582,11 +562,7 @@ class RiverModule {
   private riverIndexFor: River[] | null = null;
 
   private getRiverIndex(): Map<number, River> {
-    if (
-      this.riverIndex &&
-      this.riverIndexFor === pack.rivers &&
-      this.riverIndex.size === pack.rivers.length
-    ) {
+    if (this.riverIndex && this.riverIndexFor === pack.rivers && this.riverIndex.size === pack.rivers.length) {
       return this.riverIndex;
     }
     const m = new Map<number, River>();
