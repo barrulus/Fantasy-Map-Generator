@@ -134,10 +134,24 @@ class BurgModule {
 
     let burgsQuadtree = quadtree();
 
+    // Scratch buffers shared across all placement tiers — allocate once,
+    // refill in-place per tier. Avoids 7 × O(C) JS-array + typed-array
+    // allocation cycles in the GC heap.
+    const score = new Float32Array(cells.s.length);
+    const sortedScratch: number[] = populatedCells.slice();
+
+    const refillScore = (randomize: (s: number) => number) => {
+      for (let i = 0; i < cells.s.length; i++) score[i] = cells.s[i] * randomize(1);
+    };
+
+    const sortByScore = () => {
+      sortedScratch.sort((a, b) => score[b] - score[a]);
+      return sortedScratch;
+    };
+
     const generateCapitals = () => {
-      const randomize = (score: number) => score * (0.5 + Math.random() * 0.5);
-      const score = new Int16Array(cells.s.map(randomize));
-      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+      refillScore(() => 0.5 + Math.random() * 0.5);
+      const sorted = sortByScore();
 
       const capitalsNumber = getCapitalsNumber();
       let spacing = (graphWidth + graphHeight) / 2 / capitalsNumber; // min distance between capitals
@@ -186,8 +200,7 @@ class BurgModule {
 
       if (!portCells.length) return;
 
-      const randomize = (score: number) => score * (0.6 + Math.random() * 0.4);
-      const score = new Int16Array(cells.s.map(randomize));
+      refillScore(() => 0.6 + Math.random() * 0.4);
       const sorted = portCells.sort((a, b) => score[b] - score[a]);
 
       const targetCount = Math.max(2, Math.floor(getCapitalsNumber() * 0.5));
@@ -225,9 +238,8 @@ class BurgModule {
 
     const placeRegionalCenters = () => {
       // Place regional centers between primary centers (capitals + large ports)
-      const randomize = (score: number) => score * gauss(1, 2, 0, 10, 3);
-      const score = new Int16Array(cells.s.map(randomize));
-      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+      refillScore(() => gauss(1, 2, 0, 10, 3));
+      const sorted = sortByScore();
 
       const capitalsCount = getCapitalsNumber();
       const targetCount = Math.max(2, Math.floor(capitalsCount * 1.5));
@@ -270,9 +282,8 @@ class BurgModule {
 
     const placeMarketTowns = () => {
       // ~7% of settlements, 15-30km spacing equivalent
-      const randomize = (score: number) => score * gauss(1, 3, 0, 20, 3);
-      const score = new Int16Array(cells.s.map(randomize));
-      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+      refillScore(() => gauss(1, 3, 0, 20, 3));
+      const sorted = sortByScore();
 
       const totalTarget = getTownsNumber();
       const targetCount = Math.floor(totalTarget * 0.07);
@@ -314,9 +325,8 @@ class BurgModule {
 
     const placeLargeVillages = () => {
       // ~12% of settlements, 8-12km spacing equivalent
-      const randomize = (score: number) => score * gauss(1, 3, 0, 20, 3);
-      const score = new Int16Array(cells.s.map(randomize));
-      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+      refillScore(() => gauss(1, 3, 0, 20, 3));
+      const sorted = sortByScore();
 
       const totalTarget = getTownsNumber();
       const targetCount = Math.floor(totalTarget * 0.12);
@@ -358,9 +368,8 @@ class BurgModule {
 
     const placeSmallVillages = () => {
       // ~20% of settlements, 3-6km spacing equivalent
-      const randomize = (score: number) => score * gauss(1, 3, 0, 20, 3);
-      const score = new Int16Array(cells.s.map(randomize));
-      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+      refillScore(() => gauss(1, 3, 0, 20, 3));
+      const sorted = sortByScore();
 
       const totalTarget = getTownsNumber();
       const targetCount = Math.floor(totalTarget * 0.2);
@@ -399,14 +408,21 @@ class BurgModule {
           cells.burg[cell] = burgId;
           added++;
         }
+
+        // Compact: drop cells already assigned to a burg so the next pass
+        // (and later tiers sharing sortedScratch) don't re-scan them.
+        let w = 0;
+        for (let r = 0; r < sorted.length; r++) {
+          if (!cells.burg[sorted[r]]) sorted[w++] = sorted[r];
+        }
+        sorted.length = w;
       }
     };
 
     const placeHamlets = () => {
       // remaining ~60% of settlements, 1-3km spacing equivalent
-      const randomize = (score: number) => score * gauss(1, 3, 0, 20, 3);
-      const score = new Int16Array(cells.s.map(randomize));
-      const sorted = populatedCells.sort((a, b) => score[b] - score[a]);
+      refillScore(() => gauss(1, 3, 0, 20, 3));
+      const sorted = sortByScore();
 
       const totalTarget = getTownsNumber();
       const currentCount = burgs.length - 1; // subtract placeholder
@@ -447,6 +463,13 @@ class BurgModule {
           added++;
           cells.burg[cell] = burgId;
         }
+
+        // Compact: drop cells already assigned so the next spacing pass skips them.
+        let w = 0;
+        for (let r = 0; r < sorted.length; r++) {
+          if (!cells.burg[sorted[r]]) sorted[w++] = sorted[r];
+        }
+        sorted.length = w;
 
         spacing *= 0.5;
       }
