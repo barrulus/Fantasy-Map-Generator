@@ -195,6 +195,18 @@ export interface Route {
   merged?: boolean;
 }
 
+type RouteBurgIndex = {
+  burgsByFeature: Record<number, Burg[]>;
+  capitalsByFeature: Record<number, Burg[]>;
+  portsByFeature: Record<number, Burg[]>;
+  marketTownsByFeature: Record<number, Burg[]>;
+  regionalCentersByFeature: Record<number, Burg[]>;
+  villagesByFeature: Record<number, Burg[]>;
+  hamletsByFeature: Record<number, Burg[]>;
+  capitalPortsByFeature: Record<number, Burg[]>;
+  skyPorts: Burg[];
+};
+
 class RoutesModule {
   buildLinks(routes: Route[]): Record<number, Record<number, number>> {
     const links: Record<number, Record<number, number>> = {};
@@ -416,9 +428,9 @@ class RoutesModule {
     return segments;
   }
 
-  private generateRoyalRoads(connections: Set<number>) {
+  private generateRoyalRoads(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateRoyalRoads");
-    const { capitalsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const { capitalsByFeature } = burgIndex;
     const royalRoads: Route[] = [];
 
     // Collect all capitals grouped by feature (landmass)
@@ -484,9 +496,9 @@ class RoutesModule {
     return royalRoads;
   }
 
-  private generateMarketRoads(connections: Set<number>) {
+  private generateMarketRoads(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateMarketRoads");
-    const { marketTownsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const { marketTownsByFeature } = burgIndex;
     const marketRoads: Route[] = [];
     const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
 
@@ -526,9 +538,9 @@ class RoutesModule {
     return marketRoads;
   }
 
-  private generateMainRoads(connections: Set<number>) {
+  private generateMainRoads(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateMainRoads");
-    const { capitalsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const { capitalsByFeature } = burgIndex;
     const mainRoads: Route[] = [];
 
     for (const [key, featureCapitals] of Object.entries(capitalsByFeature)) {
@@ -569,9 +581,9 @@ class RoutesModule {
     }
   }
 
-  private generateTrails(connections: Set<number>) {
+  private generateTrails(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateTrails");
-    const { villagesByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const { villagesByFeature } = burgIndex;
     const trails: Route[] = [];
     const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
 
@@ -610,9 +622,9 @@ class RoutesModule {
     return trails;
   }
 
-  private generateSeaRoutes(connections: Set<number>) {
+  private generateSeaRoutes(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateSeaRoutes");
-    const { portsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const { portsByFeature } = burgIndex;
     const seaRoutes: Route[] = [];
     const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
 
@@ -650,9 +662,9 @@ class RoutesModule {
     return seaRoutes;
   }
 
-  private generateTownRoads(connections: Set<number>) {
+  private generateTownRoads(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateTownRoads");
-    const { regionalCentersByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const { regionalCentersByFeature } = burgIndex;
     const townRoads: Route[] = [];
     const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
 
@@ -691,9 +703,9 @@ class RoutesModule {
     return townRoads;
   }
 
-  private generateFootpaths(connections: Set<number>) {
+  private generateFootpaths(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateFootpaths");
-    const { hamletsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const { hamletsByFeature } = burgIndex;
     const footpaths: Route[] = [];
     const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
 
@@ -732,9 +744,9 @@ class RoutesModule {
     return footpaths;
   }
 
-  private generateMajorSeaRoutes(connections: Set<number>) {
+  private generateMajorSeaRoutes(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateMajorSeaRoutes");
-    const { capitalPortsByFeature } = this.sortBurgsByFeature(pack.burgs);
+    const { capitalPortsByFeature } = burgIndex;
     const majorSeaRoutes: Route[] = [];
 
     for (const [key, featurePorts] of Object.entries(capitalPortsByFeature)) {
@@ -869,9 +881,9 @@ class RoutesModule {
 
     return routesMerged > 1 ? this.mergeRoutes(routes) : routes;
   }
-  private generateAirRoutes() {
+  private generateAirRoutes(burgIndex: RouteBurgIndex) {
     TIME && console.time("generateAirRoutes");
-    const { skyPorts } = this.sortBurgsByFeature(pack.burgs);
+    const { skyPorts } = burgIndex;
     const airRoutes: Route[] = [];
 
     if (skyPorts.length < 2) {
@@ -906,15 +918,16 @@ class RoutesModule {
   }
 
   private createRoutesData(routes: Route[], connections: Set<number>) {
-    const royalRoads = this.generateRoyalRoads(connections);
-    const mainRoads = this.generateMainRoads(connections);
-    const marketRoads = this.generateMarketRoads(connections);
-    const townRoads = this.generateTownRoads(connections);
-    const trails = this.generateTrails(connections);
-    const footpaths = this.generateFootpaths(connections);
-    const majorSeaRoutes = this.generateMajorSeaRoutes(connections);
-    const seaRoutes = this.generateSeaRoutes(connections);
-    const airRoutes = this.generateAirRoutes();
+    const burgIndex = this.sortBurgsByFeature(pack.burgs);
+    const royalRoads = this.generateRoyalRoads(connections, burgIndex);
+    const mainRoads = this.generateMainRoads(connections, burgIndex);
+    const marketRoads = this.generateMarketRoads(connections, burgIndex);
+    const townRoads = this.generateTownRoads(connections, burgIndex);
+    const trails = this.generateTrails(connections, burgIndex);
+    const footpaths = this.generateFootpaths(connections, burgIndex);
+    const majorSeaRoutes = this.generateMajorSeaRoutes(connections, burgIndex);
+    const seaRoutes = this.generateSeaRoutes(connections, burgIndex);
+    const airRoutes = this.generateAirRoutes(burgIndex);
     const pointsArray = this.preparePointsArray();
 
     for (const { feature, cells, merged, type } of this.mergeRoutes(royalRoads)) {
