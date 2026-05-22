@@ -20,6 +20,10 @@ class HeightmapModule {
   }
 
   private getBlobPower(cells: number): number {
+    // Higher blobPower = slower per-cell decay = blob covers more cells.
+    // The slider exposes values up to 500000, so the table must too — otherwise
+    // anything above 100k falls back to the 10k value (0.98) and continents
+    // collapse to scattered specks.
     const blobPowerMap: Record<number, number> = {
       1000: 0.93,
       2000: 0.95,
@@ -33,7 +37,13 @@ class HeightmapModule {
       70000: 0.9955,
       80000: 0.996,
       90000: 0.9964,
-      100000: 0.9973
+      100000: 0.9973,
+      150000: 0.998,
+      200000: 0.9985,
+      250000: 0.9988,
+      300000: 0.999,
+      400000: 0.9993,
+      500000: 0.9994
     };
     return blobPowerMap[cells] || 0.98;
   }
@@ -52,7 +62,13 @@ class HeightmapModule {
       70000: 0.88,
       80000: 0.91,
       90000: 0.92,
-      100000: 0.93
+      100000: 0.93,
+      150000: 0.95,
+      200000: 0.96,
+      250000: 0.965,
+      300000: 0.97,
+      400000: 0.975,
+      500000: 0.98
     };
 
     return linePowerMap[cells] || 0.81;
