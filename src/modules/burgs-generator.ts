@@ -138,7 +138,10 @@ class BurgModule {
     // refill in-place per tier. Avoids 7 × O(C) JS-array + typed-array
     // allocation cycles in the GC heap.
     const score = new Float32Array(cells.s.length);
-    const sortedScratch: number[] = populatedCells.slice();
+    // Array.from — populatedCells may be a typed array at runtime (despite
+    // PackedGraph.cells.i: number[] in the .d.ts). Plain array gives us a
+    // mutable .length for the per-pass compaction below.
+    const sortedScratch: number[] = Array.from(populatedCells);
 
     const refillScore = (randomize: (s: number) => number) => {
       for (let i = 0; i < cells.s.length; i++) score[i] = cells.s[i] * randomize(1);
