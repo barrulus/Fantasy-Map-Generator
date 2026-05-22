@@ -204,19 +204,47 @@ class StatesModule {
 
   normalize() {
     TIME && console.time("normalizeStates");
-    const { cells, burgs } = pack;
+    const {cells, burgs, states} = pack;
 
     for (const i of cells.i) {
       if (cells.h[i] < 20 || cells.burg[i]) continue; // do not overwrite burgs
-      if (pack.states[cells.state[i]]?.lock) continue; // do not overwrite cells of locks states
-      if (cells.c[i].some(c => burgs[cells.burg[c]].capital)) continue; // do not overwrite near capital
-      const neibs = cells.c[i].filter(c => cells.h[c] >= 20);
-      const adversaries = neibs.filter(c => !pack.states[cells.state[c]]?.lock && cells.state[c] !== cells.state[i]);
-      if (adversaries.length < 2) continue;
-      const buddies = neibs.filter(c => !pack.states[cells.state[c]]?.lock && cells.state[c] === cells.state[i]);
-      if (buddies.length > 2) continue;
-      if (adversaries.length <= buddies.length) continue;
-      cells.state[i] = cells.state[adversaries[0]];
+      const ownState = cells.state[i];
+      if (states[ownState]?.lock) continue; // do not overwrite cells of locked states
+
+      const neighbors = cells.c[i];
+
+      // First pass: detect any capital-adjacent neighbour (cheap short-circuit).
+      let nearCapital = false;
+      for (let n = 0; n < neighbors.length; n++) {
+        if (burgs[cells.burg[neighbors[n]]]?.capital) {
+          nearCapital = true;
+          break;
+        }
+      }
+      if (nearCapital) continue;
+
+      // Second pass: count adversaries vs. buddies among land neighbours.
+      let adversaries = 0;
+      let buddies = 0;
+      let firstAdversary = -1;
+      for (let n = 0; n < neighbors.length; n++) {
+        const c = neighbors[n];
+        if (cells.h[c] < 20) continue;
+        const cState = cells.state[c];
+        if (states[cState]?.lock) continue;
+        if (cState === ownState) {
+          buddies++;
+        } else {
+          if (firstAdversary === -1) firstAdversary = c;
+          adversaries++;
+        }
+      }
+
+      if (adversaries < 2) continue;
+      if (buddies > 2) continue;
+      if (adversaries <= buddies) continue;
+
+      cells.state[i] = cells.state[firstAdversary];
     }
     TIME && console.timeEnd("normalizeStates");
   }
@@ -233,25 +261,28 @@ class StatesModule {
   }
 
   findNeighbors() {
-    const { cells, states } = pack;
+    const {cells, states} = pack;
 
     const stateNeighbors: Set<number>[] = [];
-
     states.forEach(s => {
       if (s.removed) return;
       stateNeighbors[s.i] = new Set();
-      // s.neighbors = stateNeighbors[s.i];
     });
 
     for (const i of cells.i) {
       if (cells.h[i] < 20) continue;
       const s = cells.state[i];
+      const ownSet = stateNeighbors[s];
+      if (!ownSet) continue;
 
-      cells.c[i]
-        .filter(c => cells.h[c] >= 20 && cells.state[c] !== s)
-        .forEach(c => {
-          stateNeighbors[s].add(cells.state[c]);
-        });
+      const neighbors = cells.c[i];
+      for (let n = 0; n < neighbors.length; n++) {
+        const c = neighbors[n];
+        if (cells.h[c] < 20) continue;
+        const ns = cells.state[c];
+        if (ns === s) continue;
+        ownSet.add(ns);
+      }
     }
 
     // convert neighbors Set object into array
