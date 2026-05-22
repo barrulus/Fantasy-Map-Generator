@@ -1,4 +1,8 @@
 "use strict";
+// Module-scoped so once-bound pagination handlers stay in sync across dialog reopens.
+const BURGS_PAGE_SIZE = 200;
+let burgsCurrentPage = 1;
+
 function overviewBurgs(settings = {stateId: null, cultureId: null}) {
   if (customization) return;
   closeDialogs("#burgsOverview, .stable");
@@ -6,6 +10,7 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
   if (!layerIsOn("toggleLabels")) toggleLabels();
 
   const body = ensureEl("burgsBody");
+  burgsCurrentPage = 1; // reset on each dialog open
   updateFilter();
   updateLockAllIcon();
   burgsOverviewAddLines();
@@ -26,9 +31,9 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
   ensureEl("burgsOverviewRefresh").addEventListener("click", refreshBurgsEditor);
   ensureEl("burgsGroupsEditorButton").addEventListener("click", editBurgGroups);
   ensureEl("burgsChart").addEventListener("click", showBurgsChart);
-  ensureEl("burgsFilterState").addEventListener("change", burgsOverviewAddLines);
-  ensureEl("burgsFilterCulture").addEventListener("change", burgsOverviewAddLines);
-  ensureEl("burgsSearch").addEventListener("input", burgsOverviewAddLines);
+  ensureEl("burgsFilterState").addEventListener("change", resetAndRefresh);
+  ensureEl("burgsFilterCulture").addEventListener("change", resetAndRefresh);
+  ensureEl("burgsSearch").addEventListener("input", resetAndRefresh);
   ensureEl("regenerateBurgNames").addEventListener("click", regenerateNames);
   ensureEl("addNewBurg").addEventListener("click", enterAddBurgMode);
   ensureEl("burgsExport").addEventListener("click", downloadBurgsData);
@@ -39,8 +44,33 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
   ensureEl("burgsLockAll").addEventListener("click", toggleLockAll);
   ensureEl("burgsRemoveAll").addEventListener("click", triggerAllBurgsRemove);
 
+  // pagination controls
+  ensureEl("burgsPagePrev").addEventListener("click", () => gotoPage(burgsCurrentPage - 1));
+  ensureEl("burgsPageNext").addEventListener("click", () => gotoPage(burgsCurrentPage + 1));
+  ensureEl("burgsPageInput").addEventListener("change", e => gotoPage(+e.target.value));
+
+  // re-render on column sort so sorting applies across all pages, not just visible 200
+  burgsHeader.querySelectorAll(".sortable").forEach(el => {
+    el.addEventListener("click", () => {
+      burgsCurrentPage = 1;
+      burgsOverviewAddLines();
+    });
+  });
+
+  function resetAndRefresh() {
+    burgsCurrentPage = 1;
+    burgsOverviewAddLines();
+  }
+
+  function gotoPage(page) {
+    if (!Number.isFinite(page)) return;
+    burgsCurrentPage = Math.max(1, Math.floor(page));
+    burgsOverviewAddLines();
+  }
+
   function refreshBurgsEditor() {
     updateFilter();
+    burgsCurrentPage = 1;
     burgsOverviewAddLines();
   }
 
@@ -91,13 +121,25 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
     if (selectedStateId !== -1) filtered = filtered.filter(b => b.state === selectedStateId); // filtered by state
     if (selectedCultureId !== -1) filtered = filtered.filter(b => b.culture === selectedCultureId); // filtered by culture
 
-    body.innerHTML = "";
-    let lines = "";
-    let totalPopulation = 0;
+    // sort full filtered set so pagination shows correct order across all pages
+    sortFilteredBurgs(filtered);
 
-    for (const b of filtered) {
+    // pagination math
+    const totalFiltered = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / BURGS_PAGE_SIZE));
+    if (burgsCurrentPage > totalPages) burgsCurrentPage = totalPages;
+    if (burgsCurrentPage < 1) burgsCurrentPage = 1;
+    const pageStart = (burgsCurrentPage - 1) * BURGS_PAGE_SIZE;
+    const pageBurgs = filtered.slice(pageStart, pageStart + BURGS_PAGE_SIZE);
+
+    let totalPopulation = 0;
+    for (const b of filtered) totalPopulation += b.population * populationRate * urbanization;
+
+    body.replaceChildren();
+    let lines = "";
+
+    for (const b of pageBurgs) {
       const population = b.population * populationRate * urbanization;
-      totalPopulation += population;
       const features = b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg";
       const state = pack.states[b.state].name;
       const prov = pack.cells.province[b.cell];
@@ -137,12 +179,25 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
         <span data-tip="Remove burg" class="icon-trash-empty"></span>
       </div>`;
     }
-    if (!filtered.length) body.innerHTML = /* html */ `<div style="padding-block: 0.3em;">No burgs found</div>`;
-    body.insertAdjacentHTML("beforeend", lines);
+    if (!totalFiltered) {
+      const empty = document.createElement("div");
+      empty.style.paddingBlock = "0.3em";
+      empty.textContent = "No burgs found";
+      body.appendChild(empty);
+    } else {
+      body.insertAdjacentHTML("beforeend", lines);
+    }
 
     // update footer
-    burgsFooterBurgs.innerHTML = `${filtered.length} of ${validBurgs.length}`;
-    burgsFooterPopulation.innerHTML = filtered.length ? si(totalPopulation / filtered.length) : 0;
+    burgsFooterBurgs.textContent = `${totalFiltered} of ${validBurgs.length}`;
+    burgsFooterPopulation.textContent = totalFiltered ? si(totalPopulation / totalFiltered) : 0;
+
+    // pagination controls
+    burgsPageInput.value = burgsCurrentPage;
+    burgsPageInput.max = totalPages;
+    burgsPageTotal.textContent = totalPages;
+    burgsPagePrev.disabled = burgsCurrentPage <= 1;
+    burgsPageNext.disabled = burgsCurrentPage >= totalPages;
 
     // add listeners
     body.querySelectorAll("div.states").forEach(el => el.addEventListener("mouseenter", ev => burgHighlightOn(ev)));
@@ -151,8 +206,35 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
     body.querySelectorAll("div > span.locks").forEach(el => el.addEventListener("click", toggleBurgLockStatus));
     body.querySelectorAll("div > span.icon-pencil").forEach(el => el.addEventListener("click", openBurgEditor));
     body.querySelectorAll("div > span.icon-trash-empty").forEach(el => el.addEventListener("click", triggerBurgRemove));
+  }
 
-    applySorting(burgsHeader);
+  function sortFilteredBurgs(filtered) {
+    const sortHeader = burgsHeader.querySelector("div[class*='icon-sort']");
+    if (!sortHeader) return;
+    const sortby = sortHeader.dataset.sortby;
+    const asName = sortHeader.classList.contains("alphabetically");
+    const desc = sortHeader.className.includes("-down") ? -1 : 1;
+    const valueOf = b => {
+      switch (sortby) {
+        case "name": return b.name || "";
+        case "state": return pack.states[b.state]?.name || "";
+        case "province": {
+          const prov = pack.cells.province[b.cell];
+          return prov ? pack.provinces[prov]?.name || "" : "";
+        }
+        case "culture": return pack.cultures[b.culture]?.name || "";
+        case "group": return b.group || "";
+        case "population": return b.population * populationRate * urbanization;
+        case "features": return b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg";
+        default: return "";
+      }
+    };
+    filtered.sort((a, b) => {
+      const av = valueOf(a);
+      const bv = valueOf(b);
+      if (!asName) return (av - bv) * desc;
+      return (av > bv ? 1 : av < bv ? -1 : 0) * desc;
+    });
   }
 
   function getCultureOptions(culture) {
