@@ -859,27 +859,43 @@ class RoutesModule {
     return data; // [[x, y, cell], [x, y, cell]];
   }
 
-  // merge routes so that the last cell of one route is the first cell of the next route
+  // Merge routes whose endpoints chain (last cell of A == first cell of B).
+  // Linear-time stitch via an index keyed by the first cell of each route.
   private mergeRoutes(routes: Route[]): Route[] {
-    let routesMerged = 0;
+    const startIndex = new Map<number, number>();
+    for (let i = 0; i < routes.length; i++) {
+      const cells = routes[i].cells;
+      if (!cells || cells.length === 0) continue;
+      const start = cells[0];
+      // First route to claim a start cell wins; later duplicates stay unmerged.
+      if (!startIndex.has(start)) startIndex.set(start, i);
+    }
 
     for (let i = 0; i < routes.length; i++) {
-      const thisRoute = routes[i];
-      if (thisRoute.merged) continue;
+      const route = routes[i];
+      if (route.merged) continue;
+      if (!route.cells || route.cells.length === 0) continue;
 
-      for (let j = i + 1; j < routes.length; j++) {
-        const nextRoute = routes[j];
-        if (nextRoute.merged) continue;
-
-        if (nextRoute.cells!.at(0) === thisRoute.cells!.at(-1)) {
-          routesMerged++;
-          thisRoute.cells = thisRoute.cells!.concat(nextRoute.cells!.slice(1));
-          nextRoute.merged = true;
+      let tail = route.cells[route.cells.length - 1];
+      // Walk the chain: keep stitching while the tail matches some
+      // unconsumed route's head.
+      while (true) {
+        const nextIdx = startIndex.get(tail);
+        if (nextIdx === undefined || nextIdx === i) break;
+        const nextRoute = routes[nextIdx];
+        if (nextRoute.merged) {
+          startIndex.delete(tail);
+          break;
         }
+        const nextCells = nextRoute.cells!;
+        for (let k = 1; k < nextCells.length; k++) route.cells.push(nextCells[k]);
+        nextRoute.merged = true;
+        startIndex.delete(tail);
+        tail = route.cells[route.cells.length - 1];
       }
     }
 
-    return routesMerged > 1 ? this.mergeRoutes(routes) : routes;
+    return routes;
   }
   private generateAirRoutes(burgIndex: RouteBurgIndex) {
     TIME && console.time("generateAirRoutes");
