@@ -578,21 +578,52 @@ class RiverModule {
     pack.rivers = pack.rivers.filter(r => !riversToRemove.includes(r.i));
   }
 
+  private riverIndex: Map<number, River> | null = null;
+  private riverIndexFor: River[] | null = null;
+
+  private getRiverIndex(): Map<number, River> {
+    if (
+      this.riverIndex &&
+      this.riverIndexFor === pack.rivers &&
+      this.riverIndex.size === pack.rivers.length
+    ) {
+      return this.riverIndex;
+    }
+    const m = new Map<number, River>();
+    for (const r of pack.rivers) m.set(r.i, r);
+    this.riverIndex = m;
+    this.riverIndexFor = pack.rivers;
+    return m;
+  }
+
   getParent(r: number): number {
-    const parent = pack.rivers.find(river => river.i === r)?.parent;
+    const idx = this.getRiverIndex();
+    const parent = idx.get(r)?.parent;
     if (!parent || parent === r) return r;
-    if (!pack.rivers.some(river => river.i === parent)) return r;
+    if (!idx.has(parent)) return r;
     return parent;
   }
 
   getBasin(r: number): number {
-    const parent = this.getParent(r);
-    if (parent === r) return r;
-    return this.getBasin(parent);
+    const idx = this.getRiverIndex();
+    let current = r;
+    // Iterative walk with cycle bound (defensive). Max depth = number of rivers.
+    for (let step = 0; step <= idx.size; step++) {
+      const parent = idx.get(current)?.parent;
+      if (!parent || parent === current) return current;
+      if (!idx.has(parent)) return current;
+      current = parent;
+    }
+    return current;
   }
 
   getNextId(rivers: { i: number }[]) {
-    return rivers.length ? Math.max(...rivers.map(r => r.i)) + 1 : 1;
+    if (!rivers.length) return 1;
+    let maxId = 0;
+    for (let i = 0; i < rivers.length; i++) {
+      if (rivers[i].i > maxId) maxId = rivers[i].i;
+    }
+    return maxId + 1;
   }
 }
 
