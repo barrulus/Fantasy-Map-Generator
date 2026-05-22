@@ -30,6 +30,7 @@ function editBurg(id) {
   ensureEl("burgCulture").on("change", changeCulture);
   ensureEl("burgNameReCulture").on("click", generateNameCulture);
   ensureEl("burgPopulation").on("change", changePopulation);
+  ensureEl("burgAltitude").on("change", changeAltitude);
   burgBody.querySelectorAll(".burgFeature").forEach(el => el.on("click", toggleFeature));
   ensureEl("burgLinkOpen").on("click", openBurgLink);
 
@@ -90,6 +91,10 @@ function editBurg(id) {
     ensureEl("burgPlaza").classList.toggle("inactive", !b.plaza);
     ensureEl("burgTemple").classList.toggle("inactive", !b.temple);
     ensureEl("burgShanty").classList.toggle("inactive", !b.shanty);
+    ensureEl("burgFlying").classList.toggle("inactive", !b.flying);
+    ensureEl("burgSkyPort").classList.toggle("inactive", !b.skyPort);
+    ensureEl("burgAltitudeRow").style.display = b.flying ? "block" : "none";
+    ensureEl("burgAltitude").value = b.altitude || 500;
 
     updateBurgLockIcon();
 
@@ -166,12 +171,53 @@ function editBurg(id) {
 
     if (feature === "port") togglePort(burgId);
     else if (feature === "capital") toggleCapital(burgId);
+    else if (feature === "flying") toggleFlying(burgId);
+    else if (feature === "skyPort") toggleSkyPort(burgId);
     else burg[feature] = value;
 
     this.classList.toggle("inactive", !burg[feature]);
 
     ensureEl("burgEditAnchorStyle").style.display = burg.port ? "inline-block" : "none";
+    ensureEl("burgAltitudeRow").style.display = burg.flying ? "block" : "none";
     updateBurgPreview(burg);
+  }
+
+  function toggleFlying(burgId) {
+    const burg = pack.burgs[burgId];
+    if (burg.flying) {
+      delete burg.flying;
+      delete burg.skyPort;
+      delete burg.altitude;
+    } else {
+      burg.flying = 1;
+      burg.skyPort = 1;
+      burg.altitude = +ensureEl("burgAltitude").value || 500;
+    }
+    Burgs.changeGroup(burg);
+    Routes.rebuildAirroutes();
+  }
+
+  function toggleSkyPort(burgId) {
+    const burg = pack.burgs[burgId];
+    if (burg.skyPort) {
+      // Disabling sky-port on a flying burg disconnects it entirely from the
+      // air network, which is almost always a mistake — keep them coupled.
+      if (burg.flying) {
+        tip("Cannot disable Sky Port on a flying burg — turn off Flying instead", false, "warn");
+        return;
+      }
+      delete burg.skyPort;
+    } else {
+      burg.skyPort = 1;
+    }
+    Routes.rebuildAirroutes();
+  }
+
+  function changeAltitude() {
+    const burgId = +elSelected.attr("data-id");
+    const burg = pack.burgs[burgId];
+    if (!burg.flying) return;
+    burg.altitude = +ensureEl("burgAltitude").value || 0;
   }
 
   function togglePort(burgId) {

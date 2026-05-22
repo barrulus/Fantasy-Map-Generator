@@ -1000,14 +1000,16 @@ class BurgModule {
     return previewGeneratorsMap[group.preview](burg);
   }
 
-  add([x, y]: [number, number]) {
+  add([x, y]: [number, number], options?: { flying?: boolean; altitude?: number }) {
     const { cells } = pack;
+    const flying = Boolean(options?.flying);
 
     const burgId = pack.burgs.length;
     const cellId = window.findCell(x, y, undefined, pack);
     const culture = cells.culture[cellId as number];
     const name = Names.getCulture(culture);
-    const state = cells.state[cellId as number];
+    // Flying burgs aren't tied to ground political ownership; default to neutral.
+    const state = flying ? 0 : cells.state[cellId as number];
     const feature = cells.f[cellId as number];
 
     const burg: Burg = {
@@ -1021,8 +1023,13 @@ class BurgModule {
       feature,
       capital: 0,
       port: 0,
-      settlementType: "hamlet"
+      settlementType: flying ? "regionalCenter" : "hamlet"
     };
+    if (flying) {
+      burg.flying = 1;
+      burg.skyPort = 1;
+      burg.altitude = options?.altitude ?? 500;
+    }
     this.definePopulation(burg);
     this.defineEmblem(burg);
     COArenderer.add("burg", burgId, burg.coa, x, y);
@@ -1040,8 +1047,12 @@ class BurgModule {
     pack.burgs.push(burg);
     cells.burg[cellId as number] = burgId;
 
-    const newRoute = Routes.connect(cellId as number);
-    if (newRoute && layerIsOn("toggleRoutes")) drawRoute(newRoute);
+    if (flying) {
+      Routes.rebuildAirroutes();
+    } else {
+      const newRoute = Routes.connect(cellId as number);
+      if (newRoute && layerIsOn("toggleRoutes")) drawRoute(newRoute);
+    }
 
     drawBurgIcon(burg);
     drawBurgLabel(burg);

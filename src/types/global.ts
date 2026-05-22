@@ -74,6 +74,7 @@ declare global {
 
   var layerIsOn: (layerId: string) => boolean;
   var drawRoute: (route: any) => void;
+  var drawRoutes: () => void;
   var invokeActiveZooming: () => void;
   var FlatQueue: any;
 

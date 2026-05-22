@@ -36,6 +36,7 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
   ensureEl("burgsSearch").addEventListener("input", resetAndRefresh);
   ensureEl("regenerateBurgNames").addEventListener("click", regenerateNames);
   ensureEl("addNewBurg").addEventListener("click", enterAddBurgMode);
+  ensureEl("addNewSkyBurg").addEventListener("click", enterAddSkyBurgMode);
   ensureEl("burgsExport").addEventListener("click", downloadBurgsData);
   ensureEl("burgNamesImport").addEventListener("click", renameBurgsInBulk);
   ensureEl("burgsListToLoad").addEventListener("change", function () {
@@ -340,12 +341,36 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
     }
   }
 
+  function enterAddSkyBurgMode() {
+    if (this.classList.contains("pressed")) return exitAddBurgMode();
+    customization = 3;
+    this.classList.add("pressed");
+    tip("Click anywhere on the map to create a flying sky-city. Hold Shift to add multiple", true, "warn");
+    viewbox.style("cursor", "crosshair").on("click", addSkyBurgOnClick);
+  }
+
+  function addSkyBurgOnClick() {
+    const point = d3.mouse(this);
+    const cell = findCell(...point);
+
+    if (pack.cells.burg[cell])
+      return tip("There is already a burg in this cell. Please select a free cell", false, "error");
+
+    Burgs.add(point, {flying: true});
+
+    if (d3.event.shiftKey === false) {
+      exitAddBurgMode();
+      burgsOverviewAddLines();
+    }
+  }
+
   function exitAddBurgMode() {
     customization = 0;
     restoreDefaultEvents();
     clearMainTip();
     if (addBurgTool.classList.contains("pressed")) addBurgTool.classList.remove("pressed");
     if (addNewBurg.classList.contains("pressed")) addNewBurg.classList.remove("pressed");
+    if (addNewSkyBurg.classList.contains("pressed")) addNewSkyBurg.classList.remove("pressed");
   }
 
   function showBurgsChart() {

@@ -1048,6 +1048,7 @@
                     <option value="#icon-circle">Circle</option>
                     <option value="#icon-square">Square</option>
                     <option value="#icon-triangle">Triangle</option>
+                    <option value="#icon-diamond">Diamond</option>
                     <option value="#icon-cross">Cross</option>
                     <option value="#icon-star">Star</option>
                     <option value="#icon-circled">Circled</option>
@@ -3550,6 +3551,23 @@
                   class="burgFeature icon-campground"
                   style="font-size: 1em"
                 ></span>
+                <span
+                  id="burgFlying"
+                  data-tip="Shows whether the burg is a flying sky-city. Click to toggle"
+                  data-feature="flying"
+                  class="burgFeature icon-cloud"
+                ></span>
+                <span
+                  id="burgSkyPort"
+                  data-tip="Shows whether the burg is a sky port (air-route hub). Auto-set when Flying is on; can also be enabled standalone on ground burgs. Click to toggle"
+                  data-feature="skyPort"
+                  class="burgFeature icon-rocket"
+                ></span>
+              </div>
+
+              <div id="burgAltitudeRow" data-tip="Altitude above sea level for this flying sky-city" style="display: none">
+                <div class="label">Altitude:</div>
+                <input id="burgAltitude" type="number" min="0" step="50" value="500" style="width: 9em" /> ft
               </div>
             </div>
           </div>
@@ -5450,6 +5468,7 @@
             class="icon-retweet"
           ></button>
           <button id="addNewBurg" data-tip="Add a new burg. Hold Shift to add multiple" class="icon-plus"></button>
+          <button id="addNewSkyBurg" data-tip="Add a flying sky-city. Can be placed over land or water. Hold Shift to add multiple" class="icon-cloud"></button>
           <button
             id="burgsExport"
             data-tip="Save burgs-related data as a text file (.csv)"
@@ -7945,6 +7964,10 @@
 
           <symbol id="icon-triangle" viewBox="0 0 10 10" width="1em" height="1em" overflow="visible">
             <polygon points="0,-5 5,5 -5,5" />
+          </symbol>
+
+          <symbol id="icon-diamond" viewBox="0 0 10 10" width="1em" height="1em" overflow="visible">
+            <polygon points="0,-5 5,0 0,5 -5,0" />
           </symbol>
 
           <symbol id="icon-cross" viewBox="0 0 10 10" width="1em" height="1em" overflow="visible">

@@ -254,8 +254,10 @@ class RoutesModule {
           skyPorts.push(burg);
         }
 
-        // Exclude flying/skyPort burgs from land/sea routes
-        if (burg.flying || burg.skyPort) continue;
+        // Flying burgs are excluded from land/sea routes (they're in the sky).
+        // Sky-port burgs that aren't flying are normal ground settlements with
+        // an aerial-hub designation — they keep their land/sea connectivity.
+        if (burg.flying) continue;
 
         const { feature, capital, port } = burg;
         addBurg(burgsByFeature, feature as number, burg);
@@ -1048,6 +1050,51 @@ class RoutesModule {
 
   getNextId() {
     return pack.routes.length ? Math.max(...pack.routes.map(r => r.i)) + 1 : 0;
+  }
+
+  // Rebuild airroutes (Urquhart graph over all current skyPort burgs).
+  // Called when sky ports are added, removed, or toggled.
+  rebuildAirroutes(): void {
+    TIME && console.time("rebuildAirroutes");
+
+    for (const route of pack.routes.filter(r => r.group === "airroutes")) {
+      this.remove(route);
+    }
+
+    const skyPorts = pack.burgs.filter(b => b.i && !b.removed && b.skyPort);
+    if (skyPorts.length < 2) {
+      TIME && console.timeEnd("rebuildAirroutes");
+      return;
+    }
+
+    const points = skyPorts.map(b => [b.x, b.y] as Point);
+    const urquhartEdges = this.calculateUrquhartEdges(points);
+
+    let nextId = this.getNextId();
+    for (const [fromIdx, toIdx] of urquhartEdges) {
+      const from = skyPorts[fromIdx];
+      const to = skyPorts[toIdx];
+      const route: Route = {
+        i: nextId++,
+        group: "airroutes",
+        feature: 0,
+        points: [
+          [from.x, from.y, from.cell],
+          [to.x, to.y, to.cell]
+        ]
+      };
+      pack.routes.push(route);
+
+      const cellRoutes = pack.cells.routes;
+      if (!cellRoutes[from.cell]) cellRoutes[from.cell] = {};
+      cellRoutes[from.cell][to.cell] = route.i;
+      if (!cellRoutes[to.cell]) cellRoutes[to.cell] = {};
+      cellRoutes[to.cell][from.cell] = route.i;
+    }
+
+    if (layerIsOn("toggleRoutes")) drawRoutes();
+
+    TIME && console.timeEnd("rebuildAirroutes");
   }
 
   // connect cell with routes system by land
