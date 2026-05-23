@@ -8,7 +8,12 @@ beforeAll(async () => {
   // the dynamic import.
   const g = globalThis as any;
   g.window = g.window ?? {};
-  g.Node = g.Node ?? class { addEventListener() {} removeEventListener() {} };
+  g.Node =
+    g.Node ??
+    class {
+      addEventListener() {}
+      removeEventListener() {}
+    };
   g.document = g.document ?? {
     readyState: "complete",
     getElementById: () => null,

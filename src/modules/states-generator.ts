@@ -204,7 +204,7 @@ class StatesModule {
 
   normalize() {
     TIME && console.time("normalizeStates");
-    const {cells, burgs, states} = pack;
+    const { cells, burgs, states } = pack;
 
     for (const i of cells.i) {
       if (cells.h[i] < 20 || cells.burg[i]) continue; // do not overwrite burgs
@@ -261,7 +261,7 @@ class StatesModule {
   }
 
   findNeighbors() {
-    const {cells, states} = pack;
+    const { cells, states } = pack;
 
     const stateNeighbors: Set<number>[] = [];
     states.forEach(s => {

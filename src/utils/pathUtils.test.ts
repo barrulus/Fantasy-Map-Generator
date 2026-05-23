@@ -1,6 +1,6 @@
-import {describe, it, expect, beforeAll} from "vitest";
 import FlatQueue from "flatqueue";
-import {findPath} from "./pathUtils";
+import { beforeAll, describe, expect, it } from "vitest";
+import { findPath } from "./pathUtils";
 
 // Build a tiny 5×5 grid packed-graph fixture. Each cell's neighbours are
 // its 4-connected grid neighbours. Position is its grid coordinate.
@@ -23,7 +23,7 @@ function makeGrid(n: number) {
       cells.c.push(neibs);
     }
   }
-  return {cells};
+  return { cells };
 }
 
 describe("findPath", () => {
@@ -34,7 +34,12 @@ describe("findPath", () => {
 
   it("finds a straight path on a 5x5 grid", () => {
     const g = makeGrid(5);
-    const path = findPath(0, c => c === 24, () => 1, g);
+    const path = findPath(
+      0,
+      c => c === 24,
+      () => 1,
+      g
+    );
     expect(path).not.toBeNull();
     expect(path![0]).toBe(0);
     expect(path![path!.length - 1]).toBe(24);
@@ -43,7 +48,14 @@ describe("findPath", () => {
 
   it("returns null when start is the exit", () => {
     const g = makeGrid(5);
-    expect(findPath(7, c => c === 7, () => 1, g)).toBeNull();
+    expect(
+      findPath(
+        7,
+        c => c === 7,
+        () => 1,
+        g
+      )
+    ).toBeNull();
   });
 
   it("respects Infinity costs (impassable cells)", () => {
@@ -57,16 +69,39 @@ describe("findPath", () => {
 
   it("A* with euclidean heuristic returns same path on uniform cost", () => {
     const g = makeGrid(10);
-    const dijkstra = findPath(0, c => c === 99, () => 1, g);
-    const astar = findPath(0, c => c === 99, () => 1, g, 99);
+    const dijkstra = findPath(
+      0,
+      c => c === 99,
+      () => 1,
+      g
+    );
+    const astar = findPath(
+      0,
+      c => c === 99,
+      () => 1,
+      g,
+      99
+    );
     expect(astar).not.toBeNull();
     expect(astar!.length).toBe(dijkstra!.length);
   });
 
   it("reuses buffers across calls without leaking state", () => {
     const g = makeGrid(10);
-    const a = findPath(0, c => c === 99, () => 1, g, 99);
-    const b = findPath(99, c => c === 0, () => 1, g, 0);
+    const a = findPath(
+      0,
+      c => c === 99,
+      () => 1,
+      g,
+      99
+    );
+    const b = findPath(
+      99,
+      c => c === 0,
+      () => 1,
+      g,
+      0
+    );
     expect(a).not.toBeNull();
     expect(b).not.toBeNull();
     expect(a![0]).toBe(0);
