@@ -243,7 +243,7 @@ describe("heightmap operation coverage by cell count", () => {
     ];
     for (const template of ["shattered", "continents"]) {
       console.log(`\n=== ${template} land % by (countScale formula × cell count) ===`);
-      console.log("formula".padEnd(22) + "10K".padEnd(10) + "100K".padEnd(10) + "500K");
+      console.log(`${"formula".padEnd(22) + "10K".padEnd(10) + "100K".padEnd(10)}500K`);
       for (const { name, fn } of formulas) {
         (globalThis as any).__diagCountScale = fn;
         const row: string[] = [name.padEnd(22)];

@@ -160,7 +160,11 @@ class HeightmapModule {
     // landmasses; that's much closer to the original look than capping
     // BFS depth (which produces perfect circles).
     const baseCount = getNumberInRange(count);
-    const scaledCount = Math.max(1, Math.round(baseCount * countScale(baseCount, this.grid.cellsDesired)));
+    // Don't coerce to >=1 — `Hill 0.5` and `Hill .5` use FMG's fractional
+    // syntax meaning "50% chance of being placed", returning 0 or 1
+    // randomly. Templates like volcano and atoll rely on that 0 outcome
+    // to skip subtle finishing hills; forcing at least 1 breaks their shape.
+    const scaledCount = Math.round(baseCount * countScale(baseCount, this.grid.cellsDesired));
     for (let i = 0; i < scaledCount; i++) {
       addOneHill();
     }
@@ -198,10 +202,7 @@ class HeightmapModule {
     };
 
     const basePitCount = getNumberInRange(count);
-    const desiredPitCount = Math.max(
-      1,
-      Math.round(basePitCount * countScale(basePitCount, this.grid.cellsDesired))
-    );
+    const desiredPitCount = Math.round(basePitCount * countScale(basePitCount, this.grid.cellsDesired));
     for (let i = 0; i < desiredPitCount; i++) {
       addOnePit();
     }
@@ -311,10 +312,7 @@ class HeightmapModule {
     };
 
     const baseRangeCount = getNumberInRange(count);
-    const desiredRangeCount = Math.max(
-      1,
-      Math.round(baseRangeCount * countScale(baseRangeCount, this.grid.cellsDesired))
-    );
+    const desiredRangeCount = Math.round(baseRangeCount * countScale(baseRangeCount, this.grid.cellsDesired));
     for (let i = 0; i < desiredRangeCount; i++) {
       addOneRange();
     }
@@ -427,10 +425,7 @@ class HeightmapModule {
     };
 
     const baseTroughCount = getNumberInRange(count);
-    const desiredTroughCount = Math.max(
-      1,
-      Math.round(baseTroughCount * countScale(baseTroughCount, this.grid.cellsDesired))
-    );
+    const desiredTroughCount = Math.round(baseTroughCount * countScale(baseTroughCount, this.grid.cellsDesired));
     for (let i = 0; i < desiredTroughCount; i++) {
       addOneTrough();
     }
