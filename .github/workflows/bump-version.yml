@@ -2,7 +2,7 @@ name: Bump version on PR merge
 
 on:
   pull_request_target:
-    branches: [master]
+    branches: [main]
     types: [closed]
 
   # Allows you to run this workflow manually from the Actions tab
@@ -23,10 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # Check out the base branch (master) so we are on a real branch, not
+          # Check out the base branch (main) so we are on a real branch, not
           # a detached PR merge ref, which makes git push work without arguments.
           ref: ${{ github.event.pull_request.base.ref }}
-          # fetch-depth 2 so HEAD~1 resolves to the pre-merge master commit
+          # fetch-depth 2 so HEAD~1 resolves to the pre-merge main commit
           fetch-depth: 2
           # pull_request_target grants the workflow token write access on merged PRs.
           token: ${{ github.token }}
@@ -49,7 +49,7 @@ jobs:
           echo "type=$TYPE" >> "$GITHUB_OUTPUT"
           echo "AI-determined bump type: $TYPE"
 
-      - name: Extract base version (master before this PR merged)
+      - name: Extract base version (main before this PR merged)
         id: base
         run: |
           BASE=$(git show HEAD~1:public/versioning.js \
