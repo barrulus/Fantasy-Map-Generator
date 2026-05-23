@@ -1138,22 +1138,33 @@ class RoutesModule {
     return routeId !== undefined;
   }
 
+  private indexCache: { ref: Route[]; len: number; map: Map<number, Route> } | null = null;
+
+  private getRoutesIndex(): Map<number, Route> {
+    const routes = pack.routes as Route[];
+    if (this.indexCache && this.indexCache.ref === routes && this.indexCache.len === routes.length) {
+      return this.indexCache.map;
+    }
+    const map = new Map<number, Route>();
+    for (const route of routes) {
+      if (route && route.i !== undefined) map.set(route.i, route);
+    }
+    this.indexCache = { ref: routes, len: routes.length, map };
+    return map;
+  }
+
   getRoute(from: number, to: number) {
     const routeId = pack.cells.routes[from]?.[to];
     if (routeId === undefined) return null;
-
-    const route = pack.routes.find(route => route.i === routeId);
-    if (!route) return null;
-
-    return route;
+    return this.getRoutesIndex().get(routeId) ?? null;
   }
 
   hasRoad(cellId: number): boolean {
     const connections = pack.cells.routes[cellId];
     if (!connections) return false;
-
+    const index = this.getRoutesIndex();
     return Object.values(connections).some(routeId => {
-      const route = pack.routes.find(route => route.i === routeId);
+      const route = index.get(routeId);
       if (!route) return false;
       return route.group === "roads";
     });
@@ -1163,8 +1174,9 @@ class RoutesModule {
     const connections = pack.cells.routes[cellId];
     if (!connections) return false;
     if (Object.keys(connections).length > 3) return true;
+    const index = this.getRoutesIndex();
     const roadConnections = Object.values(connections).filter(routeId => {
-      const route = pack.routes.find(route => route.i === routeId);
+      const route = index.get(routeId);
       return route?.group === "roads";
     });
     return roadConnections.length > 2;
