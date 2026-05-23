@@ -2,6 +2,28 @@ import Alea from "alea";
 import { range as d3Range, leastIndex, mean } from "d3";
 import { createTypedArray, ensureEl, findGridCell, getNumberInRange, lim, minmax, P, rand } from "../utils";
 
+/**
+ * Scale the count of heightmap shape ops (Hill, Pit, Range, Trough) by grid
+ * density. Each op's spread is capped by integer truncation / line-decay
+ * constants, so its *fraction* of the map shrinks as cellsDesired grows.
+ * Adding more ops compensates without breaking per-op shape.
+ *
+ * Anchor ops (count<4 in the template) are intentional single landmarks —
+ * scaling them produces unwanted multiplicity. Templates like `Hill 8` use
+ * counts that signal "scattered features"; those scale freely.
+ *
+ * Formula: 1 + log10(cells/10K) — chosen empirically (see diag test). At
+ * 10K → 1.0, 100K → 2.0, 500K → 2.7. Aggressive enough to lift shattered
+ * back to ~baseline land coverage at 500K without overshoot.
+ */
+const countScale = (baseCount: number, cellsDesired: number): number => {
+  // Diagnostic override hook (only used by heightmap-generator.diag.test.ts)
+  const override = (globalThis as any).__diagCountScale;
+  if (typeof override === "function") return override(baseCount, cellsDesired);
+  if (baseCount < 4) return 1;
+  return 1 + Math.log10(Math.max(1, cellsDesired / 10000));
+};
+
 declare global {
   var HeightmapGenerator: HeightmapModule;
 }
@@ -13,12 +35,6 @@ class HeightmapModule {
   heights: Uint8Array | null = null;
   blobPower: number = 0;
   linePower: number = 0;
-  // Coefficient controlling maximum hill BFS depth: D = sqrt(coef * cellsDesired).
-  // Per-hill coverage ≈ 2*D²/cellsDesired = 2*coef. Tuned via the shattered
-  // template at 500K cells (which suffered the worst regression pre-fix):
-  // coef=0.020 keeps land coverage at ~15% from 100K up to 500K while
-  // preserving the fragmented "shattered" look (largest region ~4%).
-  hillDepthCoef: number = 0.02;
 
   private clearData() {
     this.heights = null;
@@ -105,21 +121,9 @@ class HeightmapModule {
   }
 
   addHill(count: string, height: string, rangeX: string, rangeY: string): void {
-    // Float storage so blobPower actually drives the decay. Previously this
-    // was Uint8Array; integer truncation forced ~1 unit decay per step
-    // regardless of blobPower, capping hill spread at ~40 cells radius and
-    // making continents collapse to specks at high cell counts.
-    //
-    // With Float storage the spread would be unbounded (Galton-Watson
-    // explosion above blobPower~0.30), so we also bound BFS depth.
-    // maxDepth scales as sqrt(cellsDesired) so per-hill coverage stays a
-    // roughly constant *fraction* of the map across cell counts.
-    const maxDepth = Math.ceil(Math.sqrt(this.grid.cellsDesired * this.hillDepthCoef));
-
     const addOneHill = () => {
       if (!this.heights || !this.grid) return;
-      const change = new Float32Array(this.heights.length);
-      const cellDepth = new Int32Array(this.heights.length);
+      const change = new Uint8Array(this.heights.length);
       let limit = 0;
       let start: number;
       const h = lim(getNumberInRange(height));
@@ -135,11 +139,9 @@ class HeightmapModule {
       const queue = [start];
       while (queue.length) {
         const q = queue.shift() as number;
-        if (cellDepth[q] >= maxDepth) continue;
 
         for (const c of this.grid.cells.c[q]) {
           if (change[c]) continue;
-          cellDepth[c] = cellDepth[q] + 1;
           change[c] = change[q] ** this.blobPower * (Math.random() * 0.2 + 0.9);
           if (change[c] > 1) queue.push(c);
         }
@@ -148,8 +150,18 @@ class HeightmapModule {
       this.heights = this.heights.map((h, i) => lim(h + change[i]));
     };
 
-    const desiredHillCount = getNumberInRange(count);
-    for (let i = 0; i < desiredHillCount; i++) {
+    // The Uint8Array storage caps each hill at ~40 cells radius regardless
+    // of blobPower (integer truncation forces ~1-unit decay per step). At
+    // 500K cells that's only 0.6% of the map per hill — way smaller than
+    // at 10K where 40 cells covers ~13%.
+    //
+    // Compensate by scaling the hill *count* with cell density. Many
+    // overlapping natural-shaped hills produce irregular composite
+    // landmasses; that's much closer to the original look than capping
+    // BFS depth (which produces perfect circles).
+    const baseCount = getNumberInRange(count);
+    const scaledCount = Math.max(1, Math.round(baseCount * countScale(baseCount, this.grid.cellsDesired)));
+    for (let i = 0; i < scaledCount; i++) {
       addOneHill();
     }
   }
@@ -185,7 +197,11 @@ class HeightmapModule {
       }
     };
 
-    const desiredPitCount = getNumberInRange(count);
+    const basePitCount = getNumberInRange(count);
+    const desiredPitCount = Math.max(
+      1,
+      Math.round(basePitCount * countScale(basePitCount, this.grid.cellsDesired))
+    );
     for (let i = 0; i < desiredPitCount; i++) {
       addOnePit();
     }
@@ -294,7 +310,11 @@ class HeightmapModule {
       });
     };
 
-    const desiredRangeCount = getNumberInRange(count);
+    const baseRangeCount = getNumberInRange(count);
+    const desiredRangeCount = Math.max(
+      1,
+      Math.round(baseRangeCount * countScale(baseRangeCount, this.grid.cellsDesired))
+    );
     for (let i = 0; i < desiredRangeCount; i++) {
       addOneRange();
     }
@@ -406,7 +426,11 @@ class HeightmapModule {
       });
     };
 
-    const desiredTroughCount = getNumberInRange(count);
+    const baseTroughCount = getNumberInRange(count);
+    const desiredTroughCount = Math.max(
+      1,
+      Math.round(baseTroughCount * countScale(baseTroughCount, this.grid.cellsDesired))
+    );
     for (let i = 0; i < desiredTroughCount; i++) {
       addOneTrough();
     }

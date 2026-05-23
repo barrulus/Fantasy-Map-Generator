@@ -224,51 +224,44 @@ describe("heightmap operation coverage by cell count", () => {
     }
   });
 
-  it("sweeps hillDepthCoef across cell counts and templates", () => {
-    console.log("\n=== Shattered land % by (hillDepthCoef × cell count) ===");
-    console.log("coef     10K land   100K land   500K land   500K largest");
-    const coefs = [0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05];
-    for (const coef of coefs) {
-      const row: string[] = [coef.toFixed(3).padEnd(8)];
-      let largest500 = 0;
-      for (const { name, cellsX, cellsY, cellsDesired } of CONFIGURATIONS) {
-        const grid = buildSquareGrid(cellsX, cellsY, cellsDesired);
-        setupHeightmap(grid, cellsX, cellsY);
-        HeightmapGenerator.hillDepthCoef = coef;
-        resetRandom();
-        HeightmapGenerator.fromTemplate(grid, "shattered");
-        const h = HeightmapGenerator.heights as Uint8Array;
-        let land = 0;
-        for (let i = 0; i < h.length; i++) if (h[i] >= 20) land++;
-        const pct = ((land / cellsDesired) * 100).toFixed(2);
-        row.push(`${pct.padEnd(11)}`);
-
-        if (name === "500k") {
-          // largest component for 500K only
-          const visited = new Uint8Array(h.length);
-          for (let i = 0; i < h.length; i++) {
-            if (h[i] < 20 || visited[i]) continue;
-            let size = 0;
-            const stack = [i];
-            visited[i] = 1;
-            while (stack.length) {
-              const q = stack.pop()!;
-              size++;
-              for (const n of grid.cells.c[q]) {
-                if (visited[n] || h[n] < 20) continue;
-                visited[n] = 1;
-                stack.push(n);
-              }
-            }
-            if (size > largest500) largest500 = size;
-          }
-        }
+  it("sweeps count-scaling formula on both templates", { timeout: 30_000 }, () => {
+    // The override receives (baseCount, cellsDesired) — formulas here ignore
+    // baseCount, so each formula is applied uniformly. This is useful for
+    // exploring "what would consistent scaling look like" but the chosen
+    // production formula in heightmap-generator.ts gates by baseCount>=4.
+    const formulas: { name: string; fn: (count: number, c: number) => number }[] = [
+      { name: "1.0 (no scale)", fn: () => 1 },
+      { name: "(c/10K)^0.25", fn: (_n, c) => (c / 10000) ** 0.25 },
+      { name: "(c/10K)^0.35", fn: (_n, c) => (c / 10000) ** 0.35 },
+      { name: "(c/10K)^0.5", fn: (_n, c) => Math.sqrt(c / 10000) },
+      { name: "1+log10(c/10K)", fn: (_n, c) => 1 + Math.log10(Math.max(1, c / 10000)) },
+      { name: "1+log10()*1.5", fn: (_n, c) => 1 + 1.5 * Math.log10(Math.max(1, c / 10000)) },
+      {
+        name: "n>=4 ? log10 : 1",
+        fn: (n, c) => (n < 4 ? 1 : 1 + Math.log10(Math.max(1, c / 10000)))
       }
-      row.push(`${largest500} (${((largest500 / 500000) * 100).toFixed(2)}%)`);
-      console.log(row.join(""));
+    ];
+    for (const template of ["shattered", "continents"]) {
+      console.log(`\n=== ${template} land % by (countScale formula × cell count) ===`);
+      console.log("formula".padEnd(22) + "10K".padEnd(10) + "100K".padEnd(10) + "500K");
+      for (const { name, fn } of formulas) {
+        (globalThis as any).__diagCountScale = fn;
+        const row: string[] = [name.padEnd(22)];
+        for (const { cellsX, cellsY, cellsDesired } of CONFIGURATIONS) {
+          const grid = buildSquareGrid(cellsX, cellsY, cellsDesired);
+          setupHeightmap(grid, cellsX, cellsY);
+          resetRandom();
+          HeightmapGenerator.fromTemplate(grid, template);
+          const h = HeightmapGenerator.heights as Uint8Array;
+          let land = 0;
+          for (let i = 0; i < h.length; i++) if (h[i] >= 20) land++;
+          const pct = ((land / cellsDesired) * 100).toFixed(2);
+          row.push(pct.padEnd(10));
+        }
+        console.log(row.join(""));
+      }
     }
-    // Reset to default to avoid polluting subsequent tests
-    HeightmapGenerator.hillDepthCoef = 0.025;
+    (globalThis as any).__diagCountScale = undefined;
   });
 
   it("measures Trough coverage across cell counts", () => {
