@@ -254,7 +254,19 @@ class FeatureModule {
     const { cells, vertices } = pack;
     const { c: neighbors, b: borderCells, i } = cells;
     const packCellsNumber = i.length;
-    if (!packCellsNumber) return; // no cells -> there is nothing to do
+    if (!packCellsNumber) {
+      // No pack cells means the heightmap produced no land (e.g., atoll
+      // template's final fractional hill rolled 0). Leave pack in a
+      // consistent state so downstream renderers don't crash iterating
+      // undefined arrays.
+      pack.cells.t = new Int8Array(0);
+      pack.cells.f = new Uint16Array(0);
+      pack.cells.haven = new Uint16Array(0);
+      pack.cells.harbor = new Uint8Array(0);
+      pack.features = [0 as unknown as PackedGraphFeature];
+      WARN && console.warn("markupPack: heightmap produced no land cells");
+      return;
+    }
 
     const distanceField = new Int8Array(packCellsNumber); // pack.cells.t
     const featureIds = new Uint16Array(packCellsNumber); // pack.cells.f

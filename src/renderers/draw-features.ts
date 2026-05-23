@@ -28,6 +28,7 @@ const featuresRenderer = (): void => {
     lakes: {}
   };
 
+  if (!pack.features) return;
   for (const feature of pack.features) {
     if (!feature || feature.type === "ocean") continue;
 
