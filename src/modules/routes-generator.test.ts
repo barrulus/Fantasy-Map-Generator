@@ -92,7 +92,13 @@ describe("Routes.hasRoad", () => {
 describe("Routes.isCrossroad", () => {
   it("returns true when a cell has 4+ route connections", () => {
     (globalThis as any).pack = {
-      routes: [0, { i: 1, group: "roads" }, { i: 2, group: "roads" }, { i: 3, group: "roads" }, { i: 4, group: "roads" }],
+      routes: [
+        0,
+        { i: 1, group: "roads" },
+        { i: 2, group: "roads" },
+        { i: 3, group: "roads" },
+        { i: 4, group: "roads" }
+      ],
       cells: { routes: { 100: { 101: 1, 102: 2, 103: 3, 104: 4 } } }
     };
     expect(Routes.isCrossroad(100)).toBe(true);
