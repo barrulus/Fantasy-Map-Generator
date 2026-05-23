@@ -382,7 +382,13 @@ export const findAllCellsInRadius = (x: number, y: number, radius: number, packe
  * @returns {Array} - An array of polygon points for the specified cell
  */
 export const getPackPolygon = (cellIndex: number, packedGraph: any) => {
-  return packedGraph.cells.v[cellIndex].map((v: number) => packedGraph.vertices.p[v]);
+  // The Voronoi cell vertex array is sparse: cells that ended up with no
+  // Delaunay edges (a degenerate edge case when many points pack densely)
+  // don't get a v[] entry. Returning [] keeps callers like reGraph's area
+  // computation from crashing — area becomes 0 for those orphan cells.
+  const vertexIds = packedGraph.cells.v[cellIndex];
+  if (!vertexIds) return [];
+  return vertexIds.map((v: number) => packedGraph.vertices.p[v]);
 };
 
 /**
@@ -391,7 +397,9 @@ export const getPackPolygon = (cellIndex: number, packedGraph: any) => {
  * @returns {Array} - An array of polygon points for the specified grid cell
  */
 export const getGridPolygon = (i: number, grid: any) => {
-  return grid.cells.v[i].map((v: number) => grid.vertices.p[v]);
+  const vertexIds = grid.cells.v[i];
+  if (!vertexIds) return [];
+  return vertexIds.map((v: number) => grid.vertices.p[v]);
 };
 
 /**
