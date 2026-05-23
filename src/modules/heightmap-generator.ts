@@ -13,6 +13,12 @@ class HeightmapModule {
   heights: Uint8Array | null = null;
   blobPower: number = 0;
   linePower: number = 0;
+  // Coefficient controlling maximum hill BFS depth: D = sqrt(coef * cellsDesired).
+  // Per-hill coverage ≈ 2*D²/cellsDesired = 2*coef. Tuned via the shattered
+  // template at 500K cells (which suffered the worst regression pre-fix):
+  // coef=0.020 keeps land coverage at ~15% from 100K up to 500K while
+  // preserving the fragmented "shattered" look (largest region ~4%).
+  hillDepthCoef: number = 0.02;
 
   private clearData() {
     this.heights = null;
@@ -99,9 +105,21 @@ class HeightmapModule {
   }
 
   addHill(count: string, height: string, rangeX: string, rangeY: string): void {
+    // Float storage so blobPower actually drives the decay. Previously this
+    // was Uint8Array; integer truncation forced ~1 unit decay per step
+    // regardless of blobPower, capping hill spread at ~40 cells radius and
+    // making continents collapse to specks at high cell counts.
+    //
+    // With Float storage the spread would be unbounded (Galton-Watson
+    // explosion above blobPower~0.30), so we also bound BFS depth.
+    // maxDepth scales as sqrt(cellsDesired) so per-hill coverage stays a
+    // roughly constant *fraction* of the map across cell counts.
+    const maxDepth = Math.ceil(Math.sqrt(this.grid.cellsDesired * this.hillDepthCoef));
+
     const addOneHill = () => {
       if (!this.heights || !this.grid) return;
-      const change = new Uint8Array(this.heights.length);
+      const change = new Float32Array(this.heights.length);
+      const cellDepth = new Int32Array(this.heights.length);
       let limit = 0;
       let start: number;
       const h = lim(getNumberInRange(height));
@@ -117,9 +135,11 @@ class HeightmapModule {
       const queue = [start];
       while (queue.length) {
         const q = queue.shift() as number;
+        if (cellDepth[q] >= maxDepth) continue;
 
         for (const c of this.grid.cells.c[q]) {
           if (change[c]) continue;
+          cellDepth[c] = cellDepth[q] + 1;
           change[c] = change[q] ** this.blobPower * (Math.random() * 0.2 + 0.9);
           if (change[c] > 1) queue.push(c);
         }
