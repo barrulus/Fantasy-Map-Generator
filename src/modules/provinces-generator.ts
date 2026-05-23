@@ -248,7 +248,7 @@ class ProvinceModule {
       if (!s.provinces?.length) return;
 
       const stateNoProvince = noProvinceByState.get(s.i);
-      if (!stateNoProvince || !stateNoProvince.size) return;
+      if (!stateNoProvince?.size) return;
 
       const coreProvinceNames = s.provinces.map(p => provinces[p]?.name);
       const colonyNamePool = [s.name, ...coreProvinceNames].filter(name => name && !/new/i.test(name));

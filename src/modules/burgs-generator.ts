@@ -570,6 +570,7 @@ class BurgModule {
       case "smallVillage":
         population = gauss(0.275, 0.225, 0.05, 0.5);
         break;
+      // biome-ignore lint/complexity/noUselessSwitchCase: hamlet listed explicitly to document the 7-tier system
       case "hamlet":
       default:
         population = gauss(0.03, 0.02, 0.01, 0.05);
@@ -657,6 +658,7 @@ class BurgModule {
         burg.shanty = 0;
         burg.temple = Number(P(0.15));
         break;
+      // biome-ignore lint/complexity/noUselessSwitchCase: hamlet listed explicitly to document the 7-tier system
       case "hamlet":
       default:
         burg.citadel = 0;
