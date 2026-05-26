@@ -788,80 +788,75 @@ function addLakesInDeepDepressions() {
 
   const {cells, features} = grid;
   const {c, h, b} = cells;
-  const cellCount = cells.i.length;
-  const checked = new Uint8Array(cellCount);
-  const drainsToOcean = new Uint8Array(cellCount);
+  const n = cells.i.length;
 
-  // collect local minimums and sort by height ascending
-  // processing low-to-high ensures drainsToOcean cache is always valid
-  // (higher thresholds are supersets of lower ones)
-  const minimums = [];
-  for (const i of cells.i) {
+  // Priority flood from ocean. For each cell, spillpoint[i] is the lowest elevation
+  // a water surface would need to reach in order to flood cell i from the ocean —
+  // the saddle height on the easiest path out. Computed as Dijkstra-style flood:
+  // pop lowest spillpoint, propagate to each neighbour as max(own h, current spillpoint).
+  // Single O((N + E) log N) pass replaces the prior per-minimum BFS, which degenerated
+  // on dense single-basin templates (volcano, taklamakan).
+  const spillpoint = new Float32Array(n);
+  const visited = new Uint8Array(n);
+  const queue = new FlatQueue();
+
+  for (let i = 0; i < n; i++) {
+    if (h[i] < 20 || b[i]) {
+      spillpoint[i] = h[i];
+      visited[i] = 1;
+      queue.push(i, h[i]);
+    }
+  }
+
+  while (queue.length) {
+    const cellSpill = queue.peekValue();
+    const cell = queue.pop();
+    const neighbors = c[cell];
+    for (let j = 0; j < neighbors.length; j++) {
+      const nb = neighbors[j];
+      if (visited[nb]) continue;
+      visited[nb] = 1;
+      const nbH = h[nb];
+      const sp = nbH > cellSpill ? nbH : cellSpill;
+      spillpoint[nb] = sp;
+      queue.push(nb, sp);
+    }
+  }
+
+  // Any land local minimum whose spillpoint exceeds its own elevation by more
+  // than elevationLimit is a "deep" depression — seed a lake there.
+  for (let i = 0; i < n; i++) {
     if (b[i] || h[i] < 20) continue;
+    const cellH = h[i];
+    if (spillpoint[i] - cellH < elevationLimit) continue;
+
     const neighbors = c[i];
     let isMinimum = true;
     for (let j = 0; j < neighbors.length; j++) {
-      if (h[neighbors[j]] < h[i]) { isMinimum = false; break; }
+      if (h[neighbors[j]] < cellH) { isMinimum = false; break; }
     }
-    if (isMinimum) minimums.push(i);
-  }
-  minimums.sort((a, b) => h[a] - h[b]);
+    if (!isMinimum) continue;
 
-  for (const i of minimums) {
-    if (h[i] < 20) continue; // already converted to lake by a previous iteration
-
-    let deep = true;
-    const threshold = h[i] + elevationLimit;
-    const queue = [i];
-    const visited = [i];
-    checked[i] = 1;
-
-    // check if elevated cell can potentially pour to water
-    while (deep && queue.length) {
-      const q = queue.pop();
-      const qNeighbors = c[q];
-
-      for (let j = 0; j < qNeighbors.length; j++) {
-        const n = qNeighbors[j];
-        if (checked[n]) continue;
-        if (h[n] >= threshold) continue;
-        if (h[n] < 20 || drainsToOcean[n]) {
-          deep = false;
-          break;
-        }
-
-        checked[n] = 1;
-        visited.push(n);
-        queue.push(n);
-      }
+    const lakeCells = [i];
+    for (let j = 0; j < neighbors.length; j++) {
+      if (h[neighbors[j]] === cellH) lakeCells.push(neighbors[j]);
     }
-
-    // reset checked for visited cells only
-    for (let j = 0; j < visited.length; j++) checked[visited[j]] = 0;
-
-    // Mark every visited cell as draining. Even when deep=true (a lake is
-    // about to be created at the seed), the lake cells will sit at h=19, so
-    // any other minimum sitting in this basin will reach them and short-circuit.
-    // Without this, sibling minimums in the same depression re-walk the full
-    // basin BFS — the dominant cost at high cell counts.
-    for (let j = 0; j < visited.length; j++) drainsToOcean[visited[j]] = 1;
-
-    if (deep) {
-      const lakeCells = [i].concat(c[i].filter(n => h[n] === h[i]));
-      addLake(lakeCells);
-    }
+    addLake(lakeCells);
   }
 
   function addLake(lakeCells) {
     const f = features.length;
-
-    lakeCells.forEach(i => {
+    for (let k = 0; k < lakeCells.length; k++) {
+      const i = lakeCells[k];
       cells.h[i] = 19;
       cells.t[i] = -1;
       cells.f[i] = f;
-      c[i].forEach(n => !lakeCells.includes(n) && (cells.t[c] = 1));
-    });
-
+      const neighbors = c[i];
+      for (let j = 0; j < neighbors.length; j++) {
+        const nb = neighbors[j];
+        if (lakeCells.indexOf(nb) === -1) cells.t[nb] = 1; // mark shore as coastline (was: cells.t[c] — a latent bug)
+      }
+    }
     features.push({i: f, land: false, border: false, type: "lake"});
   }
 
