@@ -1235,11 +1235,13 @@ class CulturesModule {
     TIME && console.time("expandCultures");
     const { cells, cultures } = pack;
 
+    const n = cells.i.length;
     const queue = new FlatQueue();
-    const cost = new Float32Array(cells.i.length);
+    const cost = new Float32Array(n);
+    const cellCulture = new Uint16Array(n);
 
     const neutralRate = (document.getElementById("neutralRate") as HTMLInputElement | null)?.valueAsNumber || 1;
-    const maxExpansionCost = cells.i.length * 0.6 * neutralRate; // limit cost for culture growth
+    const maxExpansionCost = n * 0.6 * neutralRate; // limit cost for culture growth
 
     // remove culture from all cells except of locked
     const hasLocked = cultures.some(c => !c.removed && c.lock);
@@ -1250,13 +1252,17 @@ class CulturesModule {
         cells.culture[cellId] = 0;
       }
     } else {
-      cells.culture = new Uint16Array(cells.i.length);
+      cells.culture = new Uint16Array(n);
     }
 
+    // Seed BFS. Push with priority 1 to match the cost[center] = 1 sentinel
+    // that protects seed cells from being overwritten by reverse expansion.
     for (const culture of cultures) {
       if (!culture.i || culture.removed || culture.lock) continue;
-      queue.push({ cellId: culture.center, cultureId: culture.i, priority: 0 }, 0);
-      cost[culture.center as number] = 1; // mark as seeded
+      const center = culture.center as number;
+      cost[center] = 1;
+      cellCulture[center] = culture.i as number;
+      queue.push(center, 1);
     }
 
     const getBiomeCost = (c: number, biome: number, type: string) => {
@@ -1295,32 +1301,41 @@ class CulturesModule {
     };
 
     while (queue.length) {
-      const { cellId, priority, cultureId } = queue.pop();
-      const { type, expansionism } = cultures[cultureId];
+      const priority = queue.peekValue() as number;
+      const cellId = queue.pop() as number;
+      // Skip stale entries — a cheaper cost was pushed for this cell since
+      if (priority !== cost[cellId]) continue;
 
-      cells.c[cellId].forEach(neibCellId => {
+      const cultureId = cellCulture[cellId];
+      const culture = cultures[cultureId];
+      const type = culture.type as string;
+      const expansionism = culture.expansionism as number;
+      const cellBiome = cells.biome[cellId];
+
+      for (const neibCellId of cells.c[cellId]) {
         if (hasLocked) {
           const neibCultureId = cells.culture[neibCellId];
-          if (neibCultureId && cultures[neibCultureId].lock) return; // do not overwrite cell of locked culture
+          if (neibCultureId && cultures[neibCultureId].lock) continue; // do not overwrite cell of locked culture
         }
 
-        const biome = cells.biome[neibCellId];
-        const biomeCost = getBiomeCost(cultureId, biome, type as string);
-        const biomeChangeCost = biome === cells.biome[neibCellId] ? 0 : 20; // penalty on biome change
-        const heightCost = getHeightCost(neibCellId, cells.h[neibCellId], type as string);
-        const riverCost = getRiverCost(cells.r[neibCellId], neibCellId, type as string);
-        const typeCost = getTypeCost(cells.t[neibCellId], type as string);
-        const cellCost = (biomeCost + biomeChangeCost + heightCost + riverCost + typeCost) / (expansionism as number);
+        const neibBiome = cells.biome[neibCellId];
+        const biomeCost = getBiomeCost(cultureId, neibBiome, type);
+        const biomeChangeCost = cellBiome === neibBiome ? 0 : 20; // penalty on biome change
+        const heightCost = getHeightCost(neibCellId, cells.h[neibCellId], type);
+        const riverCost = getRiverCost(cells.r[neibCellId], neibCellId, type);
+        const typeCost = getTypeCost(cells.t[neibCellId], type);
+        const cellCost = (biomeCost + biomeChangeCost + heightCost + riverCost + typeCost) / expansionism;
         const totalCost = priority + cellCost;
 
-        if (totalCost > maxExpansionCost) return;
+        if (totalCost > maxExpansionCost) continue;
 
         if (!cost[neibCellId] || totalCost < cost[neibCellId]) {
           if (cells.pop[neibCellId] > 0) cells.culture[neibCellId] = cultureId; // assign culture to populated cell
           cost[neibCellId] = totalCost;
-          queue.push({ cellId: neibCellId, cultureId, priority: totalCost }, totalCost);
+          cellCulture[neibCellId] = cultureId;
+          queue.push(neibCellId, totalCost);
         }
-      });
+      }
     }
 
     TIME && console.timeEnd("expandCultures");
