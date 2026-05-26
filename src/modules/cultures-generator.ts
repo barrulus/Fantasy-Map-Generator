@@ -1320,7 +1320,10 @@ class CulturesModule {
 
         const neibBiome = cells.biome[neibCellId];
         const biomeCost = getBiomeCost(cultureId, neibBiome, type);
-        const biomeChangeCost = cellBiome === neibBiome ? 0 : 20; // penalty on biome change
+        // biomeChangeCost preserved as always-0 to match the original (buggy-but-tuned)
+        // FMG behaviour. The other expansion costs are balanced around this; restoring
+        // the 20-on-change penalty starves expansion at 500K density.
+        const biomeChangeCost = 0;
         const heightCost = getHeightCost(neibCellId, cells.h[neibCellId], type);
         const riverCost = getRiverCost(cells.r[neibCellId], neibCellId, type);
         const typeCost = getTypeCost(cells.t[neibCellId], type);
