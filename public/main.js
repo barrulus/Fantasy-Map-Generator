@@ -295,13 +295,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function hideLoading() {
-  d3.select("#loading").transition().duration(3000).style("opacity", 0);
+  // Set display:none after fade-out so the spin/blink animations on
+  // #loading-rose and #loading-text stop running. opacity:0 alone keeps
+  // them ticking and forces continuous re-rasterization of the SVG layer
+  // underneath, which is catastrophic at 100K+ burgs.
+  d3.select("#loading")
+    .transition()
+    .duration(3000)
+    .style("opacity", 0)
+    .on("end", function () {
+      this.style.display = "none";
+    });
   d3.select("#optionsContainer").transition().duration(2000).style("opacity", 1);
   d3.select("#tooltip").transition().duration(3000).style("opacity", 1);
 }
 
 function showLoading() {
-  d3.select("#loading").transition().duration(200).style("opacity", 1);
+  d3.select("#loading").style("display", null).transition().duration(200).style("opacity", 1);
   d3.select("#optionsContainer").transition().duration(100).style("opacity", 0);
   d3.select("#tooltip").transition().duration(200).style("opacity", 0);
 }
@@ -829,10 +839,14 @@ function addLakesInDeepDepressions() {
     // reset checked for visited cells only
     for (let j = 0; j < visited.length; j++) checked[visited[j]] = 0;
 
-    if (!deep) {
-      // mark all visited cells as draining to ocean
-      for (let j = 0; j < visited.length; j++) drainsToOcean[visited[j]] = 1;
-    } else {
+    // Mark every visited cell as draining. Even when deep=true (a lake is
+    // about to be created at the seed), the lake cells will sit at h=19, so
+    // any other minimum sitting in this basin will reach them and short-circuit.
+    // Without this, sibling minimums in the same depression re-walk the full
+    // basin BFS — the dominant cost at high cell counts.
+    for (let j = 0; j < visited.length; j++) drainsToOcean[visited[j]] = 1;
+
+    if (deep) {
       const lakeCells = [i].concat(c[i].filter(n => h[n] === h[i]));
       addLake(lakeCells);
     }
