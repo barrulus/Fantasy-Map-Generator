@@ -59,6 +59,36 @@ beforeAll(async () => {
       name: "Continents",
       template: `Hill 1 80-85 60-80 40-60\nHill 1 80-85 20-30 40-60\nHill 6-7 15-30 25-75 15-85\nMultiply 0.6 land 0 0\nHill 8-10 5-10 15-85 20-80\nRange 1-2 30-60 5-15 25-75\nRange 1-2 30-60 80-95 25-75\nRange 0-3 30-60 80-90 20-80\nSmooth 3 0 0 0\nTrough 3-4 15-20 15-85 20-80\nTrough 3-4 5-10 45-55 45-55\nPit 3-4 10-20 15-85 20-80\nMask 4 0 0 0`,
       probability: 16
+    },
+    // Anchor-only templates: every op uses count<4. Without the
+    // anchor-scale exception, these collapse to ~8% of the central
+    // hill's reach at 500K vs ~25% at 10K — atoll's ring shrinks and
+    // volcano's caldera loses substance.
+    atoll: {
+      id: 5,
+      name: "Atoll",
+      template: `Hill 1 75-80 50-60 45-55\nHill 1.5 30-50 25-75 30-70\nHill .5 30-50 25-35 30-70\nSmooth 1 0 0 0\nMultiply 0.2 25-100 0 0\nHill 0.5 10-20 50-55 48-52`,
+      probability: 1
+    },
+    volcano: {
+      id: 0,
+      name: "Volcano",
+      template: `Hill 1 90-100 44-56 40-60\nMultiply 0.8 50-100 0 0\nRange 1.5 30-55 45-55 40-60\nSmooth 3 0 0 0\nHill 1.5 35-45 25-30 20-75\nHill 1 35-55 75-80 25-75\nHill 0.5 20-25 10-15 20-25\nMask 3 0 0 0`,
+      probability: 3
+    },
+    // Saturation suspect: Hill 2-4 / Hill 3-4 on every edge scales to ~32
+    // hills at 500K, overwhelming the central depression.
+    taklamakan: {
+      id: 11,
+      name: "Taklamakan",
+      template: `Hill 1-3 20-30 30-70 30-70\nHill 2-4 60-85 0-5 0-100\nHill 2-4 60-85 95-100 0-100\nHill 3-4 60-85 20-80 0-5\nHill 3-4 60-85 20-80 95-100\nSmooth 3 0 0 0`,
+      probability: 1
+    },
+    fractious: {
+      id: 13,
+      name: "Fractious",
+      template: `Hill 12-15 50-80 5-95 5-95\nMask -1.5 0 0 0\nMask 3 0 0 0\nAdd -20 30-100 0 0\nRange 6-8 40-50 5-95 10-90`,
+      probability: 3
     }
   };
 
@@ -182,7 +212,7 @@ describe("heightmap operation coverage by cell count", () => {
   it("runs full templates end-to-end at multiple cell counts", () => {
     console.log("\n=== Full template runs (land = h >= 20) ===");
     console.log("template     cells       land cells    land pct   largest region   regions");
-    for (const template of ["shattered", "continents"]) {
+    for (const template of ["shattered", "continents", "atoll", "volcano", "taklamakan", "fractious"]) {
       for (const { name, cellsX, cellsY, cellsDesired } of CONFIGURATIONS) {
         const grid = buildSquareGrid(cellsX, cellsY, cellsDesired);
         setupHeightmap(grid, cellsX, cellsY);

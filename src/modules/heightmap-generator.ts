@@ -3,25 +3,33 @@ import { range as d3Range, leastIndex, mean } from "d3";
 import { createTypedArray, ensureEl, findGridCell, getNumberInRange, lim, minmax, P, rand } from "../utils";
 
 /**
- * Scale the count of heightmap shape ops (Hill, Pit, Range, Trough) by grid
- * density. Each op's spread is capped by integer truncation / line-decay
- * constants, so its *fraction* of the map shrinks as cellsDesired grows.
- * Adding more ops compensates without breaking per-op shape.
+ * Heightmap density scaling
  *
- * Anchor ops (count<4 in the template) are intentional single landmarks —
- * scaling them produces unwanted multiplicity. Templates like `Hill 8` use
- * counts that signal "scattered features"; those scale freely.
+ * Templates were authored for ~10K cells. At higher densities each
+ * Hill/Pit BFS or Range/Trough line covers a smaller *relative* fraction
+ * of the map because the decay table (blobPower/linePower) didn't fully
+ * compensate — and that drop in coverage forced workarounds elsewhere
+ * (inflated peak heights, more hills per template). Those workarounds
+ * pushed the elevation histogram into the red/peak zone.
  *
- * Formula: 1 + log10(cells/10K) — chosen empirically (see diag test). At
- * 10K → 1.0, 100K → 2.0, 500K → 2.7. Aggressive enough to lift shattered
- * back to ~baseline land coverage at 500K without overshoot.
+ * The fix is at this layer: pick blobPower/linePower so each op's
+ * relative coverage matches 10K at every density. Templates then look
+ * canonical at any cell count without per-template tuning.
+ *
+ * Derivation (blob): a Hill BFS terminates when h^(p^n) drops below ~1.5
+ * (random multiplier + integer truncation). Solving for n at height 40
+ * gives ~109 cells at 10K (p=0.98) — the reference. For target coverage
+ * 1.09% of N at any N, p = exp(log(0.110)/(0.0109·N)).
+ *
+ * countScale therefore returns 1 unconditionally: with the table fixed,
+ * each hill spreads enough on its own, and adding more hills just piles
+ * elevation on the same area.
  */
 const countScale = (baseCount: number, cellsDesired: number): number => {
   // Diagnostic override hook (only used by heightmap-generator.diag.test.ts)
   const override = (globalThis as any).__diagCountScale;
   if (typeof override === "function") return override(baseCount, cellsDesired);
-  if (baseCount < 4) return 1;
-  return 1 + Math.log10(Math.max(1, cellsDesired / 10000));
+  return 1;
 };
 
 declare global {
@@ -150,20 +158,11 @@ class HeightmapModule {
       this.heights = this.heights.map((h, i) => lim(h + change[i]));
     };
 
-    // The Uint8Array storage caps each hill at ~40 cells radius regardless
-    // of blobPower (integer truncation forces ~1-unit decay per step). At
-    // 500K cells that's only 0.6% of the map per hill — way smaller than
-    // at 10K where 40 cells covers ~13%.
-    //
-    // Compensate by scaling the hill *count* with cell density. Many
-    // overlapping natural-shaped hills produce irregular composite
-    // landmasses; that's much closer to the original look than capping
-    // BFS depth (which produces perfect circles).
-    const baseCount = getNumberInRange(count);
     // Don't coerce to >=1 — `Hill 0.5` and `Hill .5` use FMG's fractional
     // syntax meaning "50% chance of being placed", returning 0 or 1
     // randomly. Templates like volcano and atoll rely on that 0 outcome
     // to skip subtle finishing hills; forcing at least 1 breaks their shape.
+    const baseCount = getNumberInRange(count);
     const scaledCount = Math.round(baseCount * countScale(baseCount, this.grid.cellsDesired));
     for (let i = 0; i < scaledCount; i++) {
       addOneHill();
