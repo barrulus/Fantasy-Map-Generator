@@ -107,7 +107,11 @@ class StatesModule {
 
     const n = cells.i.length;
     const queue = new FlatQueue();
-    const cost = new Float32Array(n);
+    // Float64Array — Float32 rounding breaks the `priority === cost[e]` staleness
+    // check: queue stores Float64 priorities, Float32 cost storage rounds them
+    // away, every non-seed pop fails the check and gets skipped, BFS stops at
+    // the first hop, states never expand past their capitals.
+    const cost = new Float64Array(n);
     const bfsState = new Uint16Array(n); // BFS-owned state per cell (parallel to queue)
 
     const globalGrowthRate = (document.getElementById("growthRate") as HTMLInputElement | null)?.valueAsNumber || 1;

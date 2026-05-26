@@ -1237,7 +1237,9 @@ class CulturesModule {
 
     const n = cells.i.length;
     const queue = new FlatQueue();
-    const cost = new Float32Array(n);
+    // Float64Array — Float32 rounding breaks the staleness check (see equivalent
+    // comment in states-generator.ts). BFS would stop at first hop.
+    const cost = new Float64Array(n);
     const cellCulture = new Uint16Array(n);
 
     const neutralRate = (document.getElementById("neutralRate") as HTMLInputElement | null)?.valueAsNumber || 1;
