@@ -854,7 +854,10 @@ function addLakesInDeepDepressions() {
       const neighbors = c[i];
       for (let j = 0; j < neighbors.length; j++) {
         const nb = neighbors[j];
-        if (lakeCells.indexOf(nb) === -1) cells.t[nb] = 1; // mark shore as coastline (was: cells.t[c] — a latent bug)
+        // Mark only LAND shore cells as coastline. Ocean neighbours must stay
+        // at t = -1. (Original code wrote to `cells.t[c]` where `c` was the
+        // destructured adjacency table — a no-op; this is the corrected form.)
+        if (h[nb] >= 20 && lakeCells.indexOf(nb) === -1) cells.t[nb] = 1;
       }
     }
     features.push({i: f, land: false, border: false, type: "lake"});
