@@ -7,7 +7,6 @@ import {
   getMixedColor,
   getPolesOfInaccessibility,
   getRandomColor,
-  minmax,
   P,
   ra,
   rand,
@@ -86,38 +85,6 @@ class StatesModule {
     return states;
   }
 
-  private getBiomeCost(b: number, biome: number, type: string) {
-    if (b === biome) return 10; // tiny penalty for native biome
-    if (type === "Hunting") return biomesData.cost[biome] * 2; // non-native biome penalty for hunters
-    if (type === "Nomadic" && biome > 4 && biome < 10) return biomesData.cost[biome] * 3; // forest biome penalty for nomads
-    return biomesData.cost[biome]; // general non-native biome penalty
-  }
-
-  private getHeightCost(f: any, h: number, type: string) {
-    if (type === "Lake" && f.type === "lake") return 10; // low lake crossing penalty for Lake cultures
-    if (type === "Naval" && h < 20) return 300; // low sea crossing penalty for Navals
-    if (type === "Nomadic" && h < 20) return 10000; // giant sea crossing penalty for Nomads
-    if (h < 20) return 1000; // general sea crossing penalty
-    if (type === "Highland" && h < 62) return 1100; // penalty for highlanders on lowlands
-    if (type === "Highland") return 0; // no penalty for highlanders on highlands
-    if (h >= 67) return 2200; // general mountains crossing penalty
-    if (h >= 44) return 300; // general hills crossing penalty
-    return 0;
-  }
-
-  private getRiverCost(r: any, i: number, type: string) {
-    if (type === "River") return r ? 0 : 100; // penalty for river cultures
-    if (!r) return 0; // no penalty for others if there is no river
-    return minmax(pack.cells.fl[i] / 10, 20, 100); // river penalty from 20 to 100 based on flux
-  }
-
-  private getTypeCost(t: number, type: string) {
-    if (t === 1) return type === "Naval" || type === "Lake" ? 0 : type === "Nomadic" ? 60 : 20; // penalty for coastline
-    if (t === 2) return type === "Naval" || type === "Nomadic" ? 30 : 0; // low penalty for land level 2 for Navals and nomads
-    if (t !== -1) return type === "Naval" || type === "Lake" ? 100 : 0; // penalty for mainland for navals
-    return 0;
-  }
-
   generate() {
     TIME && console.time("generateStates");
     pack.states = this.createStates();
@@ -164,34 +131,101 @@ class StatesModule {
       cost[state.center] = 1;
     }
 
+    // Hoist hot field references to locals so V8 keeps them in registers.
+    const cellsC = cells.c;
+    const cellsH = cells.h;
+    const cellsS = cells.s;
+    const cellsR = cells.r;
+    const cellsT = cells.t;
+    const cellsF = cells.f;
+    const cellsState = cells.state;
+    const cellsBiome = cells.biome;
+    const cellsCulture = cells.culture;
+    const cellsFl = cells.fl;
+    const packFeatures = pack.features;
+    const biomeCostTable = biomesData.cost;
+
     while (queue.length) {
       const next = queue.pop();
-
       const { e, p, s, b } = next;
-      const { type, culture } = states[s];
+      const stateS = states[s];
+      const { type, culture } = stateS;
+      const expansionism = stateS.expansionism;
 
-      cells.c[e].forEach(e => {
-        const state = states[cells.state[e]];
-        if (state.lock) return; // do not overwrite cell of locked states
-        if (cells.state[e] && e === state.center) return; // do not overwrite capital cells
+      // Type is constant for this pop — resolve type-dependent branches once
+      // instead of redoing them inside every cost function for every neighbour.
+      const isHunting = type === "Hunting";
+      const isNomadic = type === "Nomadic";
+      const isNaval = type === "Naval";
+      const isLake = type === "Lake";
+      const isHighland = type === "Highland";
+      const isRiver = type === "River";
 
-        const cultureCost = culture === cells.culture[e] ? -9 : 100;
-        const populationCost = cells.h[e] < 20 ? 0 : cells.s[e] ? Math.max(20 - cells.s[e], 0) : 5000;
-        const biomeCost = this.getBiomeCost(b, cells.biome[e], type);
-        const heightCost = this.getHeightCost(pack.features[cells.f[e]], cells.h[e], type);
-        const riverCost = this.getRiverCost(cells.r[e], e, type);
-        const typeCost = this.getTypeCost(cells.t[e], type);
-        const cellCost = Math.max(cultureCost + populationCost + biomeCost + heightCost + riverCost + typeCost, 0);
-        const totalCost = p + 10 + cellCost / states[s].expansionism;
+      const neighbors = cellsC[e];
+      for (let ni = 0; ni < neighbors.length; ni++) {
+        const en = neighbors[ni];
+        const enState = states[cellsState[en]];
+        if (enState.lock) continue;
+        if (cellsState[en] && en === enState.center) continue;
 
-        if (totalCost > growthRate) return;
+        const hEn = cellsH[en];
+        const sEn = cellsS[en];
+        const tEn = cellsT[en];
+        const rEn = cellsR[en];
+        const biomeEn = cellsBiome[en];
 
-        if (!cost[e] || totalCost < cost[e]) {
-          if (cells.h[e] >= 20) cells.state[e] = s; // assign state to cell
-          cost[e] = totalCost;
-          queue.push({ e, p: totalCost, s, b }, totalCost);
+        const cultureCost = culture === cellsCulture[en] ? -9 : 100;
+        const populationCost = hEn < 20 ? 0 : sEn ? (sEn < 20 ? 20 - sEn : 0) : 5000;
+
+        // biomeCost
+        let biomeCost: number;
+        if (b === biomeEn) biomeCost = 10;
+        else if (isHunting) biomeCost = biomeCostTable[biomeEn] * 2;
+        else if (isNomadic && biomeEn > 4 && biomeEn < 10) biomeCost = biomeCostTable[biomeEn] * 3;
+        else biomeCost = biomeCostTable[biomeEn];
+
+        // heightCost
+        let heightCost: number;
+        if (isLake && packFeatures[cellsF[en]].type === "lake") heightCost = 10;
+        else if (isNaval && hEn < 20) heightCost = 300;
+        else if (isNomadic && hEn < 20) heightCost = 10000;
+        else if (hEn < 20) heightCost = 1000;
+        else if (isHighland && hEn < 62) heightCost = 1100;
+        else if (isHighland) heightCost = 0;
+        else if (hEn >= 67) heightCost = 2200;
+        else if (hEn >= 44) heightCost = 300;
+        else heightCost = 0;
+
+        // riverCost
+        let riverCost: number;
+        if (isRiver) {
+          riverCost = rEn ? 0 : 100;
+        } else if (!rEn) {
+          riverCost = 0;
+        } else {
+          const flux = cellsFl[en] / 10;
+          riverCost = flux < 20 ? 20 : flux > 100 ? 100 : flux;
         }
-      });
+
+        // typeCost
+        let typeCost: number;
+        if (tEn === 1) typeCost = isNaval || isLake ? 0 : isNomadic ? 60 : 20;
+        else if (tEn === 2) typeCost = isNaval || isNomadic ? 30 : 0;
+        else if (tEn !== -1) typeCost = isNaval || isLake ? 100 : 0;
+        else typeCost = 0;
+
+        let cellCost = cultureCost + populationCost + biomeCost + heightCost + riverCost + typeCost;
+        if (cellCost < 0) cellCost = 0;
+        const totalCost = p + 10 + cellCost / expansionism;
+
+        if (totalCost > growthRate) continue;
+
+        if (!cost[en] || totalCost < cost[en]) {
+          if (hEn >= 20) cellsState[en] = s;
+          cost[en] = totalCost;
+          queue.push({ e: en, p: totalCost, s, b }, totalCost);
+        }
+      }
     }
 
     burgs
