@@ -135,7 +135,11 @@ window.shouldRegenerateGrid = (grid: any, expectedSeed: number) =>
 window.generateGrid = () => generateGrid((window as any).seed, (window as any).graphWidth, (window as any).graphHeight);
 window.findGridAll = (x: number, y: number, radius: number) => findGridAll(x, y, radius, (window as any).grid);
 window.findGridCell = (x: number, y: number) => findGridCell(x, y, (window as any).grid);
-window.findCell = (x: number, y: number, radius?: number) => findClosestCell(x, y, radius, (window as any).pack);
+window.findCell = (x: number, y: number, radius?: number) => {
+  const pack = (window as any).pack;
+  if (!pack?.cells?.p) return undefined;
+  return findClosestCell(x, y, radius, pack);
+};
 window.findAll = (x: number, y: number, radius: number) => findAllCellsInRadius(x, y, radius, (window as any).pack);
 window.getPackPolygon = (cellIndex: number) => getPackPolygon(cellIndex, (window as any).pack);
 window.getGridPolygon = (cellIndex: number) => getGridPolygon(cellIndex, (window as any).grid);
