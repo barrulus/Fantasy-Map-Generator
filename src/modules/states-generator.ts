@@ -105,13 +105,15 @@ class StatesModule {
 
     cells.state = cells.state || new Uint16Array(cells.i.length);
 
+    const n = cells.i.length;
     const queue = new FlatQueue();
-    const cost = new Float32Array(cells.i.length);
+    const cost = new Float32Array(n);
+    const bfsState = new Uint16Array(n); // BFS-owned state per cell (parallel to queue)
 
     const globalGrowthRate = (document.getElementById("growthRate") as HTMLInputElement | null)?.valueAsNumber || 1;
     const statesGrowthRate =
       (document.getElementById("statesGrowthRate") as HTMLInputElement | null)?.valueAsNumber || 1;
-    const growthRate = (cells.i.length / 2) * globalGrowthRate * statesGrowthRate; // limit cost for state growth
+    const growthRate = (n / 2) * globalGrowthRate * statesGrowthRate; // limit cost for state growth
 
     // remove state from all cells except of locked
     for (const cellId of cells.i) {
@@ -120,15 +122,24 @@ class StatesModule {
       cells.state[cellId] = 0;
     }
 
+    // Precompute native biome per state (biome of the state's culture center cell)
+    const stateBiome = new Int16Array(states.length);
     for (const state of states) {
       if (!state.i || state.removed) continue;
+      const cultureCenter = cultures[state.culture].center!;
+      stateBiome[state.i] = cells.biome[cultureCenter];
+    }
 
+    // Seed BFS. Push with priority 1 to match the cost[center] = 1 sentinel
+    // that protects seed cells from being overwritten by reverse expansion.
+    for (const state of states) {
+      if (!state.i || state.removed) continue;
       const capitalCell = burgs[state.capital].cell;
       cells.state[capitalCell] = state.i;
-      const cultureCenter = cultures[state.culture].center!;
-      const b = cells.biome[cultureCenter]; // state native biome
-      queue.push({ e: state.center, p: 0, s: state.i, b }, 0);
-      cost[state.center] = 1;
+      const center = state.center;
+      cost[center] = 1;
+      bfsState[center] = state.i;
+      queue.push(center, 1);
     }
 
     // Hoist hot field references to locals so V8 keeps them in registers.
@@ -146,8 +157,13 @@ class StatesModule {
     const biomeCostTable = biomesData.cost;
 
     while (queue.length) {
-      const next = queue.pop();
-      const { e, p, s, b } = next;
+      const priority = queue.peekValue() as number;
+      const e = queue.pop() as number;
+      // Skip stale entries — a cheaper cost was pushed for this cell since
+      if (priority !== cost[e]) continue;
+
+      const s = bfsState[e];
+      const b = stateBiome[s];
       const stateS = states[s];
       const { type, culture } = stateS;
       const expansionism = stateS.expansionism;
@@ -216,14 +232,15 @@ class StatesModule {
 
         let cellCost = cultureCost + populationCost + biomeCost + heightCost + riverCost + typeCost;
         if (cellCost < 0) cellCost = 0;
-        const totalCost = p + 10 + cellCost / expansionism;
+        const totalCost = priority + 10 + cellCost / expansionism;
 
         if (totalCost > growthRate) continue;
 
         if (!cost[en] || totalCost < cost[en]) {
           if (hEn >= 20) cellsState[en] = s;
           cost[en] = totalCost;
-          queue.push({ e: en, p: totalCost, s, b }, totalCost);
+          bfsState[en] = s;
+          queue.push(en, totalCost);
         }
       }
     }
