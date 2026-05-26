@@ -1310,7 +1310,6 @@ class CulturesModule {
       const culture = cultures[cultureId];
       const type = culture.type as string;
       const expansionism = culture.expansionism as number;
-      const cellBiome = cells.biome[cellId];
 
       for (const neibCellId of cells.c[cellId]) {
         if (hasLocked) {
