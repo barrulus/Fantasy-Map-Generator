@@ -90,7 +90,12 @@ class ProvinceModule {
     }
 
     const provincesRatio = (ensureEl("provincesRatio") as HTMLInputElement).valueAsNumber;
-    const maxGrowth = provincesRatio === 100 ? 1000 : gauss(20, 5, 5, 100) * provincesRatio ** 0.5; // max growth
+    const baseMaxGrowth = provincesRatio === 100 ? 1000 : gauss(20, 5, 5, 100) * provincesRatio ** 0.5;
+    // Scale BFS cost ceiling by sqrt(cells/10000) so reach in physical units stays
+    // constant regardless of grid density. Without this, provinces only fill ~10
+    // cell-hops of terrain at 500k and leave large holes (cells unassigned).
+    const densityScale = Math.sqrt(cells.i.length / 10000);
+    const maxGrowth = baseMaxGrowth * densityScale;
 
     // generate provinces for selected burgs
     states.forEach(s => {
@@ -152,6 +157,15 @@ class ProvinceModule {
     const queue = new FlatQueue();
     const cost = new Float32Array(cells.i.length);
 
+    // Precompute native biome per province so the BFS can penalise crossing
+    // biome boundaries. Without this the cost field is near-uniform on flat
+    // terrain and produces visibly circular Dijkstra provinces at high density.
+    const provinceBiome = new Int16Array(provinces.length);
+    provinces.forEach(p => {
+      if (!p.i || p.removed) return;
+      provinceBiome[p.i] = cells.biome[p.center];
+    });
+
     provinces.forEach(p => {
       if (!p.i || p.removed || isProvinceLocked(p)) return;
       provinceIds[p.center] = p.i;
@@ -168,8 +182,10 @@ class ProvinceModule {
         const land = cells.h[e] >= 20;
         if (!land && !cells.t[e]) return; // cannot pass deep ocean
         if (land && cells.state[e] !== state) return;
-        const evevation = cells.h[e] >= 70 ? 100 : cells.h[e] >= 50 ? 30 : cells.h[e] >= 20 ? 10 : 100;
-        const totalCost = p + evevation;
+        const elevation = cells.h[e] >= 70 ? 100 : cells.h[e] >= 50 ? 30 : cells.h[e] >= 20 ? 10 : 100;
+        const biomeCost = land && cells.biome[e] !== provinceBiome[province] ? 10 : 0;
+        const riverCost = cells.r[e] ? 8 : 0;
+        const totalCost = p + elevation + biomeCost + riverCost;
 
         if (totalCost > maxGrowth) return;
         if (!cost[e] || totalCost < cost[e]) {
@@ -287,6 +303,7 @@ class ProvinceModule {
         dirtyCost.push(center);
         queue.push({ e: center, p: 0 }, 0);
 
+        const wildBiome = cells.biome[center];
         while (queue.length) {
           const { e, p } = queue.pop();
           const neighbors = cells.c[e];
@@ -296,7 +313,9 @@ class ProvinceModule {
             const land = cells.h[nextCellId] >= 20;
             if (cells.state[nextCellId] && cells.state[nextCellId] !== s.i) continue;
             const ter = land ? (cells.state[nextCellId] === s.i ? 3 : 20) : cells.t[nextCellId] ? 10 : 30;
-            const totalCost = p + ter;
+            const biomeCost = land && cells.biome[nextCellId] !== wildBiome ? 10 : 0;
+            const riverCost = cells.r[nextCellId] ? 8 : 0;
+            const totalCost = p + ter + biomeCost + riverCost;
             if (totalCost > maxGrowth) continue;
             const prev = wildCost[nextCellId];
             if (prev && totalCost >= prev) continue;
