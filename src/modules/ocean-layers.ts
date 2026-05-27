@@ -34,7 +34,7 @@ class OceanModule {
   // connect vertices to chain
   connectVertices(start: number, t: number) {
     const chain = []; // vertices chain to form a path
-    for (let i = 0, current = start; i === 0 || (current !== start && i < 10000); i++) {
+    for (let i = 0, current = start; i === 0 || (current !== start && i < this.vertices.c.length); i++) {
       const prev = chain[chain.length - 1]; // previous vertex in chain
       chain.push(current); // add current vertex to sequence
       const c = this.vertices.c[current]; // cells adjacent to vertex
