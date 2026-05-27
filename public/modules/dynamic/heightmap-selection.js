@@ -1,3 +1,4 @@
+const PREVIEW_CELLS_DESIRED = 10000;
 const initialSeed = generateSeed();
 let graph = getGraph(grid);
 
@@ -260,9 +261,18 @@ function getName(id) {
 }
 
 function getGraph(currentGraph) {
-  const newGraph = shouldRegenerateGrid(currentGraph, seed) ? generateGrid() : structuredClone(currentGraph);
-  delete newGraph.cells.h;
-  return newGraph;
+  // Force preview-sized grid regardless of user-selected production density,
+  // so heightmap thumbnails stay snappy at 500k+ cells.
+  const $pointsInput = ensureEl("pointsInput");
+  const originalCells = $pointsInput.dataset.cells;
+  $pointsInput.dataset.cells = String(PREVIEW_CELLS_DESIRED);
+  try {
+    const newGraph = shouldRegenerateGrid(currentGraph, seed) ? generateGrid() : structuredClone(currentGraph);
+    delete newGraph.cells.h;
+    return newGraph;
+  } finally {
+    $pointsInput.dataset.cells = originalCells;
+  }
 }
 
 function drawTemplatePreview(id) {
