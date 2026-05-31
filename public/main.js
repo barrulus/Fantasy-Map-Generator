@@ -690,7 +690,6 @@ async function generate(options) {
 
     releasePackBuffers(pack);
     pack = {};
-    await new Promise(resolve => setTimeout(resolve, 0)); // yield so GC can run before peak allocation
 
     Features.markupGrid();
     addLakesInDeepDepressions();
