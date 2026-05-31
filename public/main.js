@@ -545,26 +545,38 @@ function invokeActiveZooming() {
   }
 
   // rescale labels on zoom
-  if (labels.style("display") !== "none") {
-    const MIN_ZOOM_DEFAULTS = {
-      states: 0,
-      capital: 1, skyburg: 4,
-      city: 4, town: 6,
-      fort: 7, monastery: 7, caravanserai: 7, trading_post: 7,
-      village: 10, hamlet: 14
-    };
+  const BURG_MIN_ZOOM = {
+    states: 0,
+    capital: 1, skyburg: 4,
+    city: 4, town: 6,
+    fort: 7, monastery: 7, caravanserai: 7, trading_post: 7,
+    village: 10, hamlet: 14
+  };
 
+  if (labels.style("display") !== "none") {
     labels.selectAll("g").each(function () {
       if (this.id === "burgLabels") return;
       const desired = +this.dataset.size;
       const relative = Math.max(rn((desired + desired / scale) / 2, 2), 1);
       if (rescaleLabels.checked) this.setAttribute("font-size", relative);
 
-      const minZoom = +this.dataset.minZoom || MIN_ZOOM_DEFAULTS[this.id] || 0;
+      const minZoom = +this.dataset.minZoom || BURG_MIN_ZOOM[this.id] || 0;
       const hidden = hideLabels.checked && (scale < minZoom || relative * scale < 6 || relative * scale > 60);
       if (hidden) this.classList.add("hidden");
       else this.classList.remove("hidden");
     });
+  }
+
+  // cull burg icons + anchors at low zoom to skip ~100K nodes per repaint
+  if (hideLabels.checked) {
+    for (const group of [burgIcons.node(), anchors.node()]) {
+      if (!group || getComputedStyle(group).display === "none") continue;
+      for (const sub of group.children) {
+        const minZoom = +sub.dataset.minZoom || BURG_MIN_ZOOM[sub.id] || 0;
+        if (scale < minZoom) sub.classList.add("hidden");
+        else sub.classList.remove("hidden");
+      }
+    }
   }
 
   // toggle route visibility by type on zoom
