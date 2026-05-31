@@ -186,6 +186,7 @@ class BurgModule {
         burg.name = Names.getCultureShort(burg.culture);
         burg.feature = cells.f[burg.cell];
         burg.capital = 1;
+        burg.skyPort = 1; // capitals double as airroute hubs for the flying islands
         cells.burg[burg.cell] = burgId;
       });
     };
@@ -482,7 +483,61 @@ class BurgModule {
       }
     };
 
-    // 6-stage hierarchical placement
+    const generateSkyBurgs = () => {
+      // 1% of total ground burgs, clustered around a random coastline anchor so
+      // the archipelago straddles land and sea.
+      const skyburgCount = Math.round((burgs.length - 1) * 0.01);
+      if (skyburgCount < 1) return;
+
+      const coastalCells: number[] = [];
+      for (let i = 0; i < cells.t.length; i++) {
+        if (cells.t[i] === 1 || cells.t[i] === -1) coastalCells.push(i);
+      }
+      if (!coastalCells.length) return;
+
+      const anchorCell = coastalCells[Math.floor(Math.random() * coastalCells.length)];
+      const [ax, ay] = cells.p[anchorCell];
+
+      const minSpacing = (graphWidth + graphHeight) / 200;
+      const radius = Math.sqrt(skyburgCount) * minSpacing * 3;
+
+      const skyQuadtree = quadtree();
+      let added = 0;
+      const maxAttempts = skyburgCount * 30;
+
+      for (let attempts = 0; added < skyburgCount && attempts < maxAttempts; attempts++) {
+        const theta = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * radius; // uniform within disc
+        const x = ax + Math.cos(theta) * r;
+        const y = ay + Math.sin(theta) * r;
+        if (x < 0 || x > graphWidth || y < 0 || y > graphHeight) continue;
+        if (skyQuadtree.find(x, y, minSpacing) !== undefined) continue;
+
+        const cell = window.findCell(x, y, undefined, pack) as number;
+        const culture = cells.culture[cell] || 0;
+        const burgId = burgs.length;
+        burgs.push({
+          cell,
+          x,
+          y,
+          i: burgId,
+          state: 0,
+          culture,
+          name: Names.getCulture(culture),
+          feature: cells.f[cell],
+          capital: 0,
+          port: 0,
+          flying: 1,
+          skyPort: 1,
+          altitude: 500,
+          settlementType: "regionalCenter"
+        });
+        skyQuadtree.add([x, y]);
+        added++;
+      }
+    };
+
+    // 6-stage hierarchical placement + skyburg cluster
     generateCapitals();
     identifyLargePorts();
     placeRegionalCenters();
@@ -490,6 +545,7 @@ class BurgModule {
     placeLargeVillages();
     placeSmallVillages();
     placeHamlets();
+    generateSkyBurgs();
 
     pack.burgs = burgs;
     this.shift();
@@ -1047,7 +1103,9 @@ class BurgModule {
     this.defineGroup(burg, popIndex, populations.length);
 
     pack.burgs.push(burg);
-    cells.burg[cellId as number] = burgId;
+    // Skyburgs don't occupy the per-cell ground burg slot, so a flying burg
+    // can share a cell with a ground burg and other skyburgs can stack here.
+    if (!flying) cells.burg[cellId as number] = burgId;
 
     if (flying) {
       Routes.rebuildAirroutes();
