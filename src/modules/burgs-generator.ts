@@ -484,10 +484,12 @@ class BurgModule {
     };
 
     const generateSkyBurgs = () => {
-      // 1% of total ground burgs, clustered around a random coastline anchor so
-      // the archipelago straddles land and sea.
-      const skyburgCount = Math.round((burgs.length - 1) * 0.01);
-      if (skyburgCount < 1) return;
+      // Target 1% of total ground burgs, clustered around a random coastline
+      // anchor so the archipelago straddles land and sea. Radius is capped to
+      // a fixed map fraction so the cluster stays visually bounded, and the
+      // count is capped by what actually fits at the target spacing.
+      const requestedCount = Math.round((burgs.length - 1) * 0.01);
+      if (requestedCount < 1) return;
 
       const coastalCells: number[] = [];
       for (let i = 0; i < cells.t.length; i++) {
@@ -498,8 +500,13 @@ class BurgModule {
       const anchorCell = coastalCells[Math.floor(Math.random() * coastalCells.length)];
       const [ax, ay] = cells.p[anchorCell];
 
-      const minSpacing = (graphWidth + graphHeight) / 200;
-      const radius = Math.sqrt(skyburgCount) * minSpacing * 3;
+      const minSpacing = (graphWidth + graphHeight) / 400;
+      const maxRadius = Math.min(graphWidth, graphHeight) * 0.1;
+      // Hexagonal-pack capacity at minSpacing (≈0.9 density), so the count
+      // can't exceed what physically fits in the cluster disc.
+      const capacity = Math.floor((Math.PI * maxRadius * maxRadius * 0.9) / (minSpacing * minSpacing));
+      const skyburgCount = Math.min(requestedCount, capacity);
+      const radius = maxRadius;
 
       const skyQuadtree = quadtree();
       let added = 0;
