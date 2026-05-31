@@ -687,7 +687,10 @@ async function generate(options) {
     if (shouldRegenerateGrid(grid, precreatedSeed)) grid = precreatedGraph || generateGrid();
     else delete grid.cells.h;
     grid.cells.h = await HeightmapGenerator.generate(grid);
-    pack = {}; // reset pack
+
+    releasePackBuffers(pack);
+    pack = {};
+    await new Promise(resolve => setTimeout(resolve, 0)); // yield so GC can run before peak allocation
 
     Features.markupGrid();
     addLakesInDeepDepressions();
@@ -1356,6 +1359,16 @@ const regenerateMap = debounce(async function (options) {
   shouldShowLoading && hideLoading();
   clearMainTip();
 }, 250);
+
+// Drop pack typed arrays explicitly so V8 frees buffers before next allocation; avoids OOM at 500K cells + 100K burgs.
+function releasePackBuffers(oldPack) {
+  if (!oldPack) return;
+  if (oldPack.cells) for (const k in oldPack.cells) oldPack.cells[k] = null;
+  if (oldPack.vertices) for (const k in oldPack.vertices) oldPack.vertices[k] = null;
+  for (const k of ["burgs", "states", "cultures", "religions", "provinces", "routes", "rivers", "markers", "zones", "features", "ice"]) {
+    oldPack[k] = null;
+  }
+}
 
 // clear the map
 function undraw() {
