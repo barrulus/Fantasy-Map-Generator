@@ -602,6 +602,15 @@ class BurgModule {
   }
 
   private definePopulation(burg: Burg) {
+    if (burg.flying) {
+      // Skyburgs: small floating settlements, 200-1500 people. Skip the
+      // ground-route connectivity modifier — flying burgs aren't on roads.
+      let population = gauss(0.6, 0.4, 0.2, 1.5);
+      population += (((burg.i as number) % 100) - (burg.cell % 100)) / 1000;
+      burg.basePopulation = population;
+      burg.population = rn(Math.max(population, 0.01), 3);
+      return;
+    }
     const sType = burg.settlementType || "hamlet";
 
     // Tier-based population ranges (population units, multiply by populationRate for actual people)
