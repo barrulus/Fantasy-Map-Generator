@@ -36,7 +36,18 @@ declare global {
   var HeightmapGenerator: HeightmapModule;
 }
 
-type Tool = "Hill" | "Pit" | "Range" | "Trough" | "Strait" | "Mask" | "Invert" | "Add" | "Multiply" | "Smooth" | "Power";
+type Tool =
+  | "Hill"
+  | "Pit"
+  | "Range"
+  | "Trough"
+  | "Strait"
+  | "Mask"
+  | "Invert"
+  | "Add"
+  | "Multiply"
+  | "Smooth"
+  | "Power";
 
 class HeightmapModule {
   grid: any = null;
