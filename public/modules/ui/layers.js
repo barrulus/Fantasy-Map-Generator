@@ -802,6 +802,20 @@ function toggleRoutes(event) {
   }
 }
 
+function toggleSkyburgs(event) {
+  if (!layerIsOn("toggleSkyburgs")) {
+    turnButtonOn("toggleSkyburgs");
+    burgIcons.selectAll("#skyburg, #skyburg-mid, #skyburg-small").style("display", null);
+    burgLabels.selectAll("#skyburg, #skyburg-mid, #skyburg-small").style("display", null);
+    routes.select("#airroutes").style("display", null);
+  } else {
+    burgIcons.selectAll("#skyburg, #skyburg-mid, #skyburg-small").style("display", "none");
+    burgLabels.selectAll("#skyburg, #skyburg-mid, #skyburg-small").style("display", "none");
+    routes.select("#airroutes").style("display", "none");
+    turnButtonOff("toggleSkyburgs");
+  }
+}
+
 function drawRoutes() {
   TIME && console.time("drawRoutes");
   const typedPaths = {};
@@ -1057,4 +1071,5 @@ function getLayer(id) {
   if (id === "toggleBurgIcons") return $("#icons");
   if (id === "toggleMarkers") return $("#markers");
   if (id === "toggleRulers") return $("#ruler");
+  if (id === "toggleSkyburgs") return burgIcons;
 }
