@@ -38,14 +38,14 @@ const heightmapTemplates = (function () {
     Multiply 0.4 20-100 0 0
     Mask 4 0 0 0`;
 
-  const continents = `Hill 1 80-85 60-80 40-60
-    Hill 1 80-85 20-30 40-60
+  const continents = `Hill 1 50-60 60-80 40-60
+    Hill 1 50-60 20-30 40-60
     Hill 6-7 15-30 25-75 15-85
-    Multiply 0.6 land 0 0
+    Multiply 0.35 land 0 0
     Hill 8-10 5-10 15-85 20-80
-    Range 1-2 30-60 5-15 25-75
-    Range 1-2 30-60 80-95 25-75
-    Range 0-3 30-60 80-90 20-80
+    Range 1-2 25-45 5-15 25-75
+    Range 1-2 25-45 80-95 25-75
+    Range 0-3 25-45 80-90 20-80
     Strait 2 vertical 0 0
     Strait 1 vertical 0 0
     Smooth 3 0 0 0
@@ -99,7 +99,7 @@ const heightmapTemplates = (function () {
     Hill 1-2 5-40 15-50 90-100
     Hill 8-12 20-40 20-80 48-52
     Smooth 2 0 0 0
-    Multiply 0.7 land 0 0
+    Multiply 0.4 land 0 0
     Trough 3-4 25-35 5-95 10-20
     Trough 3-4 25-35 5-95 80-90
     Range 5-6 30-40 10-90 35-65`;
@@ -129,14 +129,14 @@ const heightmapTemplates = (function () {
     Hill 3-4 60-85 20-80 95-100
     Smooth 3 0 0 0`;
 
-  const oldWorld = `Range 3 70 15-85 20-80
-    Hill 2-3 50-70 15-45 20-80
-    Hill 2-3 50-70 65-85 20-80
-    Hill 4-6 20-25 15-85 20-80
-    Multiply 0.5 land 0 0
+  const oldWorld = `Hill 2-3 30-45 15-45 20-80
+    Hill 2-3 30-45 65-85 20-80
+    Hill 4-6 15-25 15-85 20-80
+    Multiply 0.35 land 0 0
     Smooth 2 0 0 0
-    Range 3-4 20-50 15-35 20-45
-    Range 2-4 20-50 65-85 45-80
+    Range 3 40-55 15-85 20-80
+    Range 3-4 20-45 15-35 20-45
+    Range 2-4 20-45 65-85 45-80
     Strait 3-7 vertical 0 0
     Trough 6-8 20-50 15-85 45-65
     Pit 5-6 20-30 10-90 10-90`;
