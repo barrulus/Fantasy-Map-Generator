@@ -802,7 +802,7 @@ function toggleRoutes(event) {
   }
 }
 
-function toggleSkyburgs(event) {
+function toggleSkyburgs() {
   if (!layerIsOn("toggleSkyburgs")) {
     turnButtonOn("toggleSkyburgs");
     burgIcons.selectAll("#skyburg, #skyburg-mid, #skyburg-small").style("display", null);
