@@ -842,9 +842,9 @@ class BurgModule {
       if (group) return;
     }
 
-    // Flying burgs always go to skyburg group
+    // Flying burgs: assign group by population tier for zoom-level culling
     if (burg.flying) {
-      burg.group = "skyburg";
+      burg.group = skyburgGroupFromPopulation(burg.population as number);
       return;
     }
 
