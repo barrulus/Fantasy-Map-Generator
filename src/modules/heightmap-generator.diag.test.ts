@@ -11,7 +11,7 @@
  * fixed return so the comparison across cell counts is deterministic
  * (only cell density changes between runs).
  */
-import { beforeAll, describe, it, expect } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 let HeightmapGenerator: any;
 let mulberryState = 0x9e3779b9;
@@ -349,7 +349,7 @@ describe("Power step", () => {
     expect(h[2]).toBe(71);
 
     // Verify compression is non-linear: the gap between h[1] and h[2]
-    // is smaller after compression than before (30 raw → 18 compressed)
-    expect(h[2] - h[1]).toBeLessThan(70 - 40);
+    // (raw: 70 and 100, gap = 30) shrinks after compression (71 - 53 = 18)
+    expect(h[2] - h[1]).toBeLessThan(100 - 70);
   });
 });
