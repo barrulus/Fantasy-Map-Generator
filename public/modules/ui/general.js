@@ -75,16 +75,28 @@ function showElementLockTip(event) {
 }
 
 const onMouseMove = debounce(handleMouseMove, 100);
+// Skip per-cell tooltip work while hovering inside the same cell/target.
+// Pixel-by-pixel motion within one cell yields identical results, so cache the
+// (cellId | gridCellId | targetId) tuple and short-circuit when unchanged.
+let _lastHoverStateKey = "";
 function handleMouseMove() {
   const point = d3.mouse(this);
   const i = findCell(point[0], point[1]); // pack cell id
   if (i === undefined) return;
 
-  showNotes(d3.event);
   const gridCell = findGridCell(point[0], point[1], grid);
+
+  // cellInfo panel shows live X/Y coords that change pixel-by-pixel — never cache it.
+  if (cellInfo?.offsetParent) updateCellInfo(point, i, gridCell);
+
+  const targetId = d3.event?.target?.id || "";
+  const stateKey = i + "|" + gridCell + "|" + targetId;
+  if (stateKey === _lastHoverStateKey) return;
+  _lastHoverStateKey = stateKey;
+
+  showNotes(d3.event);
   if (tooltip.dataset.main) showMainTip();
   else showMapTooltip(point, d3.event, i, gridCell);
-  if (cellInfo?.offsetParent) updateCellInfo(point, i, gridCell);
 }
 
 let currentNoteId = null; // store currently displayed node to not rerender to often
