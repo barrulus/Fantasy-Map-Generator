@@ -11,7 +11,7 @@
  * fixed return so the comparison across cell counts is deterministic
  * (only cell density changes between runs).
  */
-import { beforeAll, describe, it } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 
 let HeightmapGenerator: any;
 let mulberryState = 0x9e3779b9;
@@ -309,5 +309,47 @@ describe("heightmap operation coverage by cell count", () => {
         `${name.padEnd(12)}${HeightmapGenerator.linePower.toFixed(5).padEnd(13)}${String(lowered).padEnd(14)}${pct}%`
       );
     }
+  });
+});
+
+describe("Power step", () => {
+  it("compresses land heights and leaves ocean cells unchanged", () => {
+    const grid = buildSquareGrid(3, 1, 10000);
+    setupHeightmap(grid, 3, 1);
+
+    HeightmapGenerator.heights![0] = 19; // ocean (below land threshold of 20)
+    HeightmapGenerator.heights![1] = 20; // sea-level land
+    HeightmapGenerator.heights![2] = 80; // mountain
+
+    HeightmapGenerator.addStep("Power", "0.9", "land", "", "");
+
+    const h = HeightmapGenerator.heights!;
+    expect(h[0]).toBe(19); // ocean unchanged
+    expect(h[1]).toBe(20); // (20-20)^0.9 + 20 = 0 + 20 = 20
+    // (80-20)^0.9 + 20 = 60^0.9 + 20 ≈ 39.84 + 20 = 59.84 → truncates to 59
+    expect(h[2]).toBe(59);
+  });
+
+  it("compresses higher peaks more than lower terrain", () => {
+    const grid = buildSquareGrid(3, 1, 10000);
+    setupHeightmap(grid, 3, 1);
+
+    HeightmapGenerator.heights![0] = 40; // low hill
+    HeightmapGenerator.heights![1] = 70; // high hill
+    HeightmapGenerator.heights![2] = 100; // peak
+
+    HeightmapGenerator.addStep("Power", "0.9", "land", "", "");
+
+    const h = HeightmapGenerator.heights!;
+    // (40-20)^0.9 + 20 = 20^0.9 + 20 ≈ 34.82 + 20 = 34.82 (truncates to 34)
+    expect(h[0]).toBe(34);
+    // (70-20)^0.9 + 20 = 50^0.9 + 20 ≈ 33.81 + 20 = 53.81 (truncates to 53)
+    expect(h[1]).toBe(53);
+    // (100-20)^0.9 + 20 = 80^0.9 + 20 ≈ 51.62 + 20 = 71.62 (truncates to 71)
+    expect(h[2]).toBe(71);
+
+    // Verify compression is non-linear: the gap between h[1] and h[2]
+    // is smaller after compression than before (30 raw → 18 compressed)
+    expect(h[2] - h[1]).toBeLessThan(70 - 40);
   });
 });
