@@ -112,8 +112,10 @@ class ProvinceModule {
           // Include capitals always, and major settlements or burgs with pop > 1
           return b.capital || majorSettlementTypes.has(b.settlementType || "") || (b.population || 0) > 1;
         })
-        .sort((a, b) => b.population! * gauss(1, 0.2, 0.5, 1.5, 3) - a.population!) // biggest population first
-        .sort((a, b) => b.capital! - a.capital!); // capitals first
+        // Precompute score once (gauss outside the comparator) to keep RNG stable — see upstream #1451
+        .map(burg => ({ burg: burg, score: burg.population! * gauss(1, 0.2, 0.5, 1.5, 3) }))
+        .sort((a, b) => b.burg.capital! - a.burg.capital! || b.score - a.score) // capitals first, biggest population next
+        .map(b => b.burg);
       if (stateBurgs.length < 2) return; // at least 2 provinces are required
 
       const provincesNumber = Math.min(
