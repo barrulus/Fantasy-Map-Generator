@@ -48,6 +48,12 @@ const CULTURE_SPACING_MODIFIERS: Record<string, number> = {
   Generic: 1.0
 };
 
+export function skyburgGroupFromPopulation(population: number): string {
+  if (population >= 0.8) return "skyburg";
+  if (population >= 0.4) return "skyburg-mid";
+  return "skyburg-small";
+}
+
 class BurgModule {
   shift() {
     const { cells, features, burgs } = pack;
