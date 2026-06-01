@@ -818,6 +818,18 @@ class BurgModule {
         features: { flying: true }
       },
       {
+        name: "skyburg-mid",
+        active: true,
+        order: 10,
+        features: { flying: true }
+      },
+      {
+        name: "skyburg-small",
+        active: true,
+        order: 10,
+        features: { flying: true }
+      },
+      {
         name: "town",
         active: true,
         order: 7,
@@ -857,7 +869,7 @@ class BurgModule {
 
     for (const group of options.burgs.groups) {
       if (!group.active) continue;
-      if (group.name === "skyburg") continue; // skip skyburg for non-flying burgs
+      if (group.name === "skyburg" || group.name === "skyburg-mid" || group.name === "skyburg-small") continue; // skip skyburg groups for non-flying burgs
 
       if (group.min) {
         const isFit = (burg.population as number) >= group.min;
