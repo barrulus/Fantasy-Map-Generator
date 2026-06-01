@@ -147,12 +147,13 @@ const heightmapTemplates = (function () {
     Add -20 30-100 0 0
     Range 6-8 40-50 5-95 10-90`;
 
-  const globeWorld = `Hill 1 75-85 22-38 20-80
-    Hill 1 75-85 62-78 20-80
+  const globeWorld = `Hill 1 60-70 22-38 20-80
+    Hill 1 60-70 62-78 20-80
     Hill 4-5 15-25 20-80 15-85
+    Smooth 2 0 0 0
+    Multiply 0.35 land 0 0
     Range 2-3 60-75 25-75 25-75
     Smooth 2 0 0 0
-    Power 0.9 land 0 0
     Mask 2 0 0 0
     Smooth 3 0 0 0`;
 
