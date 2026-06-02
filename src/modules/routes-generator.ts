@@ -499,8 +499,6 @@ class RoutesModule {
   // Copy of pack.cells.c with seam links added between west-edge and east-edge
   // water cells, matched by latitude. pack.cells.c itself is never mutated.
   // Used only for sea-route pathfinding on full-globe maps.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- wired up in a later task
-  // @ts-expect-error TS6133 wired up in a later task
   private buildSeaAdjacency(): number[][] {
     const { cells } = pack;
     const width = graphWidth;
@@ -771,7 +769,7 @@ class RoutesModule {
     return trails;
   }
 
-  private generateSeaRoutes(connections: Set<number>, burgIndex: RouteBurgIndex) {
+  private generateSeaRoutes(connections: Set<number>, burgIndex: RouteBurgIndex, seaAdjacency?: number[][]) {
     TIME && console.time("generateSeaRoutes");
     const { portsByFeature } = burgIndex;
     const seaRoutes: Route[] = [];
@@ -781,20 +779,22 @@ class RoutesModule {
       if (featurePorts.length < 2) continue;
 
       const points = featurePorts.map(burg => [burg.x, burg.y] as Point);
-      const urquhartEdges = this.calculateUrquhartEdges(points);
+      const wrap = isWrapEnabled();
+      const urquhartEdges = this.calculateUrquhartEdges(points, wrap, graphWidth);
 
       for (const [fromId, toId] of urquhartEdges) {
         const a = featurePorts[fromId];
         const b = featurePorts[toId];
 
-        const kmDistance = Math.sqrt(distanceSquared([a.x, a.y], [b.x, b.y])) / mapScale;
+        const kmDistance = Math.sqrt(wrapDistanceSquared([a.x, a.y], [b.x, b.y], wrap, graphWidth)) / mapScale;
         if (kmDistance > 50) continue;
 
         const segments = this.findPathSegments({
           isWater: true,
           connections,
           start: a.cell,
-          exit: b.cell
+          exit: b.cell,
+          seaAdjacency
         });
         for (const segment of segments) {
           this.addConnections(segment, connections);
@@ -893,7 +893,7 @@ class RoutesModule {
     return footpaths;
   }
 
-  private generateMajorSeaRoutes(connections: Set<number>, burgIndex: RouteBurgIndex) {
+  private generateMajorSeaRoutes(connections: Set<number>, burgIndex: RouteBurgIndex, seaAdjacency?: number[][]) {
     TIME && console.time("generateMajorSeaRoutes");
     const { capitalPortsByFeature } = burgIndex;
     const majorSeaRoutes: Route[] = [];
@@ -909,7 +909,7 @@ class RoutesModule {
           edges.push({
             from: i,
             to: j,
-            dist: distanceSquared([a.x, a.y], [b.x, b.y])
+            dist: wrapDistanceSquared([a.x, a.y], [b.x, b.y], isWrapEnabled(), graphWidth)
           });
         }
       }
@@ -939,7 +939,8 @@ class RoutesModule {
           isWater: true,
           connections,
           start,
-          exit
+          exit,
+          seaAdjacency
         });
         for (const segment of segments) {
           this.addConnections(segment, connections);
@@ -1058,7 +1059,7 @@ class RoutesModule {
 
     // Air routes use direct connections via Urquhart graph on sky port positions
     const points = skyPorts.map(burg => [burg.x, burg.y] as Point);
-    const urquhartEdges = this.calculateUrquhartEdges(points);
+    const urquhartEdges = this.calculateUrquhartEdges(points, isWrapEnabled(), graphWidth);
 
     urquhartEdges.forEach(([fromId, toId]) => {
       const from = skyPorts[fromId];
@@ -1084,14 +1085,15 @@ class RoutesModule {
 
   private createRoutesData(routes: Route[], connections: Set<number>) {
     const burgIndex = this.sortBurgsByFeature(pack.burgs);
+    const seaAdjacency = isWrapEnabled() ? this.buildSeaAdjacency() : undefined;
     const royalRoads = this.generateRoyalRoads(connections, burgIndex);
     const mainRoads = this.generateMainRoads(connections, burgIndex);
     const marketRoads = this.generateMarketRoads(connections, burgIndex);
     const townRoads = this.generateTownRoads(connections, burgIndex);
     const trails = this.generateTrails(connections, burgIndex);
     const footpaths = this.generateFootpaths(connections, burgIndex);
-    const majorSeaRoutes = this.generateMajorSeaRoutes(connections, burgIndex);
-    const seaRoutes = this.generateSeaRoutes(connections, burgIndex);
+    const majorSeaRoutes = this.generateMajorSeaRoutes(connections, burgIndex, seaAdjacency);
+    const seaRoutes = this.generateSeaRoutes(connections, burgIndex, seaAdjacency);
     const airRoutes = this.generateAirRoutes(burgIndex);
     const pointsArray = this.preparePointsArray();
 
@@ -1215,7 +1217,7 @@ class RoutesModule {
     }
 
     const points = skyPorts.map(b => [b.x, b.y] as Point);
-    const urquhartEdges = this.calculateUrquhartEdges(points);
+    const urquhartEdges = this.calculateUrquhartEdges(points, isWrapEnabled(), graphWidth);
 
     let nextId = this.getNextId();
     for (const [fromIdx, toIdx] of urquhartEdges) {
