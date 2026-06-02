@@ -46,6 +46,18 @@ full globe.**
    frame** (`x=0` / `x=graphWidth`) so stubs run cleanly off the edge.
 5. **Persistence:** no new stored fields. Wrap is detected geometrically at render
    time. `.map` files remain backward/forward compatible.
+6. **Coordinate storage:** route points stay in-bounds (`[0, graphWidth]`), NOT
+   continuous/unwrapped coords. Continuous coords would break `routes-editor.js`
+   (control points drawn at raw `cx`/`cy` and resolved with `findCell` assume
+   in-bounds coords) and legacy/export consumers. The wrap is isolated to `getPath`
+   (split-before-curve) and the wrapped-length function, so no continuous storage is
+   needed.
+7. **Length:** seam routes' length must be computed from **wrapped distance** over
+   the point list, not the rendered path's `getTotalLength()` (which undercounts by
+   the seam gap and is displayed in `routes-overview.js:49`).
+8. **Air routes** stay straight wrapped lines for now (matching current FMG, which
+   draws all air routes as straight screen lines). True great-circle geodesics are a
+   deferred future enhancement — see "Future enhancements."
 
 ## Architecture
 
@@ -139,6 +151,17 @@ Two essential supporting changes so A\* actually uses the seam:
 
 No changes to the `Route` interface or save format. Wrap is detected geometrically
 at render time. Saved wrap routes re-render correctly; old maps are untouched.
+Route points remain in-bounds (`[0, graphWidth]`) — see Key decision 6.
+
+### Component 7 — Wrapped length (`getLength` / `getRouteLength`)
+
+`getLength` currently returns the rendered DOM path's `getTotalLength()`. With the
+extend-to-frame split, that **undercounts a seam route by the seam gap**, and the
+value is shown to the user (`routes-overview.js:49`). When wrap is on and a route
+contains a seam crossing, compute length by summing segment distances over the
+point list using `wrapDistanceSquared` (so the seam hop counts as its short wrapped
+length, not the full screen width). Non-seam routes and non-global maps keep the
+existing DOM-based behavior.
 
 ## Data flow (sea route, wrap on)
 
@@ -193,7 +216,20 @@ confirm a regional map is visually unchanged.
 
 - `src/modules/routes-generator.ts` — gate, wrap distance, wrap-aware Urquhart,
   seam adjacency, wrap-aware water cost, sea-route pathfinding shim, `getPath`
-  seam split, `getPoints` smoothing guard.
+  seam split, `getPoints` smoothing guard, wrapped `getLength`.
 - `src/utils/pathUtils.ts` — optional `wrapWidth?` param on `findPath` (heuristic
   only; inert by default).
 - Tests as above.
+
+## Future enhancements (out of scope)
+
+- **Great-circle air routes.** On equirectangular, a straight screen line between
+  sky-ports is the true shortest path only along the equator/meridians; at high
+  latitude it is geographically wrong. A proper implementation converts endpoints
+  `(x,y) → (lon,lat) → 3D`, samples the great circle, projects samples back to image
+  space, and splits at discontinuities. This is seam-aware "for free" but also
+  introduces a **polar discontinuity** (x jumps by `graphWidth/2` at `y≈0` when the
+  geodesic crosses a pole) that the current seam-only split does not handle. Because
+  FMG currently draws all air routes as straight screen lines, adopting geodesics
+  changes non-seam air routes too; treat as a separate feature with its own
+  decision on polar crossings.
