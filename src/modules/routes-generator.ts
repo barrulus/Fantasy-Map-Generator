@@ -458,7 +458,8 @@ class RoutesModule {
       if (pack.cells.h[next] >= 20) return Infinity;
       if (grid.cells.temp[pack.cells.g[next]] < MIN_PASSABLE_SEA_TEMP) return Infinity;
 
-      const distanceCost = distanceSquared(pack.cells.p[current], pack.cells.p[next]);
+      const wrap = isWrapEnabled();
+      const distanceCost = wrapDistanceSquared(pack.cells.p[current], pack.cells.p[next], wrap, graphWidth);
       const typeModifier = ROUTE_TYPE_MODIFIERS[pack.cells.t[next]] || ROUTE_TYPE_MODIFIERS.default;
       const connectionModifier = connections.has(encodeConnection(current, next)) ? 0.5 : 1;
 
@@ -557,16 +558,20 @@ class RoutesModule {
     connections,
     start,
     exit,
-    routeType
+    routeType,
+    seaAdjacency
   }: {
     isWater: boolean;
     connections: Set<number>;
     start: number;
     exit: number;
     routeType?: string;
+    seaAdjacency?: number[][];
   }) {
     const getCost = this.createCostEvaluator({ isWater, connections, routeType });
-    const pathCells = findPath(start, current => current === exit, getCost, pack, exit);
+    const wrap = isWater && isWrapEnabled() && !!seaAdjacency;
+    const graph = wrap ? { ...pack, cells: { ...pack.cells, c: seaAdjacency } } : pack;
+    const pathCells = findPath(start, current => current === exit, getCost, graph, exit, wrap ? graphWidth : undefined);
     if (!pathCells) return [];
     const segments = this.getRouteSegments(pathCells, connections);
     return segments;
