@@ -259,3 +259,20 @@ describe("getPath seam split", () => {
     expect(countMoves(d)).toBe(1);
   });
 });
+
+describe("getLength wrapped", () => {
+  it("measures a seam route by wrapped distance, not the screen gap", () => {
+    const g = globalThis as any;
+    g.graphWidth = 1000;
+    g.mapCoordinates = { lonT: 360 };
+    g.pack = {
+      routes: [
+        { i: 7, group: "searoutes", points: [[980, 300, 0], [20, 300, 1]] } // |dx|=960 seam crossing
+      ]
+    };
+
+    const len = Routes.getLength(7);
+    // wrapped horizontal gap is 40, not 960
+    expect(len).toBeCloseTo(40, 5);
+  });
+});

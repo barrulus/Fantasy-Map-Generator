@@ -1431,7 +1431,10 @@ class RoutesModule {
         const yAtSeam = prev[1] + (curr[1] - prev[1]) * frac;
         run.push([prevExitX, yAtSeam]);
         runs.push(run);
-        run = [[currEnterX, yAtSeam], [curr[0], curr[1]]];
+        run = [
+          [currEnterX, yAtSeam],
+          [curr[0], curr[1]]
+        ];
       } else {
         run.push([curr[0], curr[1]]);
       }
@@ -1461,7 +1464,26 @@ class RoutesModule {
     return path;
   }
 
+  private getWrappedLength(points: number[][]): number {
+    let len = 0;
+    for (let i = 1; i < points.length; i++) {
+      len += Math.sqrt(
+        wrapDistanceSquared(
+          [points[i - 1][0], points[i - 1][1]],
+          [points[i][0], points[i][1]],
+          true,
+          graphWidth
+        )
+      );
+    }
+    return len;
+  }
+
   getLength(routeId: number): number {
+    const route = this.getRoutesIndex().get(routeId);
+    if (route && this.hasSeamCrossing(route.points)) {
+      return this.getWrappedLength(route.points);
+    }
     const path = routes.select(`#route${routeId}`).node() as SVGPathElement;
     return path.getTotalLength();
   }
