@@ -225,3 +225,37 @@ describe("calculateUrquhartEdges wrap", () => {
     expect(hasEdge(wrapped, 0, 1)).toBe(true); // close across the seam
   });
 });
+
+describe("getPath seam split", () => {
+  beforeAll(() => {
+    const g = globalThis as any;
+    g.graphWidth = 1000;
+    g.mapCoordinates = { lonT: 360 };
+  });
+
+  const countMoves = (d: string) => (d.match(/M/g) || []).length;
+
+  it("splits a seam-crossing route into two stubs reaching both frame edges", () => {
+    // crosses the seam: x jumps from 980 to 20 (|dx| = 960 > 500)
+    const points = [
+      [940, 300, 0],
+      [980, 305, 1],
+      [20, 310, 2],
+      [60, 315, 3]
+    ];
+    const d = (Routes as any).getPath({ group: "searoutes", points });
+    expect(countMoves(d)).toBe(2); // two sub-paths
+    expect(d).toContain("1000"); // one stub runs to the east frame (x=graphWidth)
+    expect(/M\s*0[ ,]/.test(d) || d.includes("M0")).toBe(true); // other stub starts at x=0
+  });
+
+  it("leaves a normal (non-crossing) route as a single path", () => {
+    const points = [
+      [100, 300, 0],
+      [200, 305, 1],
+      [300, 310, 2]
+    ];
+    const d = (Routes as any).getPath({ group: "searoutes", points });
+    expect(countMoves(d)).toBe(1);
+  });
+});

@@ -1397,6 +1397,49 @@ class RoutesModule {
     return "Unnamed route";
   }
 
+  private hasSeamCrossing(points: number[][]): boolean {
+    if (!isWrapEnabled()) return false;
+    const half = graphWidth / 2;
+    for (let i = 1; i < points.length; i++) {
+      if (Math.abs(points[i][0] - points[i - 1][0]) > half) return true;
+    }
+    return false;
+  }
+
+  // Split a point list at each seam crossing (|dx| > width/2). At a crossing
+  // between prev and curr, append the frame-edge intersection (at the
+  // interpolated crossing latitude) to the current run and start the next run
+  // at the opposite frame edge. Returns one or more [x, y] runs.
+  private splitAtSeam(points: number[][]): number[][][] {
+    const width = graphWidth;
+    const half = width / 2;
+    const runs: number[][][] = [];
+    let run: number[][] = [[points[0][0], points[0][1]]];
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const dx = curr[0] - prev[0];
+      if (Math.abs(dx) > half) {
+        // dx < 0: prev near east edge, exits at x=width; curr enters at x=0.
+        // dx > 0: prev near west edge, exits at x=0;     curr enters at x=width.
+        const prevExitX = dx < 0 ? width : 0;
+        const currEnterX = dx < 0 ? 0 : width;
+        const gap = width - Math.abs(dx); // wrapped horizontal traversal
+        const prevToEdge = dx < 0 ? width - prev[0] : prev[0];
+        const frac = gap === 0 ? 0 : prevToEdge / gap;
+        const yAtSeam = prev[1] + (curr[1] - prev[1]) * frac;
+        run.push([prevExitX, yAtSeam]);
+        runs.push(run);
+        run = [[currEnterX, yAtSeam], [curr[0], curr[1]]];
+      } else {
+        run.push([curr[0], curr[1]]);
+      }
+    }
+    runs.push(run);
+    return runs;
+  }
+
   getPath({ group, points }: { group: string; points: number[][] }): string {
     const lineGen = line();
     const ROUTE_CURVES: Record<string, any> = {
@@ -1407,6 +1450,13 @@ class RoutesModule {
       default: curveCatmullRom.alpha(0.1)
     };
     lineGen.curve(ROUTE_CURVES[group] || ROUTE_CURVES.default);
+
+    if (this.hasSeamCrossing(points)) {
+      return this.splitAtSeam(points)
+        .map(run => round(lineGen(run as [number, number][]) as string, 1))
+        .join(" ");
+    }
+
     const path = round(lineGen(points.map(p => [p[0], p[1]])) as string, 1);
     return path;
   }
