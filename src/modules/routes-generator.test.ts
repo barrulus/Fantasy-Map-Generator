@@ -156,7 +156,14 @@ describe("buildSeaAdjacency", () => {
       cells: {
         i: new Uint32Array([0, 1, 2, 3, 4, 5]),
         h: [0, 0, 0, 30, 0, 0],
-        p: [[10, 10], [90, 12], [50, 50], [10, 80], [88, 82], [12, 78]] as [number, number][],
+        p: [
+          [10, 10],
+          [90, 12],
+          [50, 50],
+          [10, 80],
+          [88, 82],
+          [12, 78]
+        ] as [number, number][],
         c: [[], [], [], [], [], []] as number[][]
       }
     };
@@ -195,5 +202,26 @@ describe("wrap helpers", () => {
     expect(isWrapEnabled()).toBe(false);
     g.mapCoordinates = undefined;
     expect(isWrapEnabled()).toBe(false);
+  });
+});
+
+describe("calculateUrquhartEdges wrap", () => {
+  const hasEdge = (edges: number[][], a: number, b: number) =>
+    edges.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+
+  it("connects points across the seam only when wrap is enabled", () => {
+    // 0 & 1 hug opposite edges at the same latitude; 2 & 3 are interior anchors
+    const points: [number, number][] = [
+      [5, 50], // 0 west edge
+      [95, 50], // 1 east edge
+      [40, 10], // 2
+      [60, 90] // 3
+    ];
+
+    const flat = (Routes as any).calculateUrquhartEdges(points, false, 100);
+    const wrapped = (Routes as any).calculateUrquhartEdges(points, true, 100);
+
+    expect(hasEdge(flat, 0, 1)).toBe(false); // far apart on the flat map
+    expect(hasEdge(wrapped, 0, 1)).toBe(true); // close across the seam
   });
 });

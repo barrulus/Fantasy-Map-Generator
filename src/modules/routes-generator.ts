@@ -313,9 +313,10 @@ class RoutesModule {
   // Urquhart graph is obtained by removing the longest edge from each triangle in the Delaunay triangulation
   // this gives us an aproximation of a desired road network, i.e. connections between burgs
   // code from https://observablehq.com/@mbostock/urquhart-graph
-  private calculateUrquhartEdges(points: Point[]) {
+  private calculateUrquhartEdges(points: Point[], wrap = false, width = 0) {
     if (points.length < 2) return []; // No connection for less than 2 points
     if (points.length === 2) return [[0, 1]]; // Direct connection for exactly two points
+    if (wrap && width > 0) return this.calculateWrapUrquhartEdges(points, width);
 
     const score = (p0: number, p1: number) => distanceSquared(points[p0], points[p1]);
 
@@ -348,6 +349,63 @@ class RoutesModule {
         const t0 = triangles[e];
         const t1 = triangles[e % 3 === 2 ? e - 2 : e + 1];
         edges.push([t0, t1]);
+      }
+    }
+
+    return edges;
+  }
+
+  // Toroidal (periodic-X) Urquhart graph. Duplicate every point shifted by
+  // ±width, triangulate the augmented set, map each edge back to its real
+  // index, drop self-loops, and dedupe. Edges from a real left point to a
+  // ghost of a real right point become real cross-seam pairings.
+  private calculateWrapUrquhartEdges(points: Point[], width: number) {
+    const aug: Point[] = [];
+    const realOf: number[] = [];
+    for (let i = 0; i < points.length; i++) {
+      const [x, y] = points[i];
+      aug.push([x, y]);
+      realOf.push(i);
+      aug.push([x + width, y]);
+      realOf.push(i);
+      aug.push([x - width, y]);
+      realOf.push(i);
+    }
+
+    const score = (p0: number, p1: number) => distanceSquared(aug[p0], aug[p1]);
+    const { halfedges, triangles } = Delaunator.from(aug);
+    const n = triangles.length;
+    const removed = new Uint8Array(n);
+
+    for (let e = 0; e < n; e += 3) {
+      const p0 = triangles[e];
+      const p1 = triangles[e + 1];
+      const p2 = triangles[e + 2];
+      const p01 = score(p0, p1);
+      const p12 = score(p1, p2);
+      const p20 = score(p2, p0);
+      removed[
+        p20 > p01 && p20 > p12
+          ? Math.max(e + 2, halfedges[e + 2])
+          : p12 > p01 && p12 > p20
+            ? Math.max(e + 1, halfedges[e + 1])
+            : Math.max(e, halfedges[e])
+      ] = 1;
+    }
+
+    const seen = new Set<number>();
+    const edges: number[][] = [];
+    for (let e = 0; e < n; ++e) {
+      if (e > halfedges[e] && !removed[e]) {
+        const a = realOf[triangles[e]];
+        const b = realOf[triangles[e % 3 === 2 ? e - 2 : e + 1]];
+        if (a === b) continue;
+        const lo = Math.min(a, b);
+        const hi = Math.max(a, b);
+        const key = lo * points.length + hi;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        edges.push([a, b]);
       }
     }
 
