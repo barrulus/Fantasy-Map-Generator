@@ -301,7 +301,8 @@ export const findPath = (
   isExit: (id: number) => boolean,
   getCost: (current: number, next: number) => number,
   packedGraph: any = {},
-  goal?: number
+  goal?: number,
+  wrapWidth?: number
 ): number[] | null => {
   if (isExit(start)) return null;
 
@@ -327,7 +328,11 @@ export const findPath = (
   const heuristic = useHeuristic
     ? (cellId: number) => {
         const p = cellsP[cellId];
-        const dx = p[0] - gx;
+        let dx = p[0] - gx;
+        if (wrapWidth) {
+          const abs = Math.abs(dx);
+          dx = Math.min(abs, wrapWidth - abs);
+        }
         const dy = p[1] - gy;
         return Math.sqrt(dx * dx + dy * dy);
       }

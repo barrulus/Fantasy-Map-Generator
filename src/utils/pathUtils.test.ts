@@ -108,3 +108,46 @@ describe("findPath", () => {
     expect(b![0]).toBe(99);
   });
 });
+
+function makeCylinderGrid(n: number) {
+  const cells: any = { i: new Uint32Array(n * n), c: [] as number[][], p: [] as [number, number][] };
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const id = y * n + x;
+      cells.i[id] = id;
+      cells.p.push([x, y]);
+      const neibs: number[] = [];
+      neibs.push(y * n + ((x - 1 + n) % n)); // wrap left
+      neibs.push(y * n + ((x + 1) % n)); // wrap right
+      if (y > 0) neibs.push(id - n);
+      if (y < n - 1) neibs.push(id + n);
+      cells.c.push(neibs);
+    }
+  }
+  return { cells };
+}
+
+describe("findPath cylinder/seam tests", () => {
+  beforeAll(() => {
+    (globalThis as any).window = (globalThis as any).window ?? {};
+    (globalThis as any).window.FlatQueue = FlatQueue;
+  });
+
+  it("crosses the seam when the interior is walled off (wrapWidth heuristic)", () => {
+    const n = 7;
+    const g = makeCylinderGrid(n);
+    const mid = (n - 1) / 2; // column 3 is an impassable wall
+    const wall = new Set<number>();
+    for (let y = 0; y < n; y++) wall.add(y * n + mid);
+    const getCost = (_: number, next: number) => (wall.has(next) ? Infinity : 1);
+
+    const start = 0; // (0,0) — left edge
+    const goal = n - 1; // (6,0) — right edge
+    const path = findPath(start, c => c === goal, getCost, g, goal, n);
+
+    expect(path).not.toBeNull();
+    expect(path![0]).toBe(start);
+    expect(path![path!.length - 1]).toBe(goal);
+    expect(path!.length).toBe(2);
+  });
+});
