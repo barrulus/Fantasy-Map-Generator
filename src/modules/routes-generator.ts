@@ -429,6 +429,9 @@ class RoutesModule {
   }) {
     const tierModifier = ROUTE_TIER_MODIFIERS[routeType!]?.cost ?? 1;
     const getBorderPenalty = this.getBorderPenalty.bind(this);
+    // Hoisted out of the per-edge cost functions: the wrap gate is constant for
+    // the lifetime of an A* search, so evaluate it once rather than per edge.
+    const wrap = isWrapEnabled();
 
     function getLandPathCost(current: number, next: number) {
       if (pack.cells.h[next] < 20) return Infinity;
@@ -458,7 +461,6 @@ class RoutesModule {
       if (pack.cells.h[next] >= 20) return Infinity;
       if (grid.cells.temp[pack.cells.g[next]] < MIN_PASSABLE_SEA_TEMP) return Infinity;
 
-      const wrap = isWrapEnabled();
       const distanceCost = wrapDistanceSquared(pack.cells.p[current], pack.cells.p[next], wrap, graphWidth);
       const typeModifier = ROUTE_TYPE_MODIFIERS[pack.cells.t[next]] || ROUTE_TYPE_MODIFIERS.default;
       const connectionModifier = connections.has(encodeConnection(current, next)) ? 0.5 : 1;
