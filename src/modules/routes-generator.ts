@@ -22,12 +22,7 @@ export function wrapDeltaX(dx: number, width: number): number {
 }
 
 // distanceSquared variant that wraps in X (and only X) when `wrap` is true.
-export function wrapDistanceSquared(
-  a: [number, number],
-  b: [number, number],
-  wrap: boolean,
-  width: number
-): number {
+export function wrapDistanceSquared(a: [number, number], b: [number, number], wrap: boolean, width: number): number {
   const dx = wrap ? wrapDeltaX(a[0] - b[0], width) : a[0] - b[0];
   const dy = a[1] - b[1];
   return dx * dx + dy * dy;
@@ -440,6 +435,63 @@ class RoutesModule {
 
     if (segment.length > 1) segments.push(segment);
     return segments;
+  }
+
+  // Copy of pack.cells.c with seam links added between west-edge and east-edge
+  // water cells, matched by latitude. pack.cells.c itself is never mutated.
+  // Used only for sea-route pathfinding on full-globe maps.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- wired up in a later task
+  // @ts-expect-error TS6133 wired up in a later task
+  private buildSeaAdjacency(): number[][] {
+    const { cells } = pack;
+    const width = graphWidth;
+    const margin = grid.spacing; // one-cell band at each edge
+    const isWater = (c: number) => cells.h[c] < 20;
+
+    const westEdge: number[] = [];
+    const eastEdge: number[] = [];
+    for (let i = 0; i < cells.i.length; i++) {
+      if (!isWater(i)) continue;
+      const x = cells.p[i][0];
+      if (x <= margin) westEdge.push(i);
+      else if (x >= width - margin) eastEdge.push(i);
+    }
+
+    if (!westEdge.length || !eastEdge.length) return cells.c;
+
+    // Sort east cells by latitude for nearest-y matching via binary search.
+    eastEdge.sort((a, b) => cells.p[a][1] - cells.p[b][1]);
+    const eastY = eastEdge.map(c => cells.p[c][1]);
+
+    // Shallow-copy the neighbour array; only edge cells get fresh inner arrays.
+    const c = cells.c.slice();
+    const link = (a: number, b: number) => {
+      if (c[a] === cells.c[a]) c[a] = cells.c[a].slice();
+      if (c[b] === cells.c[b]) c[b] = cells.c[b].slice();
+      if (!c[a].includes(b)) c[a].push(b);
+      if (!c[b].includes(a)) c[b].push(a);
+    };
+
+    for (const w of westEdge) {
+      const y = cells.p[w][1];
+      let lo = 0;
+      let hi = eastY.length - 1;
+      let best = 0;
+      let bestD = Infinity;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const d = Math.abs(eastY[mid] - y);
+        if (d < bestD) {
+          bestD = d;
+          best = mid;
+        }
+        if (eastY[mid] < y) lo = mid + 1;
+        else hi = mid - 1;
+      }
+      link(w, eastEdge[best]);
+    }
+
+    return c;
   }
 
   private findPathSegments({

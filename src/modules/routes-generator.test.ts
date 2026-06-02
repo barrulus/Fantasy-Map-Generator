@@ -146,6 +146,32 @@ describe("Routes lookup performance", () => {
   });
 });
 
+describe("buildSeaAdjacency", () => {
+  it("links west-edge water cells to the nearest east-edge water cell by latitude", () => {
+    const g = globalThis as any;
+    g.graphWidth = 100;
+    g.grid = { spacing: 20 };
+    // cells: 0 west-water(y10), 1 east-water(y12), 2 interior-water, 3 west-LAND, 4 east-water(y82), 5 west-water(y78)
+    g.pack = {
+      cells: {
+        i: new Uint32Array([0, 1, 2, 3, 4, 5]),
+        h: [0, 0, 0, 30, 0, 0],
+        p: [[10, 10], [90, 12], [50, 50], [10, 80], [88, 82], [12, 78]] as [number, number][],
+        c: [[], [], [], [], [], []] as number[][]
+      }
+    };
+
+    const adj = (Routes as any).buildSeaAdjacency();
+
+    expect(adj[0]).toContain(1); // west(y10) -> east(y12)
+    expect(adj[1]).toContain(0); // bidirectional
+    expect(adj[5]).toContain(4); // west(y78) -> east(y82)
+    expect(adj[4]).toContain(5);
+    expect(adj[3]).toEqual([]); // land edge cell untouched
+    expect(g.pack.cells.c[0]).toEqual([]); // global graph NOT mutated
+  });
+});
+
 describe("wrap helpers", () => {
   it("wrapDeltaX returns the shorter cylinder gap", () => {
     expect(wrapDeltaX(10, 100)).toBe(10); // direct is shorter
