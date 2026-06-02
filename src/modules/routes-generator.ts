@@ -4,6 +4,35 @@ import { distanceSquared, findClosestCell, findPath, getAdjective, isLand, ra, r
 import type { Burg } from "./burgs-generator";
 import type { Point } from "./voronoi";
 
+// --- Seam wrapping (full-globe maps only) ----------------------------------
+// On a 360° equirectangular map the east/west edges are a seam: cells and burgs
+// near opposite edges are close on the globe but far on the flat map. These
+// helpers let sea & air routes cross that seam. Everything is inert unless the
+// map spans a full 360° of longitude.
+
+export function isWrapEnabled(): boolean {
+  return typeof mapCoordinates !== "undefined" && !!mapCoordinates && mapCoordinates.lonT === 360;
+}
+
+// Horizontal gap on a cylinder of the given width: the shorter of going
+// directly or around the seam.
+export function wrapDeltaX(dx: number, width: number): number {
+  const abs = Math.abs(dx);
+  return Math.min(abs, width - abs);
+}
+
+// distanceSquared variant that wraps in X (and only X) when `wrap` is true.
+export function wrapDistanceSquared(
+  a: [number, number],
+  b: [number, number],
+  wrap: boolean,
+  width: number
+): number {
+  const dx = wrap ? wrapDeltaX(a[0] - b[0], width) : a[0] - b[0];
+  const dy = a[1] - b[1];
+  return dx * dx + dy * dy;
+}
+
 const ROUTES_SHARP_ANGLE = 135;
 const ROUTES_VERY_SHARP_ANGLE = 115;
 

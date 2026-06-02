@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { isWrapEnabled, wrapDeltaX, wrapDistanceSquared } from "./routes-generator";
 
 let Routes: any;
 
@@ -142,5 +143,31 @@ describe("Routes lookup performance", () => {
     // Threshold is generous: a Map should finish in <50ms, but we allow 150ms
     // for slow CI hardware. The current O(n) impl typically takes 250ms+.
     expect(elapsed).toBeLessThan(150);
+  });
+});
+
+describe("wrap helpers", () => {
+  it("wrapDeltaX returns the shorter cylinder gap", () => {
+    expect(wrapDeltaX(10, 100)).toBe(10); // direct is shorter
+    expect(wrapDeltaX(90, 100)).toBe(10); // around the seam is shorter
+    expect(wrapDeltaX(-90, 100)).toBe(10); // sign-independent
+    expect(wrapDeltaX(50, 100)).toBe(50); // exactly half
+  });
+
+  it("wrapDistanceSquared wraps X only when enabled", () => {
+    const a: [number, number] = [5, 40];
+    const b: [number, number] = [95, 40];
+    expect(wrapDistanceSquared(a, b, false, 100)).toBe(90 * 90); // flat: far
+    expect(wrapDistanceSquared(a, b, true, 100)).toBe(10 * 10); // wrapped: close
+  });
+
+  it("isWrapEnabled is true only at lonT === 360", () => {
+    const g = globalThis as any;
+    g.mapCoordinates = { lonT: 360 };
+    expect(isWrapEnabled()).toBe(true);
+    g.mapCoordinates = { lonT: 359.9 };
+    expect(isWrapEnabled()).toBe(false);
+    g.mapCoordinates = undefined;
+    expect(isWrapEnabled()).toBe(false);
   });
 });
