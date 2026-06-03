@@ -362,3 +362,38 @@ describe("collectSeamLinks", () => {
     expect((Routes as any).collectSeamLinks()).toEqual([]);
   });
 });
+
+describe("buildNavigableComponents", () => {
+  // Two edge water cells (feature 1 west, feature 2 east) + ports on each feature.
+  const setup = (lonT: number) => {
+    const g = globalThis as any;
+    g.graphWidth = 100;
+    g.grid = { spacing: 20 };
+    g.mapCoordinates = { lonT };
+    g.pack = {
+      cells: {
+        i: new Uint32Array([0, 1]),
+        h: [0, 0],
+        f: [1, 2],
+        p: [
+          [10, 50],
+          [90, 50]
+        ] as [number, number][],
+        c: [[], []] as number[][]
+      },
+      burgs: [{}, { i: 1, port: 1, cell: 0 }, { i: 2, port: 2, cell: 1 }]
+    };
+  };
+
+  it("keeps each port-feature its own component on a non-360 map", () => {
+    setup(180);
+    const comp = (Routes as any).buildNavigableComponents() as Map<number, number>;
+    expect(comp.get(1)).not.toBe(comp.get(2));
+  });
+
+  it("unions seam-joined features into one component on a 360 map", () => {
+    setup(360);
+    const comp = (Routes as any).buildNavigableComponents() as Map<number, number>;
+    expect(comp.get(1)).toBe(comp.get(2));
+  });
+});

@@ -595,6 +595,53 @@ class RoutesModule {
     return c;
   }
 
+  // Map each port-bearing water feature to a navigable-component id. Components are
+  // feature ids unioned by seam links (360 maps only); on non-360 maps every
+  // feature is its own component (identity), so behaviour is unchanged.
+  private buildNavigableComponents(): Map<number, number> {
+    const { cells, burgs } = pack;
+    const parent = new Map<number, number>();
+
+    const find = (x: number): number => {
+      if (!parent.has(x)) parent.set(x, x);
+      let root = x;
+      while (parent.get(root)! !== root) root = parent.get(root)!;
+      let cur = x;
+      while (parent.get(cur)! !== root) {
+        const next = parent.get(cur)!;
+        parent.set(cur, root);
+        cur = next;
+      }
+      return root;
+    };
+    const union = (a: number, b: number) => {
+      const ra = find(a);
+      const rb = find(b);
+      if (ra !== rb) parent.set(ra, rb);
+    };
+
+    const isRoutablePort = (burg: Burg) => Boolean(burg.i) && !burg.removed && !burg.flying && Boolean(burg.port);
+
+    // Seed union-find with every port-bearing feature.
+    for (const burg of burgs) {
+      if (isRoutablePort(burg)) find(burg.port as number);
+    }
+
+    // Union features joined across the seam (360 maps only).
+    if (isWrapEnabled()) {
+      for (const [w, e] of this.collectSeamLinks()) union(cells.f[w], cells.f[e]);
+    }
+
+    const components = new Map<number, number>();
+    for (const burg of burgs) {
+      if (isRoutablePort(burg)) {
+        const feature = burg.port as number;
+        components.set(feature, find(feature));
+      }
+    }
+    return components;
+  }
+
   private findPathSegments({
     isWater,
     connections,
