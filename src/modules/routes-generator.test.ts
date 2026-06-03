@@ -399,17 +399,24 @@ describe("buildNavigableComponents", () => {
 });
 
 describe("selectSeaTradeEdges", () => {
+  // Each capital sits on its own landmass (10/20/30); the hamlet cluster shares a
+  // fourth landmass (40). cells.f is indexed by burg.cell, which the trunk tier
+  // reads to keep only inter-landmass crossings.
+  const landmass = [10, 20, 30, 40, 40, 40];
+
   beforeAll(() => {
     const g = globalThis as any;
     g.graphWidth = 1000;
     g.graphHeight = 1000; // mapScale = 1 -> km == pixel distance
     g.mapCoordinates = { lonT: 180 }; // wrap off
+    g.pack = { cells: { f: landmass } };
   });
 
-  // Three high-importance capital hubs (0,1,2) surrounding a tight low-importance
-  // hamlet cluster (3,4,5). The hubs dominate every hamlet's gravity top-3, so the
-  // short hamlet-hamlet Urquhart edges fall out of the feeder tier and survive only
-  // as coastal edges — the configuration that actually exercises all three tiers.
+  // Three high-importance capital hubs (0,1,2) on three separate landmasses,
+  // surrounding a tight low-importance hamlet cluster (3,4,5) on a fourth. The hubs
+  // dominate every hamlet's gravity top-3, so the short hamlet-hamlet Urquhart edges
+  // fall out of the feeder tier and survive only as coastal edges; the capitals on
+  // distinct landmasses produce the inter-landmass trunk crossings.
   const ports = [
     { x: 200, y: 400, population: 100, settlementType: "capital", capital: 1, cell: 0, port: 1 },
     { x: 200, y: 700, population: 100, settlementType: "capital", capital: 1, cell: 1, port: 1 },
@@ -441,22 +448,22 @@ describe("selectSeaTradeEdges", () => {
     const keys = edges.map(e => `${Math.min(e.from, e.to)}-${Math.max(e.from, e.to)}`);
     expect(new Set(keys).size).toBe(keys.length);
 
-    // at least one trunk edge exists and it connects two capital hubs
+    // at least one trunk edge exists and every trunk edge crosses between landmasses
     const trunk = edges.filter(e => e.tier === "trunk");
     expect(trunk.length).toBeGreaterThan(0);
-    expect(trunk.every(e => isCapital(e.from) && isCapital(e.to))).toBe(true);
+    expect(trunk.every(e => landmass[e.from] !== landmass[e.to])).toBe(true);
 
     // at least one feeder and one coastal edge exist
     expect(edges.some(e => e.tier === "feeder")).toBe(true);
     expect(edges.some(e => e.tier === "coastal")).toBe(true);
 
-    // coastal edges are the short hamlet-hamlet pairs
+    // coastal edges are the short hamlet-hamlet pairs (same landmass, non-capital)
     expect(edges.every(e => e.tier !== "coastal" || (!isCapital(e.from) && !isCapital(e.to)))).toBe(true);
 
-    // every coastal edge is within the coastal cap; no edge exceeds the trunk safety cap
+    // coastal edges stay within the coastal cap; the trunk safety cap is generous
     edges.forEach(e => {
       if (e.tier === "coastal") expect(km(ports[e.from], ports[e.to])).toBeLessThanOrEqual(120);
-      expect(km(ports[e.from], ports[e.to])).toBeLessThanOrEqual(600);
+      expect(km(ports[e.from], ports[e.to])).toBeLessThanOrEqual(1500);
     });
   });
 });
