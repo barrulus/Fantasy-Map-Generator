@@ -44,7 +44,13 @@ const SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
 const SEA_TRUNK_HUB_FRACTION = 0.1; // fraction of a component's ports that are hubs (min 2)
 const SEA_TRUNK_LINKS = 3; // top hub-to-hub gravity partners per hub
 const SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
+const SEA_FEEDER_CAP_KM = 300; // feeders are regional; only trunk routes go long-haul
 const SEA_TRUNK_SAFETY_CAP_KM = 600; // upper bound so two lone hubs cannot span the map
+// Long-haul trade (trunk+feeder) only runs over the top-N most important ports per
+// navigable component. Bounds the O(k^2) gravity selection and the long-haul A* path
+// count regardless of map size; every port still gets short coastal links. Big maps
+// can have tens of thousands of ports in one ocean, so this cap is essential.
+const SEA_TRADE_MAX_PORTS = 500;
 
 // Trade importance of a port: population weighted by its settlement role.
 export function portImportance(burg: Burg): number {
@@ -975,15 +981,26 @@ class RoutesModule {
 
     const allIndices = Array.from({ length: n }, (_, i) => i);
 
-    // feeder: each port -> its top SEA_FEEDER_LINKS gravity partners (guarantees >= 1 link)
-    for (let i = 0; i < n; i++) {
-      const partners = allIndices.filter(j => j !== i).sort((a, b) => gravity(i, b) - gravity(i, a));
+    // Long-haul trade runs only over the most important ports. Tens of thousands of
+    // ports can share one ocean, so the gravity tiers (O(major^2) selection + a
+    // long-haul A* per edge) must be bounded; coastal below still covers every port.
+    const major =
+      n <= SEA_TRADE_MAX_PORTS
+        ? allIndices
+        : [...allIndices].sort((a, b) => imp[b] - imp[a]).slice(0, SEA_TRADE_MAX_PORTS);
+
+    // feeder: each major port -> its top SEA_FEEDER_LINKS gravity partners within regional
+    // reach. Capping distance keeps feeder A* paths short and leaves long hauls to trunk.
+    for (const i of major) {
+      const partners = major
+        .filter(j => j !== i && km(i, j) <= SEA_FEEDER_CAP_KM)
+        .sort((a, b) => gravity(i, b) - gravity(i, a));
       for (let k = 0; k < Math.min(SEA_FEEDER_LINKS, partners.length); k++) addEdge(i, partners[k], "feeder");
     }
 
     // trunk: top hubs by importance, each linked to its top SEA_TRUNK_LINKS hub partners
-    const hubCount = Math.min(n, Math.max(2, Math.ceil(SEA_TRUNK_HUB_FRACTION * n)));
-    const hubs = [...allIndices].sort((a, b) => imp[b] - imp[a]).slice(0, hubCount);
+    const hubCount = Math.min(major.length, Math.max(2, Math.ceil(SEA_TRUNK_HUB_FRACTION * major.length)));
+    const hubs = [...major].sort((a, b) => imp[b] - imp[a]).slice(0, hubCount);
     for (const h of hubs) {
       const partners = hubs.filter(j => j !== h).sort((a, b) => gravity(h, b) - gravity(h, a));
       let added = 0;
@@ -1031,11 +1048,19 @@ class RoutesModule {
     const trunkRoutes: Route[] = [];
     const localRoutes: Route[] = [];
 
+    // Diagnostics: confirm the dominant cost on real maps (ports vs edges vs A*).
+    let diagPorts = 0;
+    let diagMaxComp = 0;
+    const diagTiers: Record<string, number> = { trunk: 0, feeder: 0, coastal: 0 };
+
     for (const ports of Object.values(portsByComponent)) {
       if (ports.length < 2) continue;
+      diagPorts += ports.length;
+      if (ports.length > diagMaxComp) diagMaxComp = ports.length;
 
       const edges = this.selectSeaTradeEdges(ports);
       for (const { from, to, tier } of edges) {
+        diagTiers[tier]++;
         const a = ports[from];
         const b = ports[to];
 
@@ -1058,6 +1083,11 @@ class RoutesModule {
       }
     }
 
+    TIME &&
+      console.log(
+        `  sea-trade: ${diagPorts} ports, largest ocean ${diagMaxComp} ports, edges`,
+        diagTiers
+      );
     TIME && console.timeEnd("generateSeaTradeNetwork");
     return { trunkRoutes, localRoutes };
   }
