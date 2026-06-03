@@ -267,7 +267,14 @@ describe("getLength wrapped", () => {
     g.mapCoordinates = { lonT: 360 };
     g.pack = {
       routes: [
-        { i: 7, group: "searoutes", points: [[980, 300, 0], [20, 300, 1]] } // |dx|=960 seam crossing
+        {
+          i: 7,
+          group: "searoutes",
+          points: [
+            [980, 300, 0],
+            [20, 300, 1]
+          ]
+        } // |dx|=960 seam crossing
       ]
     };
 
