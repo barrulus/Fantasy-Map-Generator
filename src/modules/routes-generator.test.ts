@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { isWrapEnabled, wrapDeltaX, wrapDistanceSquared } from "./routes-generator";
+import { isWrapEnabled, portImportance, wrapDeltaX, wrapDistanceSquared } from "./routes-generator";
 
 let Routes: any;
 
@@ -281,5 +281,37 @@ describe("getLength wrapped", () => {
     const len = Routes.getLength(7);
     // wrapped horizontal gap is 40, not 960
     expect(len).toBeCloseTo(40, 5);
+  });
+});
+
+describe("portImportance", () => {
+  const port = (population: number, settlementType: string, capital = 0) =>
+    ({ population, settlementType, capital }) as any;
+
+  it("ranks roles capital > largePort > regionalCenter > marketTown > village > hamlet at equal population", () => {
+    const cap = portImportance(port(1, "capital"));
+    const lp = portImportance(port(1, "largePort"));
+    const rc = portImportance(port(1, "regionalCenter"));
+    const mt = portImportance(port(1, "marketTown"));
+    const vil = portImportance(port(1, "largeVillage"));
+    const ham = portImportance(port(1, "hamlet"));
+    expect(cap).toBeGreaterThan(lp);
+    expect(lp).toBeGreaterThan(rc);
+    expect(rc).toBeGreaterThan(mt);
+    expect(mt).toBeGreaterThan(vil);
+    expect(vil).toBeGreaterThan(ham);
+  });
+
+  it("scales with population within a role", () => {
+    expect(portImportance(port(2, "marketTown"))).toBeGreaterThan(portImportance(port(1, "marketTown")));
+  });
+
+  it("treats the capital flag as the capital role regardless of settlementType", () => {
+    expect(portImportance(port(1, "hamlet", 1))).toBe(portImportance(port(1, "capital")));
+  });
+
+  it("defaults unknown roles to a 1.0 multiplier and missing population to 0", () => {
+    expect(portImportance(port(2, "mystery"))).toBe(2);
+    expect(portImportance({} as any)).toBe(0);
   });
 });

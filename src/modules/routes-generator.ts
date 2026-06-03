@@ -28,6 +28,31 @@ export function wrapDistanceSquared(a: [number, number], b: [number, number], wr
   return dx * dx + dy * dy;
 }
 
+// Trade-importance role weights (population multiplier). Higher = bigger hub.
+const ROLE_MULT: Record<string, number> = {
+  capital: 3.0,
+  largePort: 2.2,
+  regionalCenter: 1.6,
+  marketTown: 1.2,
+  largeVillage: 1.0,
+  smallVillage: 1.0,
+  hamlet: 0.8
+};
+
+// Sea-trade-network density preset ("medium/balanced"). Retune here.
+const SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
+const SEA_TRUNK_HUB_FRACTION = 0.1; // fraction of a component's ports that are hubs (min 2)
+const SEA_TRUNK_LINKS = 3; // top hub-to-hub gravity partners per hub
+const SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
+const SEA_TRUNK_SAFETY_CAP_KM = 600; // upper bound so two lone hubs cannot span the map
+
+// Trade importance of a port: population weighted by its settlement role.
+export function portImportance(burg: Burg): number {
+  const role = burg.capital ? "capital" : (burg.settlementType ?? "");
+  const mult = ROLE_MULT[role] ?? 1.0;
+  return (burg.population ?? 0) * mult;
+}
+
 const ROUTES_SHARP_ANGLE = 135;
 const ROUTES_VERY_SHARP_ANGLE = 115;
 
