@@ -867,48 +867,6 @@ class RoutesModule {
     return trails;
   }
 
-  private generateSeaRoutes(connections: Set<number>, burgIndex: RouteBurgIndex, seaAdjacency?: number[][]) {
-    TIME && console.time("generateSeaRoutes");
-    const { portsByFeature } = burgIndex;
-    const seaRoutes: Route[] = [];
-    const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
-
-    for (const [featureId, featurePorts] of Object.entries(portsByFeature)) {
-      if (featurePorts.length < 2) continue;
-
-      const points = featurePorts.map(burg => [burg.x, burg.y] as Point);
-      const wrap = isWrapEnabled();
-      const urquhartEdges = this.calculateUrquhartEdges(points, wrap, graphWidth);
-
-      for (const [fromId, toId] of urquhartEdges) {
-        const a = featurePorts[fromId];
-        const b = featurePorts[toId];
-
-        const kmDistance = Math.sqrt(wrapDistanceSquared([a.x, a.y], [b.x, b.y], wrap, graphWidth)) / mapScale;
-        if (kmDistance > 50) continue;
-
-        const segments = this.findPathSegments({
-          isWater: true,
-          connections,
-          start: a.cell,
-          exit: b.cell,
-          seaAdjacency
-        });
-        for (const segment of segments) {
-          this.addConnections(segment, connections);
-          seaRoutes.push({
-            feature: Number(featureId),
-            cells: segment,
-            type: "local"
-          } as Route);
-        }
-      }
-    }
-
-    TIME && console.timeEnd("generateSeaRoutes");
-    return seaRoutes;
-  }
-
   private generateTownRoads(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateTownRoads");
     const { regionalCentersByFeature } = burgIndex;
@@ -1051,68 +1009,57 @@ class RoutesModule {
     return result;
   }
 
-  private generateMajorSeaRoutes(connections: Set<number>, burgIndex: RouteBurgIndex, seaAdjacency?: number[][]) {
-    TIME && console.time("generateMajorSeaRoutes");
-    const { capitalPortsByFeature } = burgIndex;
-    const majorSeaRoutes: Route[] = [];
+  // Build the full sea-trade network for all navigable components.
+  // Returns trunk routes (rendered as "major") and feeder+coastal routes ("local").
+  private generateSeaTradeNetwork(
+    connections: Set<number>,
+    burgIndex: RouteBurgIndex,
+    components: Map<number, number>,
+    seaAdjacency?: number[][]
+  ) {
+    TIME && console.time("generateSeaTradeNetwork");
+    const { portsByFeature } = burgIndex;
 
-    for (const [key, featurePorts] of Object.entries(capitalPortsByFeature)) {
-      if (featurePorts.length < 2) continue;
+    // Re-pool ports by navigable component (seam-joined features share a pool on 360).
+    const portsByComponent: Record<number, Burg[]> = {};
+    for (const [featureId, ports] of Object.entries(portsByFeature)) {
+      const component = components.get(Number(featureId)) ?? Number(featureId);
+      if (!portsByComponent[component]) portsByComponent[component] = [];
+      portsByComponent[component].push(...ports);
+    }
 
-      const edges: { from: number; to: number; dist: number }[] = [];
-      for (let i = 0; i < featurePorts.length; i++) {
-        for (let j = i + 1; j < featurePorts.length; j++) {
-          const a = featurePorts[i];
-          const b = featurePorts[j];
-          edges.push({
-            from: i,
-            to: j,
-            dist: wrapDistanceSquared([a.x, a.y], [b.x, b.y], isWrapEnabled(), graphWidth)
-          });
-        }
-      }
-      edges.sort((a, b) => a.dist - b.dist);
+    const trunkRoutes: Route[] = [];
+    const localRoutes: Route[] = [];
 
-      const parent = new Map<number, number>();
-      function find(x: number): number {
-        if (!parent.has(x)) parent.set(x, x);
-        if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!));
-        return parent.get(x)!;
-      }
-      function union(a: number, b: number): boolean {
-        const ra = find(a);
-        const rb = find(b);
-        if (ra === rb) return false;
-        parent.set(ra, rb);
-        return true;
-      }
+    for (const ports of Object.values(portsByComponent)) {
+      if (ports.length < 2) continue;
 
-      for (const edge of edges) {
-        if (!union(edge.from, edge.to)) continue;
-
-        const start = featurePorts[edge.from].cell;
-        const exit = featurePorts[edge.to].cell;
+      const edges = this.selectSeaTradeEdges(ports);
+      for (const { from, to, tier } of edges) {
+        const a = ports[from];
+        const b = ports[to];
 
         const segments = this.findPathSegments({
           isWater: true,
           connections,
-          start,
-          exit,
+          start: a.cell,
+          exit: b.cell,
           seaAdjacency
         });
         for (const segment of segments) {
           this.addConnections(segment, connections);
-          majorSeaRoutes.push({
-            feature: Number(key),
+          const route = {
+            feature: a.port as number, // originating port's real feature id
             cells: segment,
-            type: "major"
-          } as Route);
+            type: tier === "trunk" ? "major" : "local"
+          } as Route;
+          (tier === "trunk" ? trunkRoutes : localRoutes).push(route);
         }
       }
     }
 
-    TIME && console.timeEnd("generateMajorSeaRoutes");
-    return majorSeaRoutes;
+    TIME && console.timeEnd("generateSeaTradeNetwork");
+    return { trunkRoutes, localRoutes };
   }
 
   private preparePointsArray(): Point[] {
@@ -1250,8 +1197,13 @@ class RoutesModule {
     const townRoads = this.generateTownRoads(connections, burgIndex);
     const trails = this.generateTrails(connections, burgIndex);
     const footpaths = this.generateFootpaths(connections, burgIndex);
-    const majorSeaRoutes = this.generateMajorSeaRoutes(connections, burgIndex, seaAdjacency);
-    const seaRoutes = this.generateSeaRoutes(connections, burgIndex, seaAdjacency);
+    const components = this.buildNavigableComponents();
+    const { trunkRoutes: majorSeaRoutes, localRoutes: seaRoutes } = this.generateSeaTradeNetwork(
+      connections,
+      burgIndex,
+      components,
+      seaAdjacency
+    );
     const airRoutes = this.generateAirRoutes(burgIndex);
     const pointsArray = this.preparePointsArray();
 
