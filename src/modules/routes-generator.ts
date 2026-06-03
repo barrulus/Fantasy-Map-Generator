@@ -457,6 +457,8 @@ class RoutesModule {
       );
     }
 
+    // Only water routes wrap across the seam, so only the water cost uses
+    // wrapDistanceSquared; getLandPathCost stays on plain distanceSquared.
     function getWaterPathCost(current: number, next: number) {
       if (pack.cells.h[next] >= 20) return Infinity;
       if (grid.cells.temp[pack.cells.g[next]] < MIN_PASSABLE_SEA_TEMP) return Infinity;
@@ -1421,8 +1423,9 @@ class RoutesModule {
       const curr = points[i];
       const dx = curr[0] - prev[0];
       if (Math.abs(dx) > half) {
-        // dx < 0: prev near east edge, exits at x=width; curr enters at x=0.
-        // dx > 0: prev near west edge, exits at x=0;     curr enters at x=width.
+        // A crossing means the polyline takes the short way around the seam.
+        // dx < 0: route wraps globe-eastward — prev exits the east frame (x=width), curr enters from the west frame (x=0).
+        // dx > 0: route wraps globe-westward — prev exits the west frame (x=0),     curr enters from the east frame (x=width).
         const prevExitX = dx < 0 ? width : 0;
         const currEnterX = dx < 0 ? 0 : width;
         const gap = width - Math.abs(dx); // wrapped horizontal traversal
@@ -1468,12 +1471,7 @@ class RoutesModule {
     let len = 0;
     for (let i = 1; i < points.length; i++) {
       len += Math.sqrt(
-        wrapDistanceSquared(
-          [points[i - 1][0], points[i - 1][1]],
-          [points[i][0], points[i][1]],
-          true,
-          graphWidth
-        )
+        wrapDistanceSquared([points[i - 1][0], points[i - 1][1]], [points[i][0], points[i][1]], true, graphWidth)
       );
     }
     return len;
