@@ -40,11 +40,11 @@ const ROLE_MULT: Record<string, number> = {
 };
 
 // Sea-trade-network density preset ("medium/balanced"). Retune here.
-const _SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
-const _SEA_TRUNK_HUB_FRACTION = 0.1; // fraction of a component's ports that are hubs (min 2)
-const _SEA_TRUNK_LINKS = 3; // top hub-to-hub gravity partners per hub
-const _SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
-const _SEA_TRUNK_SAFETY_CAP_KM = 600; // upper bound so two lone hubs cannot span the map
+const SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
+const SEA_TRUNK_HUB_FRACTION = 0.1; // fraction of a component's ports that are hubs (min 2)
+const SEA_TRUNK_LINKS = 3; // top hub-to-hub gravity partners per hub
+const SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
+const SEA_TRUNK_SAFETY_CAP_KM = 600; // upper bound so two lone hubs cannot span the map
 
 // Trade importance of a port: population weighted by its settlement role.
 export function portImportance(burg: Burg): number {
@@ -242,6 +242,13 @@ export interface Route {
   points: number[][];
   cells?: number[];
   merged?: boolean;
+}
+
+type SeaTradeTier = "trunk" | "feeder" | "coastal";
+interface SeaTradeEdge {
+  from: number;
+  to: number;
+  tier: SeaTradeTier;
 }
 
 type RouteBurgIndex = {
@@ -982,6 +989,66 @@ class RoutesModule {
 
     TIME && console.timeEnd("generateFootpaths");
     return footpaths;
+  }
+
+  // Gravity-based edge selection for one navigable component's ports.
+  // Produces deduped trunk/feeder/coastal edges (highest tier wins on collision).
+  private selectSeaTradeEdges(ports: Burg[]): SeaTradeEdge[] {
+    const n = ports.length;
+    const wrap = isWrapEnabled();
+    const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
+
+    const imp = ports.map(portImportance);
+    const d2 = (i: number, j: number) =>
+      wrapDistanceSquared([ports[i].x, ports[i].y], [ports[j].x, ports[j].y], wrap, graphWidth);
+    const gravity = (i: number, j: number) => (imp[i] * imp[j]) / Math.max(d2(i, j), 1e-9);
+    const km = (i: number, j: number) => Math.sqrt(d2(i, j)) / mapScale;
+
+    const tierRank: Record<SeaTradeTier, number> = { coastal: 0, feeder: 1, trunk: 2 };
+    const edges = new Map<number, SeaTradeTier>();
+    const addEdge = (a: number, b: number, tier: SeaTradeTier) => {
+      if (a === b) return;
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      const key = lo * n + hi;
+      const current = edges.get(key);
+      if (current === undefined || tierRank[tier] > tierRank[current]) edges.set(key, tier);
+    };
+
+    const allIndices = Array.from({ length: n }, (_, i) => i);
+
+    // feeder: each port -> its top SEA_FEEDER_LINKS gravity partners (guarantees >= 1 link)
+    for (let i = 0; i < n; i++) {
+      const partners = allIndices.filter(j => j !== i).sort((a, b) => gravity(i, b) - gravity(i, a));
+      for (let k = 0; k < Math.min(SEA_FEEDER_LINKS, partners.length); k++) addEdge(i, partners[k], "feeder");
+    }
+
+    // trunk: top hubs by importance, each linked to its top SEA_TRUNK_LINKS hub partners
+    const hubCount = Math.min(n, Math.max(2, Math.ceil(SEA_TRUNK_HUB_FRACTION * n)));
+    const hubs = [...allIndices].sort((a, b) => imp[b] - imp[a]).slice(0, hubCount);
+    for (const h of hubs) {
+      const partners = hubs.filter(j => j !== h).sort((a, b) => gravity(h, b) - gravity(h, a));
+      let added = 0;
+      for (const j of partners) {
+        if (added >= SEA_TRUNK_LINKS) break;
+        if (km(h, j) > SEA_TRUNK_SAFETY_CAP_KM) continue;
+        addEdge(h, j, "trunk");
+        added++;
+      }
+    }
+
+    // coastal: existing Urquhart short pairs, capped at SEA_COASTAL_CAP_KM
+    const points = ports.map(p => [p.x, p.y] as Point);
+    const urquhartEdges = this.calculateUrquhartEdges(points, wrap, graphWidth);
+    for (const [a, b] of urquhartEdges) {
+      if (km(a, b) <= SEA_COASTAL_CAP_KM) addEdge(a, b, "coastal");
+    }
+
+    const result: SeaTradeEdge[] = [];
+    for (const [key, tier] of edges) {
+      result.push({ from: Math.floor(key / n), to: key % n, tier });
+    }
+    return result;
   }
 
   private generateMajorSeaRoutes(connections: Set<number>, burgIndex: RouteBurgIndex, seaAdjacency?: number[][]) {

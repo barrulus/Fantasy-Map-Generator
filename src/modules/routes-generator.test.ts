@@ -397,3 +397,66 @@ describe("buildNavigableComponents", () => {
     expect(comp.get(1)).toBe(comp.get(2));
   });
 });
+
+describe("selectSeaTradeEdges", () => {
+  beforeAll(() => {
+    const g = globalThis as any;
+    g.graphWidth = 1000;
+    g.graphHeight = 1000; // mapScale = 1 -> km == pixel distance
+    g.mapCoordinates = { lonT: 180 }; // wrap off
+  });
+
+  // Three high-importance capital hubs (0,1,2) surrounding a tight low-importance
+  // hamlet cluster (3,4,5). The hubs dominate every hamlet's gravity top-3, so the
+  // short hamlet-hamlet Urquhart edges fall out of the feeder tier and survive only
+  // as coastal edges — the configuration that actually exercises all three tiers.
+  const ports = [
+    { x: 200, y: 400, population: 100, settlementType: "capital", capital: 1, cell: 0, port: 1 },
+    { x: 200, y: 700, population: 100, settlementType: "capital", capital: 1, cell: 1, port: 1 },
+    { x: 600, y: 550, population: 100, settlementType: "capital", capital: 1, cell: 2, port: 1 },
+    { x: 340, y: 530, population: 1, settlementType: "hamlet", cell: 3, port: 1 },
+    { x: 370, y: 555, population: 1, settlementType: "hamlet", cell: 4, port: 1 },
+    { x: 345, y: 580, population: 1, settlementType: "hamlet", cell: 5, port: 1 }
+  ] as any[];
+
+  const isCapital = (i: number) => i <= 2;
+  const km = (a: any, b: any) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  it("emits all three tiers, links every port, dedupes pairs, and respects caps", () => {
+    const edges = (Routes as any).selectSeaTradeEdges(ports) as Array<{
+      from: number;
+      to: number;
+      tier: string;
+    }>;
+
+    // every port participates in at least one edge
+    const touched = new Set<number>();
+    edges.forEach(e => {
+      touched.add(e.from);
+      touched.add(e.to);
+    });
+    expect(touched.size).toBe(ports.length);
+
+    // no duplicate unordered pair
+    const keys = edges.map(e => `${Math.min(e.from, e.to)}-${Math.max(e.from, e.to)}`);
+    expect(new Set(keys).size).toBe(keys.length);
+
+    // at least one trunk edge exists and it connects two capital hubs
+    const trunk = edges.filter(e => e.tier === "trunk");
+    expect(trunk.length).toBeGreaterThan(0);
+    expect(trunk.every(e => isCapital(e.from) && isCapital(e.to))).toBe(true);
+
+    // at least one feeder and one coastal edge exist
+    expect(edges.some(e => e.tier === "feeder")).toBe(true);
+    expect(edges.some(e => e.tier === "coastal")).toBe(true);
+
+    // coastal edges are the short hamlet-hamlet pairs
+    expect(edges.every(e => e.tier !== "coastal" || (!isCapital(e.from) && !isCapital(e.to)))).toBe(true);
+
+    // every coastal edge is within the coastal cap; no edge exceeds the trunk safety cap
+    edges.forEach(e => {
+      if (e.tier === "coastal") expect(km(ports[e.from], ports[e.to])).toBeLessThanOrEqual(120);
+      expect(km(ports[e.from], ports[e.to])).toBeLessThanOrEqual(600);
+    });
+  });
+});
