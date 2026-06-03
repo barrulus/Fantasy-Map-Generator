@@ -40,11 +40,11 @@ const ROLE_MULT: Record<string, number> = {
 };
 
 // Sea-trade-network density preset ("medium/balanced"). Retune here.
-const SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
-const SEA_TRUNK_HUB_FRACTION = 0.1; // fraction of a component's ports that are hubs (min 2)
-const SEA_TRUNK_LINKS = 3; // top hub-to-hub gravity partners per hub
-const SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
-const SEA_TRUNK_SAFETY_CAP_KM = 600; // upper bound so two lone hubs cannot span the map
+const _SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
+const _SEA_TRUNK_HUB_FRACTION = 0.1; // fraction of a component's ports that are hubs (min 2)
+const _SEA_TRUNK_LINKS = 3; // top hub-to-hub gravity partners per hub
+const _SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
+const _SEA_TRUNK_SAFETY_CAP_KM = 600; // upper bound so two lone hubs cannot span the map
 
 // Trade importance of a port: population weighted by its settlement role.
 export function portImportance(burg: Burg): number {
@@ -528,7 +528,9 @@ class RoutesModule {
   // Copy of pack.cells.c with seam links added between west-edge and east-edge
   // water cells, matched by latitude. pack.cells.c itself is never mutated.
   // Used only for sea-route pathfinding on full-globe maps.
-  private buildSeaAdjacency(): number[][] {
+  // West/east edge water-cell pairs matched by latitude. Shared by buildSeaAdjacency
+  // (to add neighbour links) and buildNavigableComponents (to union features).
+  private collectSeamLinks(): Array<[number, number]> {
     const { cells } = pack;
     const width = graphWidth;
     const margin = grid.spacing; // one-cell band at each edge
@@ -543,21 +545,13 @@ class RoutesModule {
       else if (x >= width - margin) eastEdge.push(i);
     }
 
-    if (!westEdge.length || !eastEdge.length) return cells.c;
+    if (!westEdge.length || !eastEdge.length) return [];
 
     // Sort east cells by latitude for nearest-y matching via binary search.
     eastEdge.sort((a, b) => cells.p[a][1] - cells.p[b][1]);
     const eastY = eastEdge.map(c => cells.p[c][1]);
 
-    // Shallow-copy the neighbour array; only edge cells get fresh inner arrays.
-    const c = cells.c.slice();
-    const link = (a: number, b: number) => {
-      if (c[a] === cells.c[a]) c[a] = cells.c[a].slice();
-      if (c[b] === cells.c[b]) c[b] = cells.c[b].slice();
-      if (!c[a].includes(b)) c[a].push(b);
-      if (!c[b].includes(a)) c[b].push(a);
-    };
-
+    const links: Array<[number, number]> = [];
     for (const w of westEdge) {
       const y = cells.p[w][1];
       let lo = 0;
@@ -574,8 +568,29 @@ class RoutesModule {
         if (eastY[mid] < y) lo = mid + 1;
         else hi = mid - 1;
       }
-      link(w, eastEdge[best]);
+      links.push([w, eastEdge[best]]);
     }
+
+    return links;
+  }
+
+  // Copy of pack.cells.c with seam links added between west-edge and east-edge
+  // water cells. pack.cells.c itself is never mutated. Sea-route pathfinding only.
+  private buildSeaAdjacency(): number[][] {
+    const { cells } = pack;
+    const links = this.collectSeamLinks();
+    if (!links.length) return cells.c;
+
+    // Shallow-copy the neighbour array; only edge cells get fresh inner arrays.
+    const c = cells.c.slice();
+    const link = (a: number, b: number) => {
+      if (c[a] === cells.c[a]) c[a] = cells.c[a].slice();
+      if (c[b] === cells.c[b]) c[b] = cells.c[b].slice();
+      if (!c[a].includes(b)) c[a].push(b);
+      if (!c[b].includes(a)) c[b].push(a);
+    };
+
+    for (const [w, e] of links) link(w, e);
 
     return c;
   }

@@ -315,3 +315,50 @@ describe("portImportance", () => {
     expect(portImportance({} as any)).toBe(0);
   });
 });
+
+describe("collectSeamLinks", () => {
+  it("pairs each west-edge water cell with the nearest east-edge water cell by latitude", () => {
+    const g = globalThis as any;
+    g.graphWidth = 100;
+    g.grid = { spacing: 20 };
+    g.pack = {
+      cells: {
+        i: new Uint32Array([0, 1, 2, 3, 4, 5]),
+        h: [0, 0, 0, 30, 0, 0],
+        p: [
+          [10, 10],
+          [90, 12],
+          [50, 50],
+          [10, 80],
+          [88, 82],
+          [12, 78]
+        ] as [number, number][],
+        c: [[], [], [], [], [], []] as number[][]
+      }
+    };
+
+    const links = (Routes as any).collectSeamLinks() as Array<[number, number]>;
+    const has = (a: number, b: number) => links.some(([w, e]) => w === a && e === b);
+    expect(has(0, 1)).toBe(true); // west(y10) -> east(y12)
+    expect(has(5, 4)).toBe(true); // west(y78) -> east(y82)
+    expect(links.length).toBe(2); // only the two west water cells produce links
+  });
+
+  it("returns no links when an edge has no water", () => {
+    const g = globalThis as any;
+    g.graphWidth = 100;
+    g.grid = { spacing: 20 };
+    g.pack = {
+      cells: {
+        i: new Uint32Array([0, 1]),
+        h: [0, 0],
+        p: [
+          [10, 10],
+          [50, 50]
+        ] as [number, number][],
+        c: [[], []] as number[][]
+      }
+    };
+    expect((Routes as any).collectSeamLinks()).toEqual([]);
+  });
+});
