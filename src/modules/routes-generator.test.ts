@@ -435,20 +435,20 @@ describe("generateSeaTradeNetwork hub dedup", () => {
     };
   };
 
-  // hub (24, centre) + two ports west of it on one landmass (21, 22), plus east /
-  // north / south tips on their own landmasses. The west pair both route east
-  // through the hub, and the L2<->L3 trunk crossing (22->27) reuses the hub
-  // corridor too: exactly the "many routes converge on one port" case.
-  const HUB = 24;
+  // hub (24, centre) + four ports within SEA_FEEDER_CAP_KM (300px) arranged in
+  // cardinal directions. Each outer port routes to the hub as the highest-gravity
+  // partner within reach — exactly the "many routes converge on one port" case.
+  // All ports are on distinct landmasses so there are no same-landmass feeder caps.
+  // STEP ≈ 166.67px, so cell ±1 in x or y is ~167px and cell ±1 diagonally is ~236px.
+  const HUB = 24; // centre cell (3, 3) = (500, 500)
   const ports = [
     { i: 1, port: 1, cell: HUB, x: 500, y: 500, population: 100, settlementType: "capital", capital: 1 },
-    { i: 2, port: 1, cell: 21, x: 0, y: 500, population: 100, settlementType: "capital", capital: 1 },
-    { i: 3, port: 1, cell: 22, x: STEP, y: 500, population: 100, settlementType: "capital", capital: 1 },
-    { i: 4, port: 1, cell: 27, x: 1000, y: 500, population: 100, settlementType: "capital", capital: 1 },
-    { i: 5, port: 1, cell: 3, x: 500, y: 0, population: 100, settlementType: "capital", capital: 1 },
-    { i: 6, port: 1, cell: 45, x: 500, y: 1000, population: 100, settlementType: "capital", capital: 1 }
+    { i: 2, port: 1, cell: 23, x: 500 - STEP, y: 500, population: 100, settlementType: "capital", capital: 1 },
+    { i: 3, port: 1, cell: 25, x: 500 + STEP, y: 500, population: 100, settlementType: "capital", capital: 1 },
+    { i: 4, port: 1, cell: 17, x: 500, y: 500 - STEP, population: 100, settlementType: "capital", capital: 1 },
+    { i: 5, port: 1, cell: 31, x: 500, y: 500 + STEP, population: 100, settlementType: "capital", capital: 1 }
   ] as any[];
-  const landmassOf: Record<number, number> = { [HUB]: 1, 21: 2, 22: 2, 27: 3, 3: 4, 45: 5 };
+  const landmassOf: Record<number, number> = { [HUB]: 1, 23: 2, 25: 3, 17: 4, 31: 5 };
 
   beforeAll(() => {
     const g = globalThis as any;
@@ -471,13 +471,13 @@ describe("generateSeaTradeNetwork hub dedup", () => {
     const burgIndex = { portsByFeature: { 1: ports } } as any;
     const components = new Map<number, number>([[1, 0]]); // all ports share one component
 
-    const { trunkRoutes, localRoutes } = (Routes as any).generateSeaTradeNetwork(
+    const { localRoutes } = (Routes as any).generateSeaTradeNetwork(
       connections,
       burgIndex,
       components,
       undefined
     );
-    const allRoutes = [...trunkRoutes, ...localRoutes];
+    const allRoutes = [...localRoutes];
 
     // The scenario must be real: the hub is a junction of >= 3 distinct corridors.
     const hubNeighbours = new Set<number>();
@@ -573,14 +573,13 @@ describe("generateSeaTradeNetwork feeder multi-target", () => {
     const burgIndex = { portsByFeature: { 1: [port(1, SOURCE), port(2, PL), port(3, PR)] } } as any;
     const components = new Map<number, number>([[1, 0]]);
 
-    const { trunkRoutes, localRoutes } = (Routes as any).generateSeaTradeNetwork(
+    const { localRoutes } = (Routes as any).generateSeaTradeNetwork(
       connections,
       burgIndex,
       components,
       undefined
     );
 
-    expect(trunkRoutes).toEqual([]); // single landmass -> no trunk
     expect(localRoutes.length).toBeGreaterThan(0); // feeders to land ports ARE produced
 
     const cellsByEdge = new Map<number, number>();
@@ -632,7 +631,7 @@ describe("selectSeaTradeEdges", () => {
   const isCapital = (i: number) => i <= 2;
   const km = (a: any, b: any) => Math.hypot(a.x - b.x, a.y - b.y);
 
-  it("emits all three tiers, links every port, dedupes pairs, and respects caps", () => {
+  it("emits feeder+coastal tiers, links every port, dedupes pairs, and respects caps", () => {
     const edges = (Routes as any).selectSeaTradeEdges(ports) as Array<{
       from: number;
       to: number;
@@ -651,10 +650,7 @@ describe("selectSeaTradeEdges", () => {
     const keys = edges.map(e => `${Math.min(e.from, e.to)}-${Math.max(e.from, e.to)}`);
     expect(new Set(keys).size).toBe(keys.length);
 
-    // at least one trunk edge exists and every trunk edge crosses between landmasses
-    const trunk = edges.filter(e => e.tier === "trunk");
-    expect(trunk.length).toBeGreaterThan(0);
-    expect(trunk.every(e => landmass[e.from] !== landmass[e.to])).toBe(true);
+    expect(edges.every(e => e.tier !== "trunk")).toBe(true); // trunk tier removed
 
     // at least one feeder and one coastal edge exist
     expect(edges.some(e => e.tier === "feeder")).toBe(true);
@@ -663,10 +659,9 @@ describe("selectSeaTradeEdges", () => {
     // coastal edges are the short hamlet-hamlet pairs (same landmass, non-capital)
     expect(edges.every(e => e.tier !== "coastal" || (!isCapital(e.from) && !isCapital(e.to)))).toBe(true);
 
-    // coastal edges stay within the coastal cap; the trunk safety cap is generous
+    // coastal edges stay within the coastal cap
     edges.forEach(e => {
       if (e.tier === "coastal") expect(km(ports[e.from], ports[e.to])).toBeLessThanOrEqual(120);
-      expect(km(ports[e.from], ports[e.to])).toBeLessThanOrEqual(1500);
     });
   });
 });

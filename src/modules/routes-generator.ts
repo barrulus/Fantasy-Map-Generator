@@ -12,9 +12,9 @@ import {
   round,
   rw
 } from "../utils";
+import { buildAirRoutes } from "./air-routes-generator";
 import type { Burg } from "./burgs-generator";
 import type { Point } from "./voronoi";
-import { buildAirRoutes } from "./air-routes-generator";
 
 // --- Seam wrapping (full-globe maps only) ----------------------------------
 // On a 360° equirectangular map the east/west edges are a seam: cells and burgs
@@ -53,11 +53,8 @@ const ROLE_MULT: Record<string, number> = {
 
 // Sea-trade-network density preset ("medium/balanced"). Retune here.
 const SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
-const SEA_TRUNK_GATEWAYS_PER_LANDMASS = 2; // top ports per landmass that anchor trunk crossings
-const SEA_TRUNK_LINKS_PER_GATEWAY = 3; // nearest other-landmass gateways each gateway links to
 const SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
 const SEA_FEEDER_CAP_KM = 300; // feeders are regional; only trunk routes go long-haul
-const SEA_TRUNK_SAFETY_CAP_KM = 1500; // sanity backstop only; Urquhart self-limits to neighbour bridges
 // Long-haul trade (trunk+feeder) only runs over the top-N most important ports per
 // navigable component. Bounds the O(k^2) gravity selection and the long-haul A* path
 // count regardless of map size; every port still gets short coastal links. Big maps
@@ -1048,75 +1045,6 @@ class RoutesModule {
       }
     }
 
-    // trunk: the inter-landmass backbone — the long-haul lanes. Every landmass
-    // fronting this ocean contributes its most important port(s) as gateways; an
-    // Urquhart graph over the gateways links neighbouring landmasses, and we keep
-    // only edges that actually cross between *different* landmasses (intra-coast
-    // links are left to feeder/coastal, which is why the old hub graph just hugged
-    // one shore). Paired with the deep-water trunk cost these become direct
-    // open-water crossings, and routing the gateways through mid-ocean island
-    // landmasses naturally produces relay hub-and-spoke chains.
-    const landmassOf = (i: number) => pack.cells.f[ports[i].cell];
-    const byLandmass = new Map<number, number[]>();
-    for (let i = 0; i < n; i++) {
-      const lm = landmassOf(i);
-      const list = byLandmass.get(lm);
-      if (list) list.push(i);
-      else byLandmass.set(lm, [i]);
-    }
-    const gateways: number[] = [];
-    for (const list of byLandmass.values()) {
-      list.sort((a, b) => imp[b] - imp[a]);
-      for (let k = 0; k < Math.min(SEA_TRUNK_GATEWAYS_PER_LANDMASS, list.length); k++) gateways.push(list[k]);
-    }
-    const trunkEligible = (i: number, j: number) =>
-      landmassOf(i) !== landmassOf(j) && km(i, j) <= SEA_TRUNK_SAFETY_CAP_KM;
-    // Each gateway proposes its nearest gateways on OTHER landmasses. (Urquhart/
-    // Delaunay are wrong here — they prune the longest edge of every triangle, i.e.
-    // exactly the open-water bridges we want.) We then keep only the single shortest
-    // crossing per landmass PAIR: otherwise 2 gateways x k links draw several near-
-    // parallel lines between the same two landmasses (visible duplication). Each
-    // landmass still reaches its k nearest neighbour landmasses, chaining via islands.
-    const bestCrossing = new Map<number, { a: number; b: number; d: number }>();
-    const considerCrossing = (g: number, h: number) => {
-      const la = landmassOf(g);
-      const lb = landmassOf(h);
-      const pairKey = Math.min(la, lb) * 1e6 + Math.max(la, lb);
-      const dist = d2(g, h);
-      const cur = bestCrossing.get(pairKey);
-      if (!cur || dist < cur.d) bestCrossing.set(pairKey, { a: g, b: h, d: dist });
-    };
-    for (const g of gateways) {
-      const partners = gateways.filter(h => trunkEligible(g, h)).sort((a, b) => d2(g, a) - d2(g, b));
-      for (let k = 0; k < Math.min(SEA_TRUNK_LINKS_PER_GATEWAY, partners.length); k++) considerCrossing(g, partners[k]);
-    }
-
-    // Cross-seam trunk lanes (360 maps only). Proximity selection never picks these
-    // — a port near the west edge always has a nearer same-side neighbour than its
-    // wrapped partner across the seam — so pair edge-band ports across the seam
-    // explicitly, matched by latitude. They feed the same per-landmass-pair dedup,
-    // and the wrapped d2 means a seam lane wins only when it is genuinely shorter.
-    if (wrap) {
-      const margin = graphWidth * 0.25;
-      const westBand = allIndices.filter(i => ports[i].x <= margin);
-      const eastBand = allIndices.filter(i => ports[i].x >= graphWidth - margin);
-      for (const w of westBand) {
-        let best = -1;
-        let bestDy = Infinity;
-        for (const e of eastBand) {
-          if (landmassOf(e) === landmassOf(w)) continue;
-          const dy = Math.abs(ports[e].y - ports[w].y);
-          if (dy < bestDy) {
-            bestDy = dy;
-            best = e;
-          }
-        }
-        if (best >= 0 && km(w, best) <= SEA_TRUNK_SAFETY_CAP_KM) considerCrossing(w, best);
-      }
-    }
-
-    for (const { a, b } of bestCrossing.values()) addEdge(a, b, "trunk");
-
     // coastal: existing Urquhart short pairs, capped at SEA_COASTAL_CAP_KM
     const points = ports.map(p => [p.x, p.y] as Point);
     const urquhartEdges = this.calculateUrquhartEdges(points, wrap, graphWidth);
@@ -1147,7 +1075,7 @@ class RoutesModule {
   }
 
   // Build the full sea-trade network for all navigable components.
-  // Returns trunk routes (rendered as "major") and feeder+coastal routes ("local").
+  // Returns feeder+coastal routes ("local").
   private generateSeaTradeNetwork(
     connections: Set<number>,
     burgIndex: RouteBurgIndex,
@@ -1165,14 +1093,13 @@ class RoutesModule {
       portsByComponent[component].push(...ports);
     }
 
-    const trunkRoutes: Route[] = [];
     const localRoutes: Route[] = [];
 
     // Lightweight diagnostics: routes laid down per tier and how many wrap the seam.
-    const diagRoutes: Record<string, number> = { trunk: 0, feeder: 0, coastal: 0 };
+    const diagRoutes: Record<string, number> = { feeder: 0, coastal: 0 };
     // Per-tier A* time + edge counts: where the sea-trade budget actually goes.
-    const diagPathMs: Record<string, number> = { trunk: 0, feeder: 0, coastal: 0 };
-    const diagEdges: Record<string, number> = { trunk: 0, feeder: 0, coastal: 0 };
+    const diagPathMs: Record<string, number> = { feeder: 0, coastal: 0 };
+    const diagEdges: Record<string, number> = { feeder: 0, coastal: 0 };
     let diagSeamRoutes = 0;
     const seamThreshold = graphWidth / 2;
     const crossesSeam = (cells: number[]) => {
@@ -1192,9 +1119,9 @@ class RoutesModule {
         const route = {
           feature: featureId,
           cells: segment,
-          type: tier === "trunk" ? "major" : "local"
+          type: "local"
         } as Route;
-        (tier === "trunk" ? trunkRoutes : localRoutes).push(route);
+        localRoutes.push(route);
       }
     };
 
@@ -1206,14 +1133,12 @@ class RoutesModule {
 
       const edges = this.selectSeaTradeEdges(ports);
 
-      // Partition: trunk/coastal route per edge; feeders group by their source port
+      // Partition: coastal route per edge; feeders group by their source port
       // so each source is routed as ONE multi-target Dijkstra tree (not 1 A* per edge).
-      const trunkEdges: SeaTradeEdge[] = [];
       const coastalEdges: SeaTradeEdge[] = [];
       const feederBySource = new Map<number, number[]>();
       for (const e of edges) {
-        if (e.tier === "trunk") trunkEdges.push(e);
-        else if (e.tier === "coastal") coastalEdges.push(e);
+        if (e.tier === "coastal") coastalEdges.push(e);
         else {
           const list = feederBySource.get(e.from);
           if (list) list.push(e.to);
@@ -1238,11 +1163,7 @@ class RoutesModule {
         laySegments(segments, e.tier, a.port as number);
       };
 
-      // Tier order is load-bearing: higher tiers claim shared corridors first so they
-      // render unbroken (selectSeaTradeEdges sorts the same way). Trunk -> feeder ->
-      // coastal.
-      for (const e of trunkEdges) layPerEdge(e);
-
+      // Feeder before coastal so feeders claim shared corridors first.
       for (const [source, targets] of feederBySource) {
         const start = ports[source].cell;
         const targetCells = targets.map(t => ports[t].cell);
@@ -1268,7 +1189,7 @@ class RoutesModule {
       console.log(
         "  sea-trade A* per tier:",
         Object.fromEntries(
-          (["trunk", "feeder", "coastal"] as const).map(tier => [
+          (["feeder", "coastal"] as const).map(tier => [
             tier,
             `${diagEdges[tier]} edges / ${diagPathMs[tier].toFixed(0)}ms (${(
               diagPathMs[tier] / Math.max(diagEdges[tier], 1)
@@ -1277,7 +1198,7 @@ class RoutesModule {
         )
       );
     TIME && console.timeEnd("generateSeaTradeNetwork");
-    return { trunkRoutes, localRoutes };
+    return { localRoutes };
   }
 
   private preparePointsArray(): Point[] {
@@ -1380,7 +1301,7 @@ class RoutesModule {
     const trails = this.generateTrails(connections, burgIndex);
     const footpaths = this.generateFootpaths(connections, burgIndex);
     const components = this.buildNavigableComponents();
-    const { trunkRoutes: majorSeaRoutes, localRoutes: seaRoutes } = this.generateSeaTradeNetwork(
+    const { localRoutes: seaRoutes } = this.generateSeaTradeNetwork(
       connections,
       burgIndex,
       components,
@@ -1433,18 +1354,6 @@ class RoutesModule {
       routes.push({
         i: routes.length,
         group: "trails",
-        type,
-        feature,
-        points
-      });
-    }
-
-    for (const { feature, cells, merged, type } of this.mergeRoutes(majorSeaRoutes)) {
-      if (merged) continue;
-      const points = this.getPoints("searoutes", cells!, pointsArray);
-      routes.push({
-        i: routes.length,
-        group: "searoutes",
         type,
         feature,
         points
