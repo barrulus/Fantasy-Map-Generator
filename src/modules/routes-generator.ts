@@ -278,7 +278,6 @@ type RouteBurgIndex = {
   regionalCentersByFeature: Record<number, Burg[]>;
   villagesByFeature: Record<number, Burg[]>;
   hamletsByFeature: Record<number, Burg[]>;
-  capitalPortsByFeature: Record<number, Burg[]>;
   skyPorts: Burg[];
 };
 
@@ -314,7 +313,6 @@ class RoutesModule {
     const regionalCentersByFeature: Record<number, Burg[]> = {};
     const villagesByFeature: Record<number, Burg[]> = {};
     const hamletsByFeature: Record<number, Burg[]> = {};
-    const capitalPortsByFeature: Record<number, Burg[]> = {};
     const skyPorts: Burg[] = [];
 
     const addBurg = (collection: Record<number, Burg[]>, feature: number, burg: Burg) => {
@@ -344,7 +342,6 @@ class RoutesModule {
         if (burg.settlementType === "largeVillage" || burg.settlementType === "smallVillage")
           addBurg(villagesByFeature, feature as number, burg);
         if (burg.settlementType === "hamlet") addBurg(hamletsByFeature, feature as number, burg);
-        if (port && (capital || burg.isLargePort)) addBurg(capitalPortsByFeature, port as number, burg);
       }
     }
 
@@ -356,7 +353,6 @@ class RoutesModule {
       regionalCentersByFeature,
       villagesByFeature,
       hamletsByFeature,
-      capitalPortsByFeature,
       skyPorts
     };
   }
