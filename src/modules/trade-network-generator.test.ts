@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Burg } from "./burgs-generator";
-import { assignTradeRoles, buildLegGraph, routeTradeNetwork, type TradeNode, type TradeNetworkResult } from "./trade-network-generator";
+import {
+  assignTradeRoles,
+  buildLegGraph,
+  routeTradeNetwork,
+  type TradeNetworkResult,
+  type TradeNode
+} from "./trade-network-generator";
 
 // importance = population (simple, deterministic for tests)
 const imp = (b: any) => b.population ?? 0;
@@ -107,12 +113,7 @@ describe("buildLegGraph", () => {
 
 describe("routeTradeNetwork", () => {
   // chain: hub0 - way1 - way2 - hub3  (each adjacent pair linked)
-  const adj = [
-    [1],
-    [0, 2],
-    [1, 3],
-    [2]
-  ];
+  const adj = [[1], [0, 2], [1, 3], [2]];
 
   it("connects hubs via a multi-hop path within the hop cap", () => {
     const res: TradeNetworkResult = routeTradeNetwork(4, adj, [0, 3], 3);
