@@ -1,5 +1,33 @@
 import type { Burg } from "./burgs-generator";
 
+export interface TradeNode {
+  index: number;
+  x: number;
+  y: number;
+  component: number;
+  burg: Burg;
+}
+
+// Adjacency over trade nodes: an undirected edge exists when two nodes are in the
+// same navigable component and within one leg (squared distance <= maxLegDist2).
+// O(n^2) over the small trade-node set.
+export function buildLegGraph(
+  nodes: TradeNode[],
+  maxLegDist2: number,
+  dist2: (a: TradeNode, b: TradeNode) => number
+): number[][] {
+  const adj: number[][] = nodes.map(() => []);
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      if (nodes[i].component !== nodes[j].component) continue;
+      if (dist2(nodes[i], nodes[j]) > maxLegDist2) continue;
+      adj[i].push(j);
+      adj[j].push(i);
+    }
+  }
+  return adj;
+}
+
 export interface TradeRoleConfig {
   importance: (b: Burg) => number;
   isLargePort: (b: Burg) => boolean;

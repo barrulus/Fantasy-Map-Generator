@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Burg } from "./burgs-generator";
-import { assignTradeRoles } from "./trade-network-generator";
+import { assignTradeRoles, buildLegGraph, type TradeNode } from "./trade-network-generator";
 
 // importance = population (simple, deterministic for tests)
 const imp = (b: any) => b.population ?? 0;
@@ -78,5 +78,29 @@ describe("assignTradeRoles", () => {
 
     expect(manual.tradeRole).toBe("hub"); // manual role preserved
     expect(cap3.tradeRole).toBe("hub"); // auto hub for the state (capital is itself a port)
+  });
+});
+
+describe("buildLegGraph", () => {
+  // four nodes on a line; component A = {0,1,2}, component B = {3}
+  const nodes: TradeNode[] = [
+    { index: 0, x: 0, y: 0, component: 1, burg: {} as any },
+    { index: 1, x: 10, y: 0, component: 1, burg: {} as any },
+    { index: 2, x: 30, y: 0, component: 1, burg: {} as any },
+    { index: 3, x: 12, y: 0, component: 2, burg: {} as any }
+  ];
+  const d2 = (a: TradeNode, b: TradeNode) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+
+  it("links nodes within range R in the same component, both directions", () => {
+    const g = buildLegGraph(nodes, 15 * 15, d2); // R = 15
+    expect(g[0].sort()).toEqual([1]); // 0-1 (10) yes; 0-2 (30) no
+    expect(g[1].sort()).toEqual([0]); // 1-2 (20) > 15 no
+  });
+
+  it("never links across navigable components even when within range", () => {
+    const g = buildLegGraph(nodes, 15 * 15, d2);
+    // node 3 (comp 2) is 2px from node 1 (comp 1) but different ocean -> no edge
+    expect(g[3]).toEqual([]);
+    expect(g[1]).not.toContain(3);
   });
 });
