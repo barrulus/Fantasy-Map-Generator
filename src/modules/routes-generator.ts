@@ -14,6 +14,7 @@ import {
 } from "../utils";
 import { buildAirRoutes } from "./air-routes-generator";
 import type { Burg } from "./burgs-generator";
+import { assignTradeRoles, buildLegGraph, routeTradeNetwork, type TradeNode } from "./trade-network-generator";
 import type { Point } from "./voronoi";
 
 // --- Seam wrapping (full-globe maps only) ----------------------------------
@@ -55,6 +56,9 @@ const ROLE_MULT: Record<string, number> = {
 const SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
 const SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
 const SEA_FEEDER_CAP_KM = 300; // feeders are regional; only trunk routes go long-haul
+const MIN_HUB_SIZE = 0; // min portImportance to qualify as a state hub (tunable)
+const TRADE_LEG_RANGE_KM = 300; // max single-leg sailing distance (refuel range)
+const TRADE_MAX_HOPS = 5; // max intermediate-stop legs between two hubs
 // Long-haul trade (trunk+feeder) only runs over the top-N most important ports per
 // navigable component. Bounds the O(k^2) gravity selection and the long-haul A* path
 // count regardless of map size; every port still gets short coastal links. Big maps
@@ -251,7 +255,7 @@ const suffixes: Record<string, Record<string, number>> = {
 
 export interface Route {
   i: number;
-  group: "roads" | "trails" | "searoutes" | "airroutes";
+  group: "roads" | "trails" | "searoutes" | "airroutes" | "traderoutes";
   type?: string;
   feature: number;
   points: number[][];
@@ -1201,6 +1205,108 @@ class RoutesModule {
     return { localRoutes };
   }
 
+  // Global trade hub network: assign roles, build the leg graph over hubs+waystations,
+  // route every viable hub pair multi-hop, then draw each unique leg once (straight,
+  // or a water-path fallback when a straight leg would clip land).
+  generateTradeNetwork(seaAdjacency?: number[][]): Route[] {
+    TIME && console.time("generateTradeNetwork");
+    const wrap = isWrapEnabled();
+    const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
+    const dist2 = (ax: number, ay: number, bx: number, by: number) =>
+      wrapDistanceSquared([ax, ay], [bx, by], wrap, graphWidth);
+
+    // capital burg per state
+    const capitalByState = new Map<number, Burg>();
+    for (const b of pack.burgs) {
+      if (b.i && !b.removed && b.capital && b.state !== undefined) capitalByState.set(b.state, b);
+    }
+
+    assignTradeRoles(pack.burgs, {
+      importance: portImportance,
+      isLargePort: (b: Burg) => Boolean(b.isLargePort) || b.settlementType === "largePort",
+      minHubSize: MIN_HUB_SIZE,
+      capitalByState,
+      dist2
+    });
+
+    // build nodes (hubs + waystations) with their navigable component
+    const components = this.buildNavigableComponents();
+    const nodes: TradeNode[] = [];
+    const hubIndices: number[] = [];
+    for (const b of pack.burgs) {
+      if (!b.tradeRole) continue;
+      const component = components.get(b.port as number) ?? (b.port as number);
+      const index = nodes.length;
+      nodes.push({ index, x: b.x, y: b.y, component, burg: b });
+      if (b.tradeRole === "hub") hubIndices.push(index);
+    }
+    if (hubIndices.length < 2) {
+      TIME && console.timeEnd("generateTradeNetwork");
+      return [];
+    }
+
+    const maxLegPx = TRADE_LEG_RANGE_KM * mapScale;
+    const adj = buildLegGraph(nodes, maxLegPx * maxLegPx, (a, b) => dist2(a.x, a.y, b.x, b.y));
+    const { legs } = routeTradeNetwork(nodes.length, adj, hubIndices, TRADE_MAX_HOPS);
+
+    const tradeRoutes: Route[] = [];
+    let fallbackLegs = 0;
+    for (const leg of legs) {
+      const a = nodes[leg.a].burg;
+      const b = nodes[leg.b].burg;
+      let points: number[][];
+      if (this.segmentIsWater(a.x, a.y, b.x, b.y, a.cell, b.cell)) {
+        points = [
+          [a.x, a.y, a.cell],
+          [b.x, b.y, b.cell]
+        ];
+      } else {
+        const segs = this.findPathSegments({
+          isWater: true,
+          connections: new Set<number>(),
+          start: a.cell,
+          exit: b.cell,
+          seaAdjacency
+        });
+        const cells = segs[0];
+        if (!cells || cells.length < 2) continue;
+        points = cells.map(cellId => [...pack.cells.p[cellId], cellId]);
+        fallbackLegs++;
+      }
+      tradeRoutes.push({ i: 0, group: "traderoutes", feature: a.port as number, points });
+    }
+
+    TIME &&
+      console.log(
+        `  trade network: hubs=${hubIndices.length} nodes=${nodes.length} legs=${legs.length} fallback=${fallbackLegs}`
+      );
+    TIME && console.timeEnd("generateTradeNetwork");
+    return tradeRoutes;
+  }
+
+  // True if the straight segment A->B stays over water (sampled interior). The two
+  // endpoint cells are the land port cells themselves, so samples that snap back to
+  // them are ignored — only genuine intervening land triggers the water-path fallback.
+  private segmentIsWater(
+    ax: number,
+    ay: number,
+    bx: number,
+    by: number,
+    startCell: number,
+    endCell: number
+  ): boolean {
+    const steps = 12;
+    for (let s = 1; s < steps; s++) {
+      const t = s / steps;
+      const x = ax + (bx - ax) * t;
+      const y = ay + (by - ay) * t;
+      const cell = findClosestCell(x, y, undefined, pack);
+      if (cell === undefined || cell === startCell || cell === endCell) continue;
+      if (pack.cells.h[cell] >= 20) return false;
+    }
+    return true;
+  }
+
   private preparePointsArray(): Point[] {
     const { cells, burgs } = pack;
     return cells.p.map(([x, y], cellId) => {
@@ -1301,12 +1407,7 @@ class RoutesModule {
     const trails = this.generateTrails(connections, burgIndex);
     const footpaths = this.generateFootpaths(connections, burgIndex);
     const components = this.buildNavigableComponents();
-    const { localRoutes: seaRoutes } = this.generateSeaTradeNetwork(
-      connections,
-      burgIndex,
-      components,
-      seaAdjacency
-    );
+    const { localRoutes: seaRoutes } = this.generateSeaTradeNetwork(connections, burgIndex, components, seaAdjacency);
     const airPoints = burgIndex.skyPorts.map(b => [b.x, b.y] as Point);
     const airUrquhart = this.calculateUrquhartEdges(airPoints, isWrapEnabled(), graphWidth);
     const airRoutes = buildAirRoutes(burgIndex.skyPorts, airUrquhart);
@@ -1376,6 +1477,12 @@ class RoutesModule {
     for (const airRoute of airRoutes) {
       airRoute.i = routes.length;
       routes.push(airRoute);
+    }
+
+    const tradeRoutes = this.generateTradeNetwork(seaAdjacency);
+    for (const route of tradeRoutes) {
+      route.i = routes.length;
+      routes.push(route);
     }
 
     return routes;

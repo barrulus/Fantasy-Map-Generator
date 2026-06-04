@@ -471,12 +471,7 @@ describe("generateSeaTradeNetwork hub dedup", () => {
     const burgIndex = { portsByFeature: { 1: ports } } as any;
     const components = new Map<number, number>([[1, 0]]); // all ports share one component
 
-    const { localRoutes } = (Routes as any).generateSeaTradeNetwork(
-      connections,
-      burgIndex,
-      components,
-      undefined
-    );
+    const { localRoutes } = (Routes as any).generateSeaTradeNetwork(connections, burgIndex, components, undefined);
     const allRoutes = [...localRoutes];
 
     // The scenario must be real: the hub is a junction of >= 3 distinct corridors.
@@ -573,12 +568,7 @@ describe("generateSeaTradeNetwork feeder multi-target", () => {
     const burgIndex = { portsByFeature: { 1: [port(1, SOURCE), port(2, PL), port(3, PR)] } } as any;
     const components = new Map<number, number>([[1, 0]]);
 
-    const { localRoutes } = (Routes as any).generateSeaTradeNetwork(
-      connections,
-      burgIndex,
-      components,
-      undefined
-    );
+    const { localRoutes } = (Routes as any).generateSeaTradeNetwork(connections, burgIndex, components, undefined);
 
     expect(localRoutes.length).toBeGreaterThan(0); // feeders to land ports ARE produced
 
@@ -663,5 +653,63 @@ describe("selectSeaTradeEdges", () => {
     edges.forEach(e => {
       if (e.tier === "coastal") expect(km(ports[e.from], ports[e.to])).toBeLessThanOrEqual(120);
     });
+  });
+});
+
+describe("generateTradeNetwork", () => {
+  const N = 13;
+  const STEP = 1000 / (N - 1);
+
+  const buildGrid = (landCells: number[]) => {
+    const i = new Uint32Array(N * N);
+    const c: number[][] = [];
+    const p: [number, number][] = [];
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const id = y * N + x;
+        i[id] = id;
+        p.push([x * STEP, y * STEP]);
+        const neibs: number[] = [];
+        if (x > 0) neibs.push(id - 1);
+        if (x < N - 1) neibs.push(id + 1);
+        if (y > 0) neibs.push(id - N);
+        if (y < N - 1) neibs.push(id + N);
+        c.push(neibs);
+      }
+    }
+    const h = new Array(N * N).fill(0); // water
+    for (const land of landCells) h[land] = 30;
+    return { i, c, p, h, t: new Array(N * N).fill(0), g: new Array(N * N).fill(0), f: new Array(N * N).fill(1) };
+  };
+
+  it("produces trade routes connecting state hubs via waystations", () => {
+    const g = globalThis as any;
+    g.window = g.window ?? {};
+    g.window.FlatQueue = FlatQueue; // needed if any leg uses the water-path fallback
+    g.graphWidth = 1000;
+    g.graphHeight = 1000;
+    g.mapCoordinates = { lonT: 180 };
+
+    // Legs must be <= TRADE_LEG_RANGE_KM (300px at mapScale 1) = 3.6 cells. Hubs at
+    // cells 1 and 7 are 500px apart (one leg too far), so they only connect via the
+    // waystation at cell 4: cap1-way = 250px, way-cap2 = 250px. all land, rest water.
+    const cap1 = { i: 1, state: 1, capital: 1, port: 1, cell: 1, x: STEP, y: 0, population: 50, settlementType: "largePort" } as any;
+    const cap2 = { i: 2, state: 2, capital: 1, port: 1, cell: 7, x: 7 * STEP, y: 0, population: 50, settlementType: "largePort" } as any;
+    const way = { i: 3, state: 1, port: 1, cell: 4, x: 4 * STEP, y: 0, population: 20, settlementType: "largePort" } as any;
+    const burgs = [{}, cap1, cap2, way] as any[];
+    g.pack = { cells: buildGrid([1, 4, 7]), burgs };
+    g.grid = { cells: { temp: [20] } };
+
+    const routes = (Routes as any).generateTradeNetwork();
+
+    expect(cap1.tradeRole).toBe("hub");
+    expect(cap2.tradeRole).toBe("hub");
+    expect(way.tradeRole).toBe("waystation");
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.every((r: any) => r.group === "traderoutes")).toBe(true);
+    // the union of leg endpoints covers both hubs (route reaches hub cells 1 and 7)
+    const cells = new Set<number>(routes.flatMap((r: any) => r.points.map((pt: number[]) => pt[2])));
+    expect(cells.has(1)).toBe(true);
+    expect(cells.has(7)).toBe(true);
   });
 });
