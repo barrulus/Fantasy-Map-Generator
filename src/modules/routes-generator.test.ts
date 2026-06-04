@@ -693,14 +693,43 @@ describe("generateTradeNetwork", () => {
     // Legs must be <= TRADE_LEG_RANGE_KM (300px at mapScale 1) = 3.6 cells. Hubs at
     // cells 1 and 7 are 500px apart (one leg too far), so they only connect via the
     // waystation at cell 4: cap1-way = 250px, way-cap2 = 250px. all land, rest water.
-    const cap1 = { i: 1, state: 1, capital: 1, port: 1, cell: 1, x: STEP, y: 0, population: 50, settlementType: "largePort" } as any;
-    const cap2 = { i: 2, state: 2, capital: 1, port: 1, cell: 7, x: 7 * STEP, y: 0, population: 50, settlementType: "largePort" } as any;
-    const way = { i: 3, state: 1, port: 1, cell: 4, x: 4 * STEP, y: 0, population: 20, settlementType: "largePort" } as any;
+    const cap1 = {
+      i: 1,
+      state: 1,
+      capital: 1,
+      port: 1,
+      cell: 1,
+      x: STEP,
+      y: 0,
+      population: 50,
+      settlementType: "largePort"
+    } as any;
+    const cap2 = {
+      i: 2,
+      state: 2,
+      capital: 1,
+      port: 1,
+      cell: 7,
+      x: 7 * STEP,
+      y: 0,
+      population: 50,
+      settlementType: "largePort"
+    } as any;
+    const way = {
+      i: 3,
+      state: 1,
+      port: 1,
+      cell: 4,
+      x: 4 * STEP,
+      y: 0,
+      population: 20,
+      settlementType: "largePort"
+    } as any;
     const burgs = [{}, cap1, cap2, way] as any[];
     g.pack = { cells: buildGrid([1, 4, 7]), burgs };
     g.grid = { cells: { temp: [20] } };
 
-    const routes = (Routes as any).generateTradeNetwork();
+    const routes = (Routes as any).generateTradeNetwork(new Map<number, number>());
 
     expect(cap1.tradeRole).toBe("hub");
     expect(cap2.tradeRole).toBe("hub");
@@ -711,5 +740,12 @@ describe("generateTradeNetwork", () => {
     const cells = new Set<number>(routes.flatMap((r: any) => r.points.map((pt: number[]) => pt[2])));
     expect(cells.has(1)).toBe(true);
     expect(cells.has(7)).toBe(true);
+    expect(routes.length).toBe(2); // two legs: cap1<->way and way<->cap2 (no direct hub-hub leg)
+    // no single route connects the two hubs directly
+    const direct = routes.some((r: any) => {
+      const cs = r.points.map((pt: number[]) => pt[2]);
+      return cs.includes(1) && cs.includes(7);
+    });
+    expect(direct).toBe(false);
   });
 });

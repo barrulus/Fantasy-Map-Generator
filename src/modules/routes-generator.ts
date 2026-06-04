@@ -55,11 +55,11 @@ const ROLE_MULT: Record<string, number> = {
 // Sea-trade-network density preset ("medium/balanced"). Retune here.
 const SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
 const SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
-const SEA_FEEDER_CAP_KM = 300; // feeders are regional; only trunk routes go long-haul
+const SEA_FEEDER_CAP_KM = 300; // feeders are regional; long-haul connections are handled by the trade hub network
 const MIN_HUB_SIZE = 0; // min portImportance to qualify as a state hub (tunable)
 const TRADE_LEG_RANGE_KM = 300; // max single-leg sailing distance (refuel range)
 const TRADE_MAX_HOPS = 5; // max intermediate-stop legs between two hubs
-// Long-haul trade (trunk+feeder) only runs over the top-N most important ports per
+// Long-haul trade (feeder) only runs over the top-N most important ports per
 // navigable component. Bounds the O(k^2) gravity selection and the long-haul A* path
 // count regardless of map size; every port still gets short coastal links. Big maps
 // can have tens of thousands of ports in one ocean, so this cap is essential.
@@ -263,7 +263,7 @@ export interface Route {
   merged?: boolean;
 }
 
-type SeaTradeTier = "trunk" | "feeder" | "coastal";
+type SeaTradeTier = "feeder" | "coastal";
 interface SeaTradeEdge {
   from: number;
   to: number;
@@ -483,11 +483,11 @@ class RoutesModule {
     // Hoisted out of the per-edge cost functions: the wrap gate is constant for
     // the lifetime of an A* search, so evaluate it once rather than per edge.
     const wrap = isWrapEnabled();
-    // Trunk and feeder are open-water trade routes: they ignore the distance-from-
-    // coast penalty so A* takes the direct crossing (across an ocean for trunk, across
-    // a bay/gulf for feeder) instead of hugging the shore around it. Only the dense
-    // short-hop coastal tier keeps the penalty, so it still traces the shoreline.
-    const deepWater = routeType === "trunk" || routeType === "feeder";
+    // Feeder routes are open-water trade routes: they ignore the distance-from-coast
+    // penalty so A* takes the direct crossing (across a bay/gulf) instead of hugging
+    // the shore around it. Only the dense short-hop coastal tier keeps the penalty,
+    // so it still traces the shoreline.
+    const deepWater = routeType === "feeder";
 
     function getLandPathCost(current: number, next: number) {
       if (pack.cells.h[next] < 20) return Infinity;
@@ -522,7 +522,7 @@ class RoutesModule {
       const distanceSq = wrapDistanceSquared(pack.cells.p[current], pack.cells.p[next], wrap, graphWidth);
       const connectionModifier = connections.has(encodeConnection(current, next)) ? 0.5 : 1;
 
-      // Deep-water trade routes (trunk/feeder) minimise TRUE distance so they cut
+      // Deep-water trade routes (feeder) minimise TRUE distance so they cut
       // straight across open water. The default coastal cost uses SQUARED distance:
       // because open-ocean cells are far coarser than coastal ones, each ocean step
       // is a big jump whose square is hugely expensive, so squared cost hugs the
@@ -998,7 +998,7 @@ class RoutesModule {
   }
 
   // Gravity-based edge selection for one navigable component's ports.
-  // Produces deduped trunk/feeder/coastal edges (highest tier wins on collision).
+  // Produces deduped feeder/coastal edges (highest tier wins on collision).
   private selectSeaTradeEdges(ports: Burg[]): SeaTradeEdge[] {
     const n = ports.length;
     const wrap = isWrapEnabled();
@@ -1010,11 +1010,11 @@ class RoutesModule {
     const gravity = (i: number, j: number) => (imp[i] * imp[j]) / Math.max(d2(i, j), 1e-9);
     const km = (i: number, j: number) => Math.sqrt(d2(i, j)) / mapScale;
 
-    const tierRank: Record<SeaTradeTier, number> = { coastal: 0, feeder: 1, trunk: 2 };
+    const tierRank: Record<SeaTradeTier, number> = { coastal: 0, feeder: 1 };
     const edges = new Map<number, SeaTradeTier>();
     // For feeder pairs, remember which major port proposed them. The edge Map is
     // unordered (lo*n+hi), but feeders are routed as a single multi-target tree per
-    // source port, so we must recover that source direction when emitting results.
+    // source; we must recover that source direction when emitting results.
     const feederSource = new Map<number, number>();
     const addEdge = (a: number, b: number, tier: SeaTradeTier) => {
       if (a === b) return;
@@ -1036,7 +1036,7 @@ class RoutesModule {
         : [...allIndices].sort((a, b) => imp[b] - imp[a]).slice(0, SEA_TRADE_MAX_PORTS);
 
     // feeder: each major port -> its top SEA_FEEDER_LINKS gravity partners within regional
-    // reach. Capping distance keeps feeder A* paths short and leaves long hauls to trunk.
+    // reach. Capping distance keeps feeder A* paths short.
     for (const i of major) {
       const partners = major
         .filter(j => j !== i && km(i, j) <= SEA_FEEDER_CAP_KM)
@@ -1061,7 +1061,7 @@ class RoutesModule {
       const lo = Math.floor(key / n);
       const hi = key % n;
       // Feeders carry their proposing source as `from` so they can be grouped and
-      // routed per-source; trunk/coastal are direction-agnostic (lo/hi is fine).
+      // routed per-source; coastal is direction-agnostic (lo/hi is fine).
       if (tier === "feeder") {
         const src = feederSource.get(key) ?? lo;
         result.push({ from: src, to: src === lo ? hi : lo, tier });
@@ -1072,8 +1072,8 @@ class RoutesModule {
     // Emit highest tier first. The pathfinder dedups against already-drawn routes
     // (getRouteSegments drops cells already in `connections`), so whichever tier is
     // laid down first claims a shared corridor as a continuous line; later tiers
-    // only fill the gaps. Trunk must win those corridors to render as unbroken
-    // long-haul routes, else the short feeder routes cannibalise them into fragments.
+    // only fill the gaps. Feeder must win those corridors to render as unbroken
+    // regional routes, else coastal routes cannibalise them into fragments.
     result.sort((a, b) => tierRank[b.tier] - tierRank[a.tier]);
     return result;
   }
@@ -1208,7 +1208,7 @@ class RoutesModule {
   // Global trade hub network: assign roles, build the leg graph over hubs+waystations,
   // route every viable hub pair multi-hop, then draw each unique leg once (straight,
   // or a water-path fallback when a straight leg would clip land).
-  generateTradeNetwork(seaAdjacency?: number[][]): Route[] {
+  private generateTradeNetwork(components: Map<number, number>, seaAdjacency?: number[][]): Route[] {
     TIME && console.time("generateTradeNetwork");
     const wrap = isWrapEnabled();
     const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
@@ -1230,11 +1230,11 @@ class RoutesModule {
     });
 
     // build nodes (hubs + waystations) with their navigable component
-    const components = this.buildNavigableComponents();
     const nodes: TradeNode[] = [];
     const hubIndices: number[] = [];
     for (const b of pack.burgs) {
       if (!b.tradeRole) continue;
+      if (!b.port) continue;
       const component = components.get(b.port as number) ?? (b.port as number);
       const index = nodes.length;
       nodes.push({ index, x: b.x, y: b.y, component, burg: b });
@@ -1266,6 +1266,7 @@ class RoutesModule {
           connections: new Set<number>(),
           start: a.cell,
           exit: b.cell,
+          routeType: "feeder",
           seaAdjacency
         });
         const cells = segs[0];
@@ -1287,14 +1288,7 @@ class RoutesModule {
   // True if the straight segment A->B stays over water (sampled interior). The two
   // endpoint cells are the land port cells themselves, so samples that snap back to
   // them are ignored — only genuine intervening land triggers the water-path fallback.
-  private segmentIsWater(
-    ax: number,
-    ay: number,
-    bx: number,
-    by: number,
-    startCell: number,
-    endCell: number
-  ): boolean {
+  private segmentIsWater(ax: number, ay: number, bx: number, by: number, startCell: number, endCell: number): boolean {
     const steps = 12;
     for (let s = 1; s < steps; s++) {
       const t = s / steps;
@@ -1479,7 +1473,7 @@ class RoutesModule {
       routes.push(airRoute);
     }
 
-    const tradeRoutes = this.generateTradeNetwork(seaAdjacency);
+    const tradeRoutes = this.generateTradeNetwork(components, seaAdjacency);
     for (const route of tradeRoutes) {
       route.i = routes.length;
       routes.push(route);
