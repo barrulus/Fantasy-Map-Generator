@@ -1,6 +1,6 @@
 import FlatQueue from "flatqueue";
 import { beforeAll, describe, expect, it } from "vitest";
-import { findPath } from "./pathUtils";
+import { findPath, findPathTree } from "./pathUtils";
 
 // Build a tiny 5×5 grid packed-graph fixture. Each cell's neighbours are
 // its 4-connected grid neighbours. Position is its grid coordinate.
@@ -106,6 +106,62 @@ describe("findPath", () => {
     expect(b).not.toBeNull();
     expect(a![0]).toBe(0);
     expect(b![0]).toBe(99);
+  });
+});
+
+describe("findPathTree", () => {
+  beforeAll(() => {
+    (globalThis as any).window = (globalThis as any).window ?? {};
+    (globalThis as any).window.FlatQueue = FlatQueue;
+  });
+
+  it("returns a shortest path to every target from one search", () => {
+    const g = makeGrid(5); // ids 0..24, 4-connected, unit cost
+    const paths = findPathTree(0, [4, 20, 24], () => 1, g);
+
+    expect([...paths.keys()].sort((a, b) => a - b)).toEqual([4, 20, 24]);
+    // each path starts at the source, ends at its target, and is a shortest path
+    // (Manhattan distance + 1 cells on a unit-cost 4-connected grid)
+    expect(paths.get(4)![0]).toBe(0);
+    expect(paths.get(4)![paths.get(4)!.length - 1]).toBe(4);
+    expect(paths.get(4)!.length).toBe(5); // 0->1->2->3->4
+    expect(paths.get(24)!.length).toBe(9); // 8 steps corner-to-corner
+  });
+
+  it("settles a target that is impassable to ENTER (a port on land, reached by discovery)", () => {
+    // Real ports sit on land cells (cost Infinity to enter) reached across water.
+    // The target must still be returned, terminating the path like findPath's isExit.
+    const g = makeGrid(5);
+    const land = new Set([12, 24]); // both targets cost Infinity to enter
+    const getCost = (_: number, next: number) => (land.has(next) ? Infinity : 1);
+    const paths = findPathTree(0, [12, 24], getCost, g);
+
+    expect(paths.has(12)).toBe(true);
+    expect(paths.has(24)).toBe(true);
+    expect(paths.get(24)![paths.get(24)!.length - 1]).toBe(24); // path actually ends at the target
+  });
+
+  it("omits unreachable targets", () => {
+    const g = makeGrid(5);
+    const blocked = new Set([19, 23]); // wall off cell 24's only two approaches
+    const getCost = (_: number, next: number) => (blocked.has(next) ? Infinity : 1);
+    const paths = findPathTree(0, [12, 24], getCost, g);
+
+    expect(paths.has(12)).toBe(true);
+    expect(paths.has(24)).toBe(false);
+  });
+
+  it("excludes the start cell from its own targets", () => {
+    const g = makeGrid(5);
+    const paths = findPathTree(7, [7, 8], () => 1, g);
+    expect(paths.has(7)).toBe(false);
+    expect(paths.has(8)).toBe(true);
+  });
+
+  it("returns an empty map when there are no reachable targets", () => {
+    const g = makeGrid(5);
+    expect(findPathTree(0, [], () => 1, g).size).toBe(0);
+    expect(findPathTree(3, [3], () => 1, g).size).toBe(0); // only target is the start
   });
 });
 

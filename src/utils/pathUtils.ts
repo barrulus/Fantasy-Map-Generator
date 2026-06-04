@@ -368,6 +368,78 @@ export const findPath = (
   return null;
 };
 
+/**
+ * Single-source, multi-target shortest paths (plain Dijkstra) returning one path
+ * per reachable target. Cheaper than running findPath once per target because the
+ * search tree is shared: every target's path branches off one expansion from
+ * `start`. Targets settle when first popped (optimal for non-negative costs), and
+ * the search stops once all are settled. Paths from the same tree share a common
+ * prefix near `start`, which downstream segment-dedup collapses into one corridor.
+ *
+ * No A* heuristic — with many goals there is no single point to aim at, and the
+ * targets are clustered near the source so the explored frontier stays bounded.
+ */
+export const findPathTree = (
+  start: number,
+  targets: Iterable<number>,
+  getCost: (current: number, next: number) => number,
+  packedGraph: any = {}
+): Map<number, number[]> => {
+  const result = new Map<number, number[]>();
+  const remaining = new Set<number>();
+  for (const t of targets) if (t !== start) remaining.add(t);
+  if (!remaining.size) return result;
+
+  const cellCount = packedGraph.cells.i.length;
+  ensureScratch(cellCount);
+  scratchGen++;
+  const gen = scratchGen;
+  const from = scratchFrom!;
+  const cost = scratchCost!;
+  const mark = scratchMark!;
+
+  const queue = new window.FlatQueue();
+  queue.push(start, 0);
+  cost[start] = 0;
+  from[start] = -1;
+  mark[start] = gen;
+
+  while (queue.length && remaining.size) {
+    const current = queue.pop();
+    const currentCost = cost[current];
+    const neighbors = packedGraph.cells.c[current];
+    for (let i = 0; i < neighbors.length; i++) {
+      const next = neighbors[i];
+
+      // Settle a target on DISCOVERY, before the cost gate — exactly like findPath's
+      // isExit check. Real destinations (ports) sit on land cells that cost Infinity
+      // to enter, so they are never relaxed/enqueued; discovery is the only way to
+      // reach them. We do not expand through a settled target (don't relax it below).
+      if (remaining.has(next)) {
+        from[next] = current;
+        result.set(next, restorePath(next, start, from));
+        remaining.delete(next);
+        if (!remaining.size) return result;
+        continue;
+      }
+
+      const nextCost = getCost(current, next);
+      if (nextCost === Infinity) continue;
+      const totalCost = currentCost + nextCost;
+
+      const existing = mark[next] === gen ? cost[next] : Infinity;
+      if (totalCost >= existing) continue;
+
+      from[next] = current;
+      cost[next] = totalCost;
+      mark[next] = gen;
+      queue.push(next, totalCost);
+    }
+  }
+
+  return result;
+};
+
 declare global {
   interface Window {
     ERROR: boolean;

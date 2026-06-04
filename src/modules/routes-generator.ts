@@ -1,6 +1,17 @@
 import { curveCatmullRom, line } from "d3";
 import Delaunator from "delaunator";
-import { distanceSquared, findClosestCell, findPath, getAdjective, isLand, ra, rn, round, rw } from "../utils";
+import {
+  distanceSquared,
+  findClosestCell,
+  findPath,
+  findPathTree,
+  getAdjective,
+  isLand,
+  ra,
+  rn,
+  round,
+  rw
+} from "../utils";
 import type { Burg } from "./burgs-generator";
 import type { Point } from "./voronoi";
 
@@ -999,6 +1010,10 @@ class RoutesModule {
 
     const tierRank: Record<SeaTradeTier, number> = { coastal: 0, feeder: 1, trunk: 2 };
     const edges = new Map<number, SeaTradeTier>();
+    // For feeder pairs, remember which major port proposed them. The edge Map is
+    // unordered (lo*n+hi), but feeders are routed as a single multi-target tree per
+    // source port, so we must recover that source direction when emitting results.
+    const feederSource = new Map<number, number>();
     const addEdge = (a: number, b: number, tier: SeaTradeTier) => {
       if (a === b) return;
       const lo = Math.min(a, b);
@@ -1024,7 +1039,12 @@ class RoutesModule {
       const partners = major
         .filter(j => j !== i && km(i, j) <= SEA_FEEDER_CAP_KM)
         .sort((a, b) => gravity(i, b) - gravity(i, a));
-      for (let k = 0; k < Math.min(SEA_FEEDER_LINKS, partners.length); k++) addEdge(i, partners[k], "feeder");
+      for (let k = 0; k < Math.min(SEA_FEEDER_LINKS, partners.length); k++) {
+        const j = partners[k];
+        addEdge(i, j, "feeder");
+        const key = Math.min(i, j) * n + Math.max(i, j);
+        if (!feederSource.has(key)) feederSource.set(key, i);
+      }
     }
 
     // trunk: the inter-landmass backbone — the long-haul lanes. Every landmass
@@ -1105,7 +1125,16 @@ class RoutesModule {
 
     const result: SeaTradeEdge[] = [];
     for (const [key, tier] of edges) {
-      result.push({ from: Math.floor(key / n), to: key % n, tier });
+      const lo = Math.floor(key / n);
+      const hi = key % n;
+      // Feeders carry their proposing source as `from` so they can be grouped and
+      // routed per-source; trunk/coastal are direction-agnostic (lo/hi is fine).
+      if (tier === "feeder") {
+        const src = feederSource.get(key) ?? lo;
+        result.push({ from: src, to: src === lo ? hi : lo, tier });
+      } else {
+        result.push({ from: lo, to: hi, tier });
+      }
     }
     // Emit highest tier first. The pathfinder dedups against already-drawn routes
     // (getRouteSegments drops cells already in `connections`), so whichever tier is
@@ -1140,6 +1169,9 @@ class RoutesModule {
 
     // Lightweight diagnostics: routes laid down per tier and how many wrap the seam.
     const diagRoutes: Record<string, number> = { trunk: 0, feeder: 0, coastal: 0 };
+    // Per-tier A* time + edge counts: where the sea-trade budget actually goes.
+    const diagPathMs: Record<string, number> = { trunk: 0, feeder: 0, coastal: 0 };
+    const diagEdges: Record<string, number> = { trunk: 0, feeder: 0, coastal: 0 };
     let diagSeamRoutes = 0;
     const seamThreshold = graphWidth / 2;
     const crossesSeam = (cells: number[]) => {
@@ -1149,37 +1181,100 @@ class RoutesModule {
       return false;
     };
 
+    // Split a routed path on already-claimed edges, claim the new ones, and record
+    // the resulting routes. Shared by the per-edge and per-source feeder paths.
+    const laySegments = (segments: number[][], tier: SeaTradeTier, featureId: number) => {
+      for (const segment of segments) {
+        this.addConnections(segment, connections);
+        diagRoutes[tier]++;
+        if (crossesSeam(segment)) diagSeamRoutes++;
+        const route = {
+          feature: featureId,
+          cells: segment,
+          type: tier === "trunk" ? "major" : "local"
+        } as Route;
+        (tier === "trunk" ? trunkRoutes : localRoutes).push(route);
+      }
+    };
+
+    const wrap = isWrapEnabled() && !!seaAdjacency;
+    const feederGraph = wrap ? { ...pack, cells: { ...pack.cells, c: seaAdjacency } } : pack;
+
     for (const ports of Object.values(portsByComponent)) {
       if (ports.length < 2) continue;
 
       const edges = this.selectSeaTradeEdges(ports);
-      for (const { from, to, tier } of edges) {
-        const a = ports[from];
-        const b = ports[to];
 
+      // Partition: trunk/coastal route per edge; feeders group by their source port
+      // so each source is routed as ONE multi-target Dijkstra tree (not 1 A* per edge).
+      const trunkEdges: SeaTradeEdge[] = [];
+      const coastalEdges: SeaTradeEdge[] = [];
+      const feederBySource = new Map<number, number[]>();
+      for (const e of edges) {
+        if (e.tier === "trunk") trunkEdges.push(e);
+        else if (e.tier === "coastal") coastalEdges.push(e);
+        else {
+          const list = feederBySource.get(e.from);
+          if (list) list.push(e.to);
+          else feederBySource.set(e.from, [e.to]);
+        }
+      }
+
+      const layPerEdge = (e: SeaTradeEdge) => {
+        const a = ports[e.from];
+        const b = ports[e.to];
+        if (TIME) diagEdges[e.tier]++;
+        const t0 = TIME ? performance.now() : 0;
         const segments = this.findPathSegments({
           isWater: true,
           connections,
           start: a.cell,
           exit: b.cell,
-          routeType: tier === "coastal" ? undefined : tier,
+          routeType: e.tier === "coastal" ? undefined : e.tier,
           seaAdjacency
         });
-        for (const segment of segments) {
-          this.addConnections(segment, connections);
-          diagRoutes[tier]++;
-          if (crossesSeam(segment)) diagSeamRoutes++;
-          const route = {
-            feature: a.port as number, // originating port's real feature id
-            cells: segment,
-            type: tier === "trunk" ? "major" : "local"
-          } as Route;
-          (tier === "trunk" ? trunkRoutes : localRoutes).push(route);
+        if (TIME) diagPathMs[e.tier] += performance.now() - t0;
+        laySegments(segments, e.tier, a.port as number);
+      };
+
+      // Tier order is load-bearing: higher tiers claim shared corridors first so they
+      // render unbroken (selectSeaTradeEdges sorts the same way). Trunk -> feeder ->
+      // coastal.
+      for (const e of trunkEdges) layPerEdge(e);
+
+      for (const [source, targets] of feederBySource) {
+        const start = ports[source].cell;
+        const targetCells = targets.map(t => ports[t].cell);
+        if (TIME) diagEdges.feeder += targets.length;
+        const t0 = TIME ? performance.now() : 0;
+        const getCost = this.createCostEvaluator({ isWater: true, connections, routeType: "feeder" });
+        const paths = findPathTree(start, targetCells, getCost, feederGraph);
+        // Paths from one tree share a prefix near `source`; process them in settle
+        // order (nearest first) so getRouteSegments collapses the shared corridor —
+        // the first sibling claims it, later siblings only add their divergent tails.
+        for (const pathCells of paths.values()) {
+          const segments = this.getRouteSegments(pathCells, connections);
+          laySegments(segments, "feeder", ports[source].port as number);
         }
+        if (TIME) diagPathMs.feeder += performance.now() - t0;
       }
+
+      for (const e of coastalEdges) layPerEdge(e);
     }
 
     TIME && console.log("  sea-trade routes:", diagRoutes, "| seam-crossing:", diagSeamRoutes);
+    TIME &&
+      console.log(
+        "  sea-trade A* per tier:",
+        Object.fromEntries(
+          (["trunk", "feeder", "coastal"] as const).map(tier => [
+            tier,
+            `${diagEdges[tier]} edges / ${diagPathMs[tier].toFixed(0)}ms (${(
+              diagPathMs[tier] / Math.max(diagEdges[tier], 1)
+            ).toFixed(2)}ms ea)`
+          ])
+        )
+      );
     TIME && console.timeEnd("generateSeaTradeNetwork");
     return { trunkRoutes, localRoutes };
   }

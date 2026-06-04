@@ -1,3 +1,4 @@
+import FlatQueue from "flatqueue";
 import { beforeAll, describe, expect, it } from "vitest";
 import { isWrapEnabled, portImportance, wrapDeltaX, wrapDistanceSquared } from "./routes-generator";
 
@@ -395,6 +396,208 @@ describe("buildNavigableComponents", () => {
     setup(360);
     const comp = (Routes as any).buildNavigableComponents() as Map<number, number>;
     expect(comp.get(1)).toBe(comp.get(2));
+  });
+});
+
+describe("generateSeaTradeNetwork hub dedup", () => {
+  // A 7x7 all-water grid (4-connected). Cell id = y*7 + x; position is its grid
+  // coordinate scaled to span 0..1000 so mapScale === 1 (km === pixel distance).
+  const N = 7;
+  const STEP = 1000 / (N - 1);
+  const CELLS = N * N;
+
+  // Build the packed water graph + globals findPath/cost evaluation read.
+  const makeWaterGrid = () => {
+    const i = new Uint32Array(CELLS);
+    const c: number[][] = [];
+    const p: [number, number][] = [];
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const id = y * N + x;
+        i[id] = id;
+        p.push([x * STEP, y * STEP]);
+        const neibs: number[] = [];
+        if (x > 0) neibs.push(id - 1);
+        if (x < N - 1) neibs.push(id + 1);
+        if (y > 0) neibs.push(id - N);
+        if (y < N - 1) neibs.push(id + N);
+        c.push(neibs);
+      }
+    }
+    return {
+      i,
+      c,
+      p,
+      h: new Array(CELLS).fill(0), // all water (h < 20)
+      t: new Array(CELLS).fill(0), // ROUTE_TYPE_MODIFIERS.default
+      g: new Array(CELLS).fill(0), // grid-cell index -> temp[0]
+      f: new Array(CELLS).fill(0) // landmass; ports overwrite with distinct ids
+    };
+  };
+
+  // hub (24, centre) + two ports west of it on one landmass (21, 22), plus east /
+  // north / south tips on their own landmasses. The west pair both route east
+  // through the hub, and the L2<->L3 trunk crossing (22->27) reuses the hub
+  // corridor too: exactly the "many routes converge on one port" case.
+  const HUB = 24;
+  const ports = [
+    { i: 1, port: 1, cell: HUB, x: 500, y: 500, population: 100, settlementType: "capital", capital: 1 },
+    { i: 2, port: 1, cell: 21, x: 0, y: 500, population: 100, settlementType: "capital", capital: 1 },
+    { i: 3, port: 1, cell: 22, x: STEP, y: 500, population: 100, settlementType: "capital", capital: 1 },
+    { i: 4, port: 1, cell: 27, x: 1000, y: 500, population: 100, settlementType: "capital", capital: 1 },
+    { i: 5, port: 1, cell: 3, x: 500, y: 0, population: 100, settlementType: "capital", capital: 1 },
+    { i: 6, port: 1, cell: 45, x: 500, y: 1000, population: 100, settlementType: "capital", capital: 1 }
+  ] as any[];
+  const landmassOf: Record<number, number> = { [HUB]: 1, 21: 2, 22: 2, 27: 3, 3: 4, 45: 5 };
+
+  beforeAll(() => {
+    const g = globalThis as any;
+    g.window = g.window ?? {};
+    g.window.FlatQueue = FlatQueue;
+    g.graphWidth = 1000;
+    g.graphHeight = 1000; // mapScale = 1
+    g.mapCoordinates = { lonT: 180 }; // wrap off
+    const cells = makeWaterGrid();
+    for (const [cell, lm] of Object.entries(landmassOf)) {
+      cells.f[Number(cell)] = lm;
+      cells.h[Number(cell)] = 30; // ports sit on LAND, reached across water (like real maps)
+    }
+    g.pack = { cells };
+    g.grid = { cells: { temp: [20] } }; // >= MIN_PASSABLE_SEA_TEMP
+  });
+
+  it("emits each undirected cell-edge at most once across all routes", () => {
+    const connections = new Set<number>();
+    const burgIndex = { portsByFeature: { 1: ports } } as any;
+    const components = new Map<number, number>([[1, 0]]); // all ports share one component
+
+    const { trunkRoutes, localRoutes } = (Routes as any).generateSeaTradeNetwork(
+      connections,
+      burgIndex,
+      components,
+      undefined
+    );
+    const allRoutes = [...trunkRoutes, ...localRoutes];
+
+    // The scenario must be real: the hub is a junction of >= 3 distinct corridors.
+    const hubNeighbours = new Set<number>();
+    const edgeCounts = new Map<number, number>();
+    for (const route of allRoutes) {
+      const cs: number[] = route.cells;
+      for (let k = 0; k < cs.length - 1; k++) {
+        const a = cs[k];
+        const b = cs[k + 1];
+        if (a === HUB) hubNeighbours.add(b);
+        if (b === HUB) hubNeighbours.add(a);
+        const key = Math.min(a, b) * CELLS + Math.max(a, b);
+        edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
+      }
+    }
+
+    expect(hubNeighbours.size).toBeGreaterThanOrEqual(3); // hub really is a convergence point
+
+    const duplicated = [...edgeCounts.entries()].filter(([, count]) => count > 1);
+    expect(duplicated).toEqual([]); // no cell-edge drawn twice
+  });
+});
+
+describe("generateSeaTradeNetwork feeder multi-target", () => {
+  // 13x13 grid, all LAND except a forced 3-cell water channel {14,27,40} = column 1
+  // rows 1-3. A feeder source port (cell 1, on land at the channel head) reaches two
+  // coastal land ports (39 and 41) that flank the channel mouth (cell 40). Both
+  // feeder paths must share the channel corridor, so the network must (a) actually
+  // lay feeder routes to land ports and (b) draw the shared corridor only once.
+  const N = 13;
+  const STEP = 1000 / (N - 1);
+  const CHANNEL = [14, 27, 40];
+
+  const buildChannelGrid = () => {
+    const i = new Uint32Array(N * N);
+    const c: number[][] = [];
+    const p: [number, number][] = [];
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const id = y * N + x;
+        i[id] = id;
+        p.push([x * STEP, y * STEP]);
+        const neibs: number[] = [];
+        if (x > 0) neibs.push(id - 1);
+        if (x < N - 1) neibs.push(id + 1);
+        if (y > 0) neibs.push(id - N);
+        if (y < N - 1) neibs.push(id + N);
+        c.push(neibs);
+      }
+    }
+    const h = new Array(N * N).fill(30); // all land
+    for (const w of CHANNEL) h[w] = 0; // carve the water channel
+    return {
+      i,
+      c,
+      p,
+      h,
+      t: new Array(N * N).fill(0),
+      g: new Array(N * N).fill(0),
+      f: new Array(N * N).fill(1) // single landmass -> no trunk, pure feeders
+    };
+  };
+
+  // x,y derived from cell id so positions match cells.p exactly.
+  const port = (id: number, cellId: number) =>
+    ({
+      i: id,
+      port: 1,
+      cell: cellId,
+      x: (cellId % N) * STEP,
+      y: Math.floor(cellId / N) * STEP,
+      population: 100,
+      settlementType: "capital",
+      capital: 1
+    }) as any;
+  const SOURCE = 1;
+  const PL = 39;
+  const PR = 41;
+
+  beforeAll(() => {
+    const g = globalThis as any;
+    g.window = g.window ?? {};
+    g.window.FlatQueue = FlatQueue;
+    g.graphWidth = 1000;
+    g.graphHeight = 1000;
+    g.mapCoordinates = { lonT: 180 };
+    g.pack = { cells: buildChannelGrid() };
+    g.grid = { cells: { temp: [20] } };
+  });
+
+  it("lays feeder routes to land ports and draws the shared corridor only once", () => {
+    const connections = new Set<number>();
+    const burgIndex = { portsByFeature: { 1: [port(1, SOURCE), port(2, PL), port(3, PR)] } } as any;
+    const components = new Map<number, number>([[1, 0]]);
+
+    const { trunkRoutes, localRoutes } = (Routes as any).generateSeaTradeNetwork(
+      connections,
+      burgIndex,
+      components,
+      undefined
+    );
+
+    expect(trunkRoutes).toEqual([]); // single landmass -> no trunk
+    expect(localRoutes.length).toBeGreaterThan(0); // feeders to land ports ARE produced
+
+    const cellsByEdge = new Map<number, number>();
+    const visited = new Set<number>();
+    for (const route of localRoutes) {
+      const cs: number[] = route.cells;
+      for (const cell of cs) visited.add(cell);
+      for (let k = 0; k < cs.length - 1; k++) {
+        const key = Math.min(cs[k], cs[k + 1]) * N * N + Math.max(cs[k], cs[k + 1]);
+        cellsByEdge.set(key, (cellsByEdge.get(key) ?? 0) + 1);
+      }
+    }
+
+    // both coastal ports are reached, and no corridor edge is drawn twice
+    expect(visited.has(PL)).toBe(true);
+    expect(visited.has(PR)).toBe(true);
+    expect([...cellsByEdge.values()].filter(count => count > 1)).toEqual([]);
   });
 });
 
