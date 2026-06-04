@@ -55,8 +55,10 @@ Isolate the novel algorithm; keep `routes-generator.ts` as the glue.
   assembly (`createRoutesData`, `mergeRoutes`, `getPoints`, `buildLinks`). It calls
   both new modules and turns trade port-sequences into drawable legs (incl. the
   water-path fallback).
-- **`calculateUrquhartEdges`** is promoted from a private `RoutesModule` method to a
-  shared util (both the old layers and `air-routes-generator` need it).
+- **`calculateUrquhartEdges`** stays in `routes-generator.ts`; the extracted
+  `air-routes-generator` is a pure function that receives the **precomputed** Urquhart
+  edges (computed by `routes-generator`). This decouples it without moving the
+  Delaunator/wrap logic. (Simpler than promoting to a util; same separation.)
 
 ## Data model
 
