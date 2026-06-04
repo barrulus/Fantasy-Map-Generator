@@ -87,3 +87,74 @@ export function assignTradeRoles(burgs: Burg[], cfg: TradeRoleConfig): void {
     if (isLargePort(b)) b.tradeRole = "waystation";
   }
 }
+
+export interface TradeLeg {
+  a: number; // node index (a < b)
+  b: number;
+  uses: number;
+}
+
+export interface TradeNetworkResult {
+  routes: number[][]; // each: node-index sequence hub..hub
+  legs: TradeLeg[]; // unique undirected legs + usage count
+}
+
+// BFS shortest (fewest-hop) path between a pair of nodes, bounded to maxHops legs.
+// Returns the node-index path, or null if unreachable within the cap.
+function bfsPath(nodeCount: number, adj: number[][], start: number, goal: number, maxHops: number): number[] | null {
+  if (start === goal) return null;
+  const prev = new Int32Array(nodeCount).fill(-1);
+  const depth = new Int32Array(nodeCount).fill(-1);
+  const queue = [start];
+  depth[start] = 0;
+  for (let head = 0; head < queue.length; head++) {
+    const cur = queue[head];
+    if (depth[cur] >= maxHops) continue; // can't extend further
+    for (const next of adj[cur]) {
+      if (depth[next] !== -1) continue;
+      depth[next] = depth[cur] + 1;
+      prev[next] = cur;
+      if (next === goal) {
+        const path = [goal];
+        let c = goal;
+        while (prev[c] !== -1) {
+          c = prev[c];
+          path.push(c);
+        }
+        return path.reverse();
+      }
+      queue.push(next);
+    }
+  }
+  return null;
+}
+
+// For each unordered hub pair, route a fewest-hop path (<= maxHops) over the leg
+// graph. Viable paths become trade routes; their legs are unioned with usage counts.
+export function routeTradeNetwork(
+  nodeCount: number,
+  adj: number[][],
+  hubIndices: number[],
+  maxHops: number
+): TradeNetworkResult {
+  const routes: number[][] = [];
+  const legMap = new Map<number, TradeLeg>();
+
+  for (let i = 0; i < hubIndices.length; i++) {
+    for (let j = i + 1; j < hubIndices.length; j++) {
+      const path = bfsPath(nodeCount, adj, hubIndices[i], hubIndices[j], maxHops);
+      if (!path) continue;
+      routes.push(path);
+      for (let k = 0; k < path.length - 1; k++) {
+        const a = Math.min(path[k], path[k + 1]);
+        const b = Math.max(path[k], path[k + 1]);
+        const key = a * nodeCount + b;
+        const existing = legMap.get(key);
+        if (existing) existing.uses++;
+        else legMap.set(key, { a, b, uses: 1 });
+      }
+    }
+  }
+
+  return { routes, legs: [...legMap.values()] };
+}

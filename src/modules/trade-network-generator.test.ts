@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Burg } from "./burgs-generator";
-import { assignTradeRoles, buildLegGraph, type TradeNode } from "./trade-network-generator";
+import { assignTradeRoles, buildLegGraph, routeTradeNetwork, type TradeNode, type TradeNetworkResult } from "./trade-network-generator";
 
 // importance = population (simple, deterministic for tests)
 const imp = (b: any) => b.population ?? 0;
@@ -102,5 +102,41 @@ describe("buildLegGraph", () => {
     // node 3 (comp 2) is 2px from node 1 (comp 1) but different ocean -> no edge
     expect(g[3]).toEqual([]);
     expect(g[1]).not.toContain(3);
+  });
+});
+
+describe("routeTradeNetwork", () => {
+  // chain: hub0 - way1 - way2 - hub3  (each adjacent pair linked)
+  const adj = [
+    [1],
+    [0, 2],
+    [1, 3],
+    [2]
+  ];
+
+  it("connects hubs via a multi-hop path within the hop cap", () => {
+    const res: TradeNetworkResult = routeTradeNetwork(4, adj, [0, 3], 3);
+    expect(res.routes.length).toBe(1);
+    expect(res.routes[0]).toEqual([0, 1, 2, 3]); // hub..hub through waystations
+    // each consecutive leg appears once in the union
+    expect(res.legs.map(l => [l.a, l.b])).toEqual([
+      [0, 1],
+      [1, 2],
+      [2, 3]
+    ]);
+  });
+
+  it("drops hub pairs that need more hops than the cap", () => {
+    const res = routeTradeNetwork(4, adj, [0, 3], 2); // 0->3 needs 3 hops
+    expect(res.routes.length).toBe(0);
+    expect(res.legs.length).toBe(0);
+  });
+
+  it("counts shared-leg usage across routes", () => {
+    // hub0 - way1 - {hub2, hub3}; routes 0-2 and 0-3 share leg 0-1
+    const adj2 = [[1], [0, 2, 3], [1], [1]];
+    const res = routeTradeNetwork(4, adj2, [0, 2, 3], 3);
+    const shared = res.legs.find(l => l.a === 0 && l.b === 1)!;
+    expect(shared.uses).toBe(2); // used by both 0-2 and 0-3
   });
 });
