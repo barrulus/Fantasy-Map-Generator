@@ -137,7 +137,11 @@ via the TIME diag — same approach as the `SEA_*` constants.
   once styled.
 - Add `traderoutes` styling — distinct "global lane" look (bold amber, likely
   dashed) — to `default.json` first; other presets a follow-up.
-- Add a `traderoutes` layer toggle so it shows/hides independently.
+- ~~Add a `traderoutes` layer toggle so it shows/hides independently.~~ **Deferred**
+  (see Out of scope): FMG has no per-subgroup route toggle today — roads/trails/
+  searoutes/airroutes all show/hide together under `toggleRoutes`. `traderoutes` is
+  registered in the `toggleRoutes` clear/draw selectors so it renders and hides with
+  the routes layer; a standalone toggle is new UI surface left to a follow-up.
 
 ## Save / load
 
@@ -171,6 +175,8 @@ Fixtures use **land** port cells reached across water (per
 
 ## Out of scope (later iterations)
 
+- Standalone `traderoutes` layer toggle + UI button (renders/hides with the main
+  routes layer for now; independent toggle is a follow-up).
 - Burg-editor UI to toggle hub/waystation and re-run the network.
 - `traderoutes` styling across all 12 presets.
 - Trade-volume / usage-weighted styling (the per-leg usage count is stored to enable
