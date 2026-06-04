@@ -227,6 +227,13 @@
     "filter": null,
     "mask": null
   },
+  "#traderoutes": {
+    "opacity": 1,
+    "stroke": "#b8860b",
+    "stroke-width": 1.2,
+    "stroke-dasharray": "3 2",
+    "stroke-linecap": "round"
+  },
   "#routes #royal": {
     "stroke-width": 0.98,
     "stroke-dasharray": null

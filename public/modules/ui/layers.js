@@ -801,7 +801,7 @@ function toggleRoutes(event) {
     if (event && isCtrlClick(event)) editStyle("routes");
   } else {
     if (event && isCtrlClick(event)) return editStyle("routes");
-    routes.selectAll("#roads, #trails, #searoutes, #airroutes").html("");
+    routes.selectAll("#roads, #trails, #searoutes, #airroutes, #traderoutes").html("");
     turnButtonOff("toggleRoutes");
   }
 }
@@ -835,7 +835,7 @@ function drawRoutes() {
 
   // clear all content from route group elements (sub-groups and paths)
   routes.attr("fill", "none");
-  routes.selectAll("#roads, #trails, #searoutes, #airroutes").html("");
+  routes.selectAll("#roads, #trails, #searoutes, #airroutes, #traderoutes").html("");
 
   for (const key in typedPaths) {
     const {group, type, paths} = typedPaths[key];

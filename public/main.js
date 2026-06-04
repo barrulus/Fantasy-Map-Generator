@@ -66,6 +66,7 @@ let roads = routes.append("g").attr("id", "roads");
 let trails = routes.append("g").attr("id", "trails");
 let searoutes = routes.append("g").attr("id", "searoutes");
 let airroutes = routes.append("g").attr("id", "airroutes");
+let traderoutes = routes.append("g").attr("id", "traderoutes");
 let temperature = viewbox.append("g").attr("id", "temperature");
 let coastline = viewbox.append("g").attr("id", "coastline");
 let ice = viewbox.append("g").attr("id", "ice");
