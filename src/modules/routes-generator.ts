@@ -14,6 +14,7 @@ import {
 } from "../utils";
 import type { Burg } from "./burgs-generator";
 import type { Point } from "./voronoi";
+import { buildAirRoutes } from "./air-routes-generator";
 
 // --- Seam wrapping (full-globe maps only) ----------------------------------
 // On a 360° equirectangular map the east/west edges are a seam: cells and burgs
@@ -1369,42 +1370,6 @@ class RoutesModule {
 
     return routes;
   }
-  private generateAirRoutes(burgIndex: RouteBurgIndex) {
-    TIME && console.time("generateAirRoutes");
-    const { skyPorts } = burgIndex;
-    const airRoutes: Route[] = [];
-
-    if (skyPorts.length < 2) {
-      TIME && console.timeEnd("generateAirRoutes");
-      return airRoutes;
-    }
-
-    // Air routes use direct connections via Urquhart graph on sky port positions
-    const points = skyPorts.map(burg => [burg.x, burg.y] as Point);
-    const urquhartEdges = this.calculateUrquhartEdges(points, isWrapEnabled(), graphWidth);
-
-    urquhartEdges.forEach(([fromId, toId]) => {
-      const from = skyPorts[fromId];
-      const to = skyPorts[toId];
-
-      // Direct line between sky ports (no terrain cost - flying above obstacles)
-      const airRoutePoints: number[][] = [
-        [from.x, from.y, from.cell],
-        [to.x, to.y, to.cell]
-      ];
-
-      airRoutes.push({
-        i: 0, // will be assigned in createRoutesData
-        group: "airroutes",
-        feature: 0,
-        points: airRoutePoints
-      });
-    });
-
-    TIME && console.timeEnd("generateAirRoutes");
-    return airRoutes;
-  }
-
   private createRoutesData(routes: Route[], connections: Set<number>) {
     const burgIndex = this.sortBurgsByFeature(pack.burgs);
     const seaAdjacency = isWrapEnabled() ? this.buildSeaAdjacency() : undefined;
@@ -1421,7 +1386,9 @@ class RoutesModule {
       components,
       seaAdjacency
     );
-    const airRoutes = this.generateAirRoutes(burgIndex);
+    const airPoints = burgIndex.skyPorts.map(b => [b.x, b.y] as Point);
+    const airUrquhart = this.calculateUrquhartEdges(airPoints, isWrapEnabled(), graphWidth);
+    const airRoutes = buildAirRoutes(burgIndex.skyPorts, airUrquhart);
     const pointsArray = this.preparePointsArray();
 
     for (const { feature, cells, merged, type } of this.mergeRoutes(royalRoads)) {
