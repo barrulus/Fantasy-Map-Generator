@@ -35,6 +35,8 @@ export interface Burg {
   flying?: number;
   skyPort?: number;
   altitude?: number;
+  tradeRole?: "hub" | "waystation";
+  tradeRoleManual?: boolean;
 }
 
 // Cultural spacing modifiers for settlement placement
