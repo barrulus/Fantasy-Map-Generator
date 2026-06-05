@@ -95,6 +95,10 @@ const TRADE_DEPTH_MODIFIERS: Record<string, number> = {
   default: 1 // far ocean
 };
 
+// Cost multiplier for a trade-lane edge already claimed by an earlier leg. Small so
+// A* strongly prefers to converge onto an existing lane rather than run parallel.
+const TRADE_LANE_REUSE = 0.1;
+
 const ROUTE_TIER_MODIFIERS: Record<string, { cost: number }> = {
   royal: { cost: 0.4 },
   main: { cost: 0.6 },
@@ -540,10 +544,13 @@ class RoutesModule {
       if (deepWater) return Math.sqrt(distanceSq) * connectionModifier;
 
       // Trade lanes: linear distance (cut straight) scaled by a depth penalty that
-      // makes coastal cells expensive, so fallback legs bow out into deep water.
+      // makes coastal cells expensive, so legs bow out into deep water. A strong reuse
+      // discount on already-laid lanes pulls a near-parallel leg onto the existing
+      // lane (so getRouteSegments drops the shared stretch) instead of doubling it.
       if (tradeWater) {
         const depthModifier = TRADE_DEPTH_MODIFIERS[pack.cells.t[next]] ?? TRADE_DEPTH_MODIFIERS.default;
-        return Math.sqrt(distanceSq) * depthModifier * connectionModifier;
+        const reuse = connections.has(encodeConnection(current, next)) ? TRADE_LANE_REUSE : 1;
+        return Math.sqrt(distanceSq) * depthModifier * reuse;
       }
 
       const typeModifier = ROUTE_TYPE_MODIFIERS[pack.cells.t[next]] || ROUTE_TYPE_MODIFIERS.default;
@@ -1267,28 +1274,22 @@ class RoutesModule {
     const { legs } = routeTradeNetwork(nodes.length, adj, hubIndices, TRADE_MAX_HOPS);
 
     const tradeRoutes: Route[] = [];
-    // Shared across all fallback legs so overlapping water paths are claimed once
-    // and drawn once (getRouteSegments splits each new path on already-laid edges),
-    // instead of stacking out-of-phase dashes into a solid line.
+    // Every leg is routed through the cell graph (no straight-line shortcut) so all
+    // legs share one dedup world. A single connections set is claimed as lanes are
+    // laid; getRouteSegments splits each new path on already-claimed edges, and the
+    // strong trade reuse discount (see createCostEvaluator) bends near-parallel legs
+    // onto an existing lane so only their unique stubs are drawn — no doubled lanes.
     const tradeConnections = new Set<number>();
-    let fallbackLegs = 0;
-    for (const leg of legs) {
+    // Lay the shortest legs first: they seed the backbone, longer legs reuse them.
+    const orderedLegs = [...legs].sort(
+      (l1, l2) =>
+        dist2(nodes[l1.a].x, nodes[l1.a].y, nodes[l1.b].x, nodes[l1.b].y) -
+        dist2(nodes[l2.a].x, nodes[l2.a].y, nodes[l2.b].x, nodes[l2.b].y)
+    );
+    let drawnSegments = 0;
+    for (const leg of orderedLegs) {
       const a = nodes[leg.a].burg;
       const b = nodes[leg.b].burg;
-      if (this.segmentIsWater(a.x, a.y, b.x, b.y, a.cell, b.cell)) {
-        tradeRoutes.push({
-          i: 0,
-          group: "traderoutes",
-          feature: a.port as number,
-          points: [
-            [a.x, a.y, a.cell],
-            [b.x, b.y, b.cell]
-          ]
-        });
-        continue;
-      }
-      // Fallback: water path bowed offshore. Draw every unclaimed segment and claim
-      // its edges so later legs sharing this corridor reuse it instead of overdrawing.
       const segs = this.findPathSegments({
         isWater: true,
         connections: tradeConnections,
@@ -1297,7 +1298,6 @@ class RoutesModule {
         routeType: "trade",
         seaAdjacency
       });
-      let drewFallback = false;
       for (const cells of segs) {
         if (!cells || cells.length < 2) continue;
         this.addConnections(cells, tradeConnections);
@@ -1307,33 +1307,16 @@ class RoutesModule {
           feature: a.port as number,
           points: cells.map(cellId => [...pack.cells.p[cellId], cellId])
         });
-        drewFallback = true;
+        drawnSegments++;
       }
-      if (drewFallback) fallbackLegs++;
     }
 
     TIME &&
       console.log(
-        `  trade network: hubs=${hubIndices.length} nodes=${nodes.length} legs=${legs.length} fallback=${fallbackLegs}`
+        `  trade network: hubs=${hubIndices.length} nodes=${nodes.length} legs=${legs.length} segments=${drawnSegments}`
       );
     TIME && console.timeEnd("generateTradeNetwork");
     return tradeRoutes;
-  }
-
-  // True if the straight segment A->B stays over water (sampled interior). The two
-  // endpoint cells are the land port cells themselves, so samples that snap back to
-  // them are ignored — only genuine intervening land triggers the water-path fallback.
-  private segmentIsWater(ax: number, ay: number, bx: number, by: number, startCell: number, endCell: number): boolean {
-    const steps = 12;
-    for (let s = 1; s < steps; s++) {
-      const t = s / steps;
-      const x = ax + (bx - ax) * t;
-      const y = ay + (by - ay) * t;
-      const cell = findClosestCell(x, y, undefined, pack);
-      if (cell === undefined || cell === startCell || cell === endCell) continue;
-      if (pack.cells.h[cell] >= 20) return false;
-    }
-    return true;
   }
 
   private preparePointsArray(): Point[] {
