@@ -228,11 +228,11 @@
     "mask": null
   },
   "#traderoutes": {
-    "opacity": 1,
-    "stroke": "#b8860b",
-    "stroke-width": 1.2,
+    "opacity": 0.9,
+    "stroke": "#262626",
+    "stroke-width": 1,
     "stroke-dasharray": "3 2",
-    "stroke-linecap": "round"
+    "stroke-linecap": "butt"
   },
   "#routes #royal": {
     "stroke-width": 0.98,
