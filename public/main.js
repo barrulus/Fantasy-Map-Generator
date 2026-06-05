@@ -1217,6 +1217,7 @@ function reGraph() {
   TIME && console.time("reGraph");
   const {cells: gridCells, points, features} = grid;
   const newCells = {p: [], g: [], h: []}; // store new data
+  const seenPoints = new Set(); // dedup coincident points (see addNewPoint)
   const spacing2 = grid.spacing ** 2;
 
   for (const i of gridCells.i) {
@@ -1246,6 +1247,14 @@ function reGraph() {
   }
 
   function addNewPoint(i, x, y, height) {
+    // Skip exactly-coincident points. Coastal midpoints are rounded to 1 decimal
+    // (rn(.., 1)), so at high cell density many round to identical coordinates.
+    // Delaunator drops such duplicates, leaving a cell with no neighbour list while
+    // pack.cells.i stays dense — which crashes markupPack ("neighbors[cellId] is not
+    // iterable"). Deduping here keeps p/g/h aligned with the Voronoi cell indices.
+    const key = x + "," + y;
+    if (seenPoints.has(key)) return;
+    seenPoints.add(key);
     newCells.p.push([x, y]);
     newCells.g.push(i);
     newCells.h.push(height);

@@ -170,6 +170,22 @@ export const calculateVoronoi = (points: Point[], boundary: Point[]): { cells: C
     maxValue: points.length,
     length: points.length
   }).map((_, i) => i) as Uint32Array; // array of indexes
+
+  // Delaunator silently drops exactly-coincident input points, so the Voronoi
+  // builder never assigns a neighbour list for the duplicate's index. cells.i is
+  // dense (0..n-1) regardless, so any such hole leaves cells.c[i] === undefined and
+  // crashes every downstream `for (const n of neighbors[cellId])` (e.g. markupPack)
+  // with "neighbors[cellId] is not iterable". Backfill holes with empty arrays so
+  // the structure stays consistent with cells.i; an orphaned point becomes a
+  // neighbourless border cell rather than a crash.
+  for (let i = 0; i < points.length; i++) {
+    if (cells.c[i] === undefined) {
+      cells.c[i] = [];
+      cells.v[i] = [];
+      cells.b[i] = 1;
+    }
+  }
+
   const vertices = voronoi.vertices;
   TIME && console.timeEnd("calculateVoronoi");
 
