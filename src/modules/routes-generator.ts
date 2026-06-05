@@ -84,6 +84,17 @@ const ROUTE_TYPE_MODIFIERS: Record<string, number> = {
   default: 8 // far ocean
 };
 
+// Global trade lanes prefer deep water: shallow/coastal cells are penalised so a
+// fallback (land-clipping) leg bows offshore instead of hugging the shoreline.
+// Keyed by the distance-from-coast field cells.t (-1 coastline … -4 ocean).
+const TRADE_DEPTH_MODIFIERS: Record<string, number> = {
+  "-1": 6, // coastline water — strongly avoided
+  "-2": 2.5, // sea
+  "-3": 1, // open sea — preferred cruising depth
+  "-4": 1, // ocean
+  default: 1 // far ocean
+};
+
 const ROUTE_TIER_MODIFIERS: Record<string, { cost: number }> = {
   royal: { cost: 0.4 },
   main: { cost: 0.6 },
@@ -484,6 +495,9 @@ class RoutesModule {
     // the shore around it. Only the dense short-hop coastal tier keeps the penalty,
     // so it still traces the shoreline.
     const deepWater = routeType === "feeder";
+    // Global trade lanes minimise true distance like feeder, but additionally
+    // penalise coastal cells so the path stays offshore in deep water.
+    const tradeWater = routeType === "trade";
 
     function getLandPathCost(current: number, next: number) {
       if (pack.cells.h[next] < 20) return Infinity;
@@ -524,6 +538,13 @@ class RoutesModule {
       // is a big jump whose square is hugely expensive, so squared cost hugs the
       // fine-grained shore. Linear distance removes that bias and the route goes direct.
       if (deepWater) return Math.sqrt(distanceSq) * connectionModifier;
+
+      // Trade lanes: linear distance (cut straight) scaled by a depth penalty that
+      // makes coastal cells expensive, so fallback legs bow out into deep water.
+      if (tradeWater) {
+        const depthModifier = TRADE_DEPTH_MODIFIERS[pack.cells.t[next]] ?? TRADE_DEPTH_MODIFIERS.default;
+        return Math.sqrt(distanceSq) * depthModifier * connectionModifier;
+      }
 
       const typeModifier = ROUTE_TYPE_MODIFIERS[pack.cells.t[next]] || ROUTE_TYPE_MODIFIERS.default;
       return distanceSq * typeModifier * connectionModifier;
@@ -1246,31 +1267,49 @@ class RoutesModule {
     const { legs } = routeTradeNetwork(nodes.length, adj, hubIndices, TRADE_MAX_HOPS);
 
     const tradeRoutes: Route[] = [];
+    // Shared across all fallback legs so overlapping water paths are claimed once
+    // and drawn once (getRouteSegments splits each new path on already-laid edges),
+    // instead of stacking out-of-phase dashes into a solid line.
+    const tradeConnections = new Set<number>();
     let fallbackLegs = 0;
     for (const leg of legs) {
       const a = nodes[leg.a].burg;
       const b = nodes[leg.b].burg;
-      let points: number[][];
       if (this.segmentIsWater(a.x, a.y, b.x, b.y, a.cell, b.cell)) {
-        points = [
-          [a.x, a.y, a.cell],
-          [b.x, b.y, b.cell]
-        ];
-      } else {
-        const segs = this.findPathSegments({
-          isWater: true,
-          connections: new Set<number>(),
-          start: a.cell,
-          exit: b.cell,
-          routeType: "feeder",
-          seaAdjacency
+        tradeRoutes.push({
+          i: 0,
+          group: "traderoutes",
+          feature: a.port as number,
+          points: [
+            [a.x, a.y, a.cell],
+            [b.x, b.y, b.cell]
+          ]
         });
-        const cells = segs[0];
-        if (!cells || cells.length < 2) continue;
-        points = cells.map(cellId => [...pack.cells.p[cellId], cellId]);
-        fallbackLegs++;
+        continue;
       }
-      tradeRoutes.push({ i: 0, group: "traderoutes", feature: a.port as number, points });
+      // Fallback: water path bowed offshore. Draw every unclaimed segment and claim
+      // its edges so later legs sharing this corridor reuse it instead of overdrawing.
+      const segs = this.findPathSegments({
+        isWater: true,
+        connections: tradeConnections,
+        start: a.cell,
+        exit: b.cell,
+        routeType: "trade",
+        seaAdjacency
+      });
+      let drewFallback = false;
+      for (const cells of segs) {
+        if (!cells || cells.length < 2) continue;
+        this.addConnections(cells, tradeConnections);
+        tradeRoutes.push({
+          i: 0,
+          group: "traderoutes",
+          feature: a.port as number,
+          points: cells.map(cellId => [...pack.cells.p[cellId], cellId])
+        });
+        drewFallback = true;
+      }
+      if (drewFallback) fallbackLegs++;
     }
 
     TIME &&
