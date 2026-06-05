@@ -48,6 +48,34 @@ describe("assignTradeRoles", () => {
     expect(tiny.tradeRole).toBeUndefined(); // below min size, no hub for state 2
   });
 
+  it("ignores the numeric burgs[0] placeholder without throwing", () => {
+    // pack.burgs[0] is the literal `0` sentinel; writing tradeRole onto it throws
+    // in strict mode. assignTradeRoles must skip it.
+    const cap = {
+      i: 1,
+      state: 1,
+      capital: 1,
+      cell: 0,
+      x: 0,
+      y: 0,
+      population: 50,
+      port: 1,
+      settlementType: "largePort"
+    } as Burg;
+    const burgs = [0 as unknown as Burg, cap];
+
+    expect(() =>
+      assignTradeRoles(burgs, {
+        importance: imp,
+        isLargePort: isLarge,
+        minHubSize: 10,
+        capitalByState: new Map([[1, cap]]),
+        dist2
+      })
+    ).not.toThrow();
+    expect(cap.tradeRole).toBe("hub");
+  });
+
   it("never overrides a manually-set role", () => {
     const manual = {
       i: 6,
