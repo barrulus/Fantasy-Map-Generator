@@ -923,6 +923,8 @@ function exitRegenerationMenu() {
 function enterStatesManualAssignent() {
   if (!layerIsOn("toggleStates")) toggleStates();
   customization = 2;
+  statesPage.page = 1;
+  statesEditorAddLines();
   statesBody.append("g").attr("id", "temp");
   document.querySelectorAll("#statesBottom > button").forEach(el => (el.style.display = "none"));
   ensureEl("statesManuallyButtons").style.display = "inline-block";
@@ -961,8 +963,10 @@ function selectStateOnMapClick() {
   const assigned = statesBody.select("#temp").select("polygon[data-cell='" + i + "']");
   const state = assigned.size() ? +assigned.attr("data-state") : pack.cells.state[i];
 
-  $body.querySelector("div.selected").classList.remove("selected");
-  $body.querySelector("div[data-id='" + state + "']").classList.add("selected");
+  const $row = $body.querySelector("div[data-id='" + state + "']");
+  if (!$row) return; // clicked state's row is on another page; ignore to avoid a crash
+  $body.querySelector("div.selected")?.classList.remove("selected");
+  $row.classList.add("selected");
 }
 
 function dragStateBrush() {
@@ -1202,7 +1206,7 @@ function exitStatesManualAssignment(close) {
   ensureEl("statesEditor")
     .querySelectorAll(".hide:not(.show)")
     .forEach(el => el.classList.remove("hidden"));
-  statesFooter.style.display = "block";
+  statesFooter.style.display = "flex";
   $body.querySelectorAll("div > input, select, span, svg").forEach(e => (e.style.pointerEvents = "all"));
   if (!close)
     $("#statesEditor").dialog({ position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" } });
