@@ -1,11 +1,19 @@
 "use strict";
 
+const routesPage = {page: 1};
+const ROUTES_SORT_ACCESSORS = {
+  name: route => route.name || "",
+  group: route => route.group || "",
+  length: route => route.length
+};
+
 function overviewRoutes() {
   if (customization) return;
   closeDialogs("#routesOverview, .stable");
   if (!layerIsOn("toggleRoutes")) toggleRoutes();
 
   const body = ensureEl("routesBody");
+  routesPage.page = 1;
   routesOverviewAddLines();
   $("#routesOverview").dialog();
 
@@ -25,14 +33,21 @@ function overviewRoutes() {
   ensureEl("routesExport").on("click", downloadRoutesData);
   ensureEl("routesLockAll").on("click", toggleLockAll);
   ensureEl("routesRemoveAll").on("click", triggerAllRoutesRemove);
-  ensureEl("routesSearch").on("input", routesOverviewAddLines);
+  ensureEl("routesSearch").on("input", () => {
+    routesPage.page = 1;
+    routesOverviewAddLines();
+  });
+  bindEditorSortReset(ensureEl("routesHeader"), () => {
+    routesPage.page = 1;
+    routesOverviewAddLines();
+  });
 
   // add line for each route
   function routesOverviewAddLines() {
     body.innerHTML = "";
     let lines = "";
 
-    let filteredRoutes = pack.routes;
+    let filteredRoutes = pack.routes.slice(); // copy so cross-page sort never mutates pack.routes order
 
     const searchText = ensureEl("routesSearch").value.toLowerCase().trim();
     if (searchText) {
@@ -43,7 +58,10 @@ function overviewRoutes() {
       });
     }
 
-    for (const route of filteredRoutes) {
+    sortDataByActiveHeader(ensureEl("routesHeader"), filteredRoutes, ROUTES_SORT_ACCESSORS);
+    const pageInfo = getEditorPage(filteredRoutes, routesPage);
+
+    for (const route of pageInfo.items) {
       if (!route.points || route.points.length < 2) continue;
       route.name = route.name || Routes.generateName(route);
       route.length = route.length || Routes.getLength(route.i);
@@ -82,7 +100,10 @@ function overviewRoutes() {
     body.querySelectorAll("div > span.locks").forEach(el => el.on("click", toggleLockStatus));
     body.querySelectorAll("div > span.icon-trash-empty").forEach(el => el.on("click", triggerRouteRemove));
 
-    applySorting(routesHeader);
+    renderEditorPagination(ensureEl("routesFooter"), pageInfo, page => {
+      routesPage.page = page;
+      routesOverviewAddLines();
+    });
   }
 
   function routeHighlightOn(event) {
@@ -113,10 +134,17 @@ function overviewRoutes() {
   function downloadRoutesData() {
     let data = "Id,Route,Group,Length\n"; // headers
 
-    body.querySelectorAll(":scope > div").forEach(function (el) {
-      const d = el.dataset;
-      const length = rn(d.length * distanceScale) + " " + distanceUnitInput.value;
-      data += [d.id, d.name, d.group, length].join(",") + "\n";
+    const searchText = ensureEl("routesSearch").value.toLowerCase().trim();
+    const exported = pack.routes.filter(route => {
+      if (!searchText) return true;
+      const name = (route.name || "").toLowerCase();
+      const group = (route.group || "").toLowerCase();
+      return name.includes(searchText) || group.includes(searchText);
+    });
+
+    exported.forEach(function (route) {
+      const length = rn(route.length * distanceScale) + " " + distanceUnitInput.value;
+      data += [route.i, route.name, route.group, length].join(",") + "\n";
     });
 
     const name = getFileName("Routes") + ".csv";
