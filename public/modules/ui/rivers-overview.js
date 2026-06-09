@@ -54,7 +54,7 @@ function overviewRivers() {
     // Precompute a lookup map from river id to river for efficient basin lookup
     const riversById = new Map(pack.rivers.map(river => [river.i, river]));
 
-    let filteredRivers = pack.rivers;
+    let filteredRivers = pack.rivers.slice(); // copy so cross-page sort never mutates pack.rivers order
     const searchText = ensureEl("riversSearch").value.toLowerCase().trim();
     if (searchText) {
       filteredRivers = filteredRivers.filter(r => {
