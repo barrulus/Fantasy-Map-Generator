@@ -11,3 +11,4 @@
 .github/agents/bmad-*
 .github/prompts/bmad-*
 .direnv/
+.claude/
