@@ -178,10 +178,16 @@ function getEditorPage(data, pageRef, size = EDITOR_PAGE_SIZE) {
 function renderEditorPagination(footerEl, info, onGoto) {
   let nav = footerEl.querySelector(":scope > .editorPagination");
   if (!nav) {
-    // margin-left:auto only right-aligns inside a flex row; .totalLine footers are not
-    // guaranteed to be flex, so make the footer a flex row when we first inject.
+    // The editor dialogs are sized with fit-content (max-content of their children). If the footer
+    // were allowed to grow with the pager it would become the widest child for narrow tables
+    // (e.g. Rivers) and stretch the whole dialog, leaving an empty gutter beside the rows.
+    // width:0 + min-width:100% makes the footer fill the table-driven width WITHOUT contributing
+    // to it; flex-wrap lets the pager drop to its own line instead of widening the dialog.
     footerEl.style.display = "flex";
+    footerEl.style.flexWrap = "wrap";
     footerEl.style.alignItems = "center";
+    footerEl.style.width = "0";
+    footerEl.style.minWidth = "100%";
     nav = document.createElement("div");
     nav.className = "editorPagination";
     nav.style.cssText = "margin-left: auto; display: inline-flex; gap: 0.3em; align-items: center;";
