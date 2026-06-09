@@ -1370,6 +1370,10 @@ function openStateMergeDialog() {
         Use the <b>radio button</b> to pick the <em>ruling state</em> that will absorb all others (its name, color, and capital will be kept).
         Hover over a row to highlight the state on the map.
       </p>
+      <label style="display:flex; align-items:center; gap:.4em; margin:0; cursor:pointer">
+        <input id="mergeStatesToProvinces" type="checkbox" name="mergeToProvinces" />
+        <span>Merge <b>down to provinces</b>: instead of dissolving the selected states, demote each one into a single province of the ruling state (keeping its name, color and emblem).</span>
+      </label>
       <main style='display: grid; grid-template-columns: 1fr 1fr; gap: .3em;'>
         ${statesSelector}
       </main>
@@ -1429,16 +1433,28 @@ function openStateMergeDialog() {
           .filter(stateId => stateId !== rulingStateId);
         if (!statesToMerge.length) return tip("Please select several states to merge", false, "error");
 
+        const mergeToProvinces = formData.has("mergeToProvinces");
+
+        const mergedList = statesToMerge
+          .map(stateId => `${emblem(stateId)}${pack.states[stateId].name}`)
+          .join(", ");
+        // prettier-ignore
+        const message = mergeToProvinces
+          ? /* html */ `
+            <p>The following states will lose their state status and each become a single <strong>province</strong> of ${emblem(rullingState.i)}${rullingState.name}: ${mergedList}.</p>
+            <p>Their burgs, regiments and lands (along with any existing internal provinces, which are collapsed into the new province) will be assigned to ${emblem(rullingState.i)}${rullingState.name}.</p>
+            <p>Are you sure you want to merge states? This action cannot be reverted.</p>`
+          : /* html */ `
+            <p>The following states will be <strong>removed</strong>: ${mergedList}.</p>
+            <p>Removed states data (burgs, provinces, regiments) will be assigned to ${emblem(rullingState.i)}${rullingState.name}.</p>
+            <p>Are you sure you want to merge states? This action cannot be reverted.</p>`;
+
         confirmationDialog({
           title: "Merge states",
-          // prettier-ignore
-          message: /* html */ `
-            <p>The following states will be <strong>removed</strong>: ${statesToMerge.map(stateId => `${emblem(stateId)}${pack.states[stateId].name}`).join(", ")}.</p>
-            <p>Removed states data (burgs, provinces, regiments) will be assigned to ${emblem(rullingState.i)}${rullingState.name}.</p>
-            <p>Are you sure you want to merge states? This action cannot be reverted.</p>`,
+          message,
           confirm: "Merge",
           onConfirm: () => {
-            mergeStates(statesToMerge, rulingStateId);
+            mergeStates(statesToMerge, rulingStateId, mergeToProvinces);
             $(this).dialog("close");
           }
         });
@@ -1449,9 +1465,45 @@ function openStateMergeDialog() {
     }
   });
 
-  function mergeStates(statesToMerge, rulingStateId) {
+  function mergeStates(statesToMerge, rulingStateId, mergeToProvinces = false) {
     const rulingState = pack.states[rulingStateId];
     const rulingStateArmy = ensureEl("army" + rulingStateId);
+
+    // demote a merged state into a single province of the ruling state, collapsing
+    // any of its existing internal provinces into that one new province
+    function demoteStateToProvince(stateId) {
+      const state = pack.states[stateId];
+      const newProvinceId = pack.provinces.length;
+
+      // collapse the state's existing internal provinces
+      pack.provinces.forEach(province => {
+        if (!province.i || province.removed || province.state !== stateId) return;
+        const coaId = "provinceCOA" + province.i;
+        if (ensureEl(coaId)) ensureEl(coaId).remove();
+        emblems.select(`#provinceEmblems > use[data-i='${province.i}']`).remove();
+        pack.provinces[province.i] = {i: province.i, removed: true};
+      });
+
+      // assign all of the former state's land cells to the new province
+      pack.cells.state.forEach((s, i) => {
+        if (s === stateId) pack.cells.province[i] = newProvinceId;
+      });
+
+      const burg = state.capital || 0;
+      const center = burg ? pack.burgs[burg].cell : state.center;
+      const name = state.name;
+      const formName = "Province";
+      const fullName = name + " " + formName;
+      const color = state.color;
+      const coa = state.coa; // reuse the former state's emblem
+      const pole = state.pole || pack.cells.p[center];
+
+      pack.provinces.push({i: newProvinceId, state: rulingStateId, center, burg, name, formName, fullName, color, coa, pole});
+      rulingState.provinces = rulingState.provinces || [];
+      rulingState.provinces.push(newProvinceId);
+
+      COArenderer.add("province", newProvinceId, coa, pole[0], pole[1]);
+    }
 
     // remove states to be merged
     statesToMerge.forEach(stateId => {
@@ -1487,6 +1539,10 @@ function openStateMergeDialog() {
       });
 
       armies.select("g#army" + stateId).remove();
+
+      // optionally turn the merged state into a province of the ruling state
+      // (reads cells.state before the cell reassignment below)
+      if (mergeToProvinces) demoteStateToProvince(stateId);
     });
 
     // reassing burgs
@@ -1514,6 +1570,7 @@ function openStateMergeDialog() {
     debug.selectAll(".highlight").remove();
 
     States.getPoles();
+    if (mergeToProvinces) Provinces.getPoles();
     layerIsOn("toggleStates") ? drawStates() : toggleStates();
     layerIsOn("toggleBorders") ? drawBorders() : toggleBorders();
     layerIsOn("toggleProvinces") && drawProvinces();
