@@ -1391,7 +1391,8 @@ function openStateMergeDialog() {
     if (!layerIsOn("toggleStates")) return;
     const state = +event.currentTarget.dataset.id;
     if (!state) return;
-    const d = regions.select("#state" + state).attr("d");
+    const stateNode = regions.select("#state" + state).node();
+    const d = stateNode && stateNode.getAttribute("d");
     if (!d) return;
 
     stateHighlightOff();
@@ -1467,7 +1468,7 @@ function openStateMergeDialog() {
 
   function mergeStates(statesToMerge, rulingStateId, mergeToProvinces = false) {
     const rulingState = pack.states[rulingStateId];
-    const rulingStateArmy = ensureEl("army" + rulingStateId);
+    const rulingStateArmy = document.getElementById("army" + rulingStateId);
 
     // demote a merged state into a single province of the ruling state, collapsing
     // any of its existing internal provinces into that one new province
@@ -1479,7 +1480,7 @@ function openStateMergeDialog() {
       pack.provinces.forEach(province => {
         if (!province.i || province.removed || province.state !== stateId) return;
         const coaId = "provinceCOA" + province.i;
-        if (ensureEl(coaId)) ensureEl(coaId).remove();
+        document.getElementById(coaId)?.remove();
         emblems.select(`#provinceEmblems > use[data-i='${province.i}']`).remove();
         pack.provinces[province.i] = {i: province.i, removed: true};
       });
@@ -1516,7 +1517,7 @@ function openStateMergeDialog() {
       labels.select("#stateLabel" + stateId).remove();
       defs.select("#textPath_stateLabel" + stateId).remove();
 
-      ensureEl("stateCOA" + stateId).remove();
+      document.getElementById("stateCOA" + stateId)?.remove();
       emblems.select(`#stateEmblems > use[data-i='${stateId}']`).remove();
 
       // add merged state regiments to the ruling state
@@ -1534,7 +1535,7 @@ function openStateMergeDialog() {
           element.id = newId;
           element.dataset.state = rulingStateId;
           element.dataset.id = newIndex;
-          rulingStateArmy.appendChild(element);
+          rulingStateArmy?.appendChild(element);
         }
       });
 
