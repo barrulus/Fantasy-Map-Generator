@@ -63,6 +63,8 @@ jobs:
             --base-version ${{ steps.base.outputs.version }}
 
       - name: Commit and push bump
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           NEW_VERSION=$(node -e "
             const m = require('fs')
@@ -78,10 +80,19 @@ jobs:
           git add public/versioning.js package.json package-lock.json src/index.html
           git add public/ 2>/dev/null || true
 
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: bump version to $NEW_VERSION"
-            git push origin HEAD:${{ github.event.pull_request.base.ref }}
-            echo "Pushed version bump → $NEW_VERSION"
-          else
+          if git diff --cached --quiet; then
             echo "Nothing changed, skipping commit."
+            exit 0
           fi
+
+          # main is a protected branch: direct pushes are rejected (the bot
+          # cannot bypass required PRs/status checks). Skip the push instead of
+          # failing the job. Bumps to unprotected branches still push normally.
+          if [ "$BASE_REF" = "main" ]; then
+            echo "::notice::main is protected — skipping push of version bump → $NEW_VERSION"
+            exit 0
+          fi
+
+          git commit -m "chore: bump version to $NEW_VERSION"
+          git push origin HEAD:"$BASE_REF"
+          echo "Pushed version bump → $NEW_VERSION"
