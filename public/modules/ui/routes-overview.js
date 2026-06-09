@@ -49,6 +49,14 @@ function overviewRoutes() {
 
     let filteredRoutes = pack.routes.slice(); // copy so cross-page sort never mutates pack.routes order
 
+    // route name/length are computed lazily; populate them for the whole set so search,
+    // sort, footer averages and CSV export are consistent across all pages, not just the visible one
+    for (const route of filteredRoutes) {
+      if (!route.points || route.points.length < 2) continue;
+      route.name = route.name || Routes.generateName(route);
+      route.length = route.length || Routes.getLength(route.i);
+    }
+
     const searchText = ensureEl("routesSearch").value.toLowerCase().trim();
     if (searchText) {
       filteredRoutes = filteredRoutes.filter(route => {
@@ -63,8 +71,6 @@ function overviewRoutes() {
 
     for (const route of pageInfo.items) {
       if (!route.points || route.points.length < 2) continue;
-      route.name = route.name || Routes.generateName(route);
-      route.length = route.length || Routes.getLength(route.i);
       const length = rn(route.length * distanceScale) + " " + distanceUnitInput.value;
 
       lines += /* html */ `<div
@@ -136,6 +142,7 @@ function overviewRoutes() {
 
     const searchText = ensureEl("routesSearch").value.toLowerCase().trim();
     const exported = pack.routes.filter(route => {
+      if (!route.points || route.points.length < 2) return false; // skip degenerate routes (never rendered)
       if (!searchText) return true;
       const name = (route.name || "").toLowerCase();
       const group = (route.group || "").toLowerCase();
@@ -143,6 +150,8 @@ function overviewRoutes() {
     });
 
     exported.forEach(function (route) {
+      route.name = route.name || Routes.generateName(route);
+      route.length = route.length || Routes.getLength(route.i);
       const length = rn(route.length * distanceScale) + " " + distanceUnitInput.value;
       data += [route.i, route.name, route.group, length].join(",") + "\n";
     });
