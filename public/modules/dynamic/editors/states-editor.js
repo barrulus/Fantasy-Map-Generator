@@ -1371,7 +1371,7 @@ function openStateMergeDialog() {
         Hover over a row to highlight the state on the map.
       </p>
       <label style="display:flex; align-items:center; gap:.4em; margin:0; cursor:pointer">
-        <input id="mergeStatesToProvinces" type="checkbox" name="mergeToProvinces" />
+        <input id="mergeStatesToProvinces" type="checkbox" name="mergeToProvinces" class="native" />
         <span>Merge <b>down to provinces</b>: instead of dissolving the selected states, demote each one into a single province of the ruling state (keeping its name, color and emblem).</span>
       </label>
       <main style='display: grid; grid-template-columns: 1fr 1fr; gap: .3em;'>
