@@ -607,12 +607,12 @@ function drawCultureCenters() {
     .attr("cy", d => pack.cells.p[d.center][1])
     .on("mouseenter", d => {
       tip(tooltip, true);
-      $body.querySelector(`div[data-id='${d.i}']`).classList.add("selected");
+      $body.querySelector(`div[data-id='${d.i}']`)?.classList.add("selected");
       cultureHighlightOn(event);
     })
     .on("mouseleave", d => {
       tip("", true);
-      $body.querySelector(`div[data-id='${d.i}']`).classList.remove("selected");
+      $body.querySelector(`div[data-id='${d.i}']`)?.classList.remove("selected");
       cultureHighlightOff(event);
     })
     .call(d3.drag().on("start", cultureCenterDrag));
@@ -899,7 +899,7 @@ function downloadCulturesCsv() {
       const namesbase = nameBases[c.base].name;
       const originList = (c.origins || []).filter(origin => origin).map(origin => pack.cultures[origin].name);
       const originText = '"' + originList.join(", ") + '"';
-      return [c.i, c.name, c.color || "", c.cells, c.expansionism ?? "", c.type || "", area, population, namesbase, c.shield, originText].join(",");
+      return [c.i, c.name, c.color || "", c.cells, c.i ? (c.expansionism ?? "") : "", c.type || "", area, population, namesbase, c.shield, originText].join(",");
     });
   const csvData = [headers].concat(data).join("\n");
 
