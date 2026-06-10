@@ -4,6 +4,8 @@ A fork of [Azgaar's Fantasy Map Generator](https://github.com/Azgaar/Fantasy-Map
 
 Upstream docs still apply for the basics: [wiki](https://github.com/Azgaar/Fantasy-Map-Generator/wiki) · [data model](https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Data-model).
 
+![Splash screen — a generated world rendered as a globe](docs/images/readme-image-2026-06-10_18-07-32.png)
+
 ## Hierarchical settlements & population
 
 Upstream places capitals and then scatters generic towns by cell suitability. This fork replaces that with a **seven-tier hierarchical placement pass**, each tier filling in around the one above it with its own spacing rules:
