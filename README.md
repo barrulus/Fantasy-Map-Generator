@@ -1,71 +1,83 @@
 # Fantasy Map Generator (barrulus fork)
 
-A fork of Azgaar's _Fantasy Map Generator_ — a free web application that helps fantasy writers, game masters, and cartographers create and edit fantasy maps.
+A fork of [Azgaar's Fantasy Map Generator](https://github.com/Azgaar/Fantasy-Map-Generator) focused on **larger, denser worlds**: half-million-cell heightmaps, tens of thousands of settlements, a simulated trade network, and globe-aware routing — while staying compatible with upstream `.map` files.
 
-Upstream: [azgaar.github.io/Fantasy-Map-Generator](https://azgaar.github.io/Fantasy-Map-Generator) · [wiki](https://github.com/Azgaar/Fantasy-Map-Generator/wiki) · [Trello](https://trello.com/b/7x832DG4/fantasy-map-generator) · [_Fantasy Maps for fun and glory_](https://azgaar.wordpress.com).
+Upstream docs still apply for the basics: [wiki](https://github.com/Azgaar/Fantasy-Map-Generator/wiki) · [data model](https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Data-model).
 
-## What's different in this fork
+## Hierarchical settlements & population
 
-This fork pushes the generator toward larger, denser worlds and adds aerial settlements.
+Upstream places capitals and then scatters generic towns by cell suitability. This fork replaces that with a **seven-tier hierarchical placement pass**, each tier filling in around the one above it with its own spacing rules:
 
-### High point count
+**capital → large port → regional centre → market town → large village → small village → hamlet**
 
-The heightmap pipeline now produces proper continents at every cell density the slider exposes (up to 500k). The original `blobPower`/`linePower` tables capped at 100k, so anything above silently used the 10k-cell value and continents collapsed to scattered specks of land.
-
-![High point count — 200k cells producing continents](docs/images/readme-image-2026-05-22_21-35-28.png)
-
-### High burg count
-
-The settlement generator places 6 hierarchical tiers (capital → large port → regional centre → market town → large village → small village → hamlet) with culture-aware spacing modifiers. A bug that silently dropped the entire hamlet tier at high target counts has been fixed, so dense maps actually get the hamlets they ask for.
+- Spacing is culture-aware, so settlement density follows cultural geography rather than a uniform grid.
+- Large ports are promoted from strategically placed harbours; regional centres are seeded between primary centres (capitals + large ports) rather than at random.
+- Each tier draws population from its own gaussian range (in upstream population units, × population rate for people): capitals 10k–200k, large ports 5k–50k, regional centres and market towns 1k–10k, large villages 200–1k, small villages 50–500, hamlets 10–50.
+- Population is then modified by **route connectivity** — well-connected burgs grow, isolated ones stay small.
+- Features (citadel, plaza, walls, temple…) and coat-of-arms generation are driven by tier, not just raw population.
+- A bug that silently dropped the entire hamlet tier at high target counts is fixed, so dense maps actually get the hamlets they ask for.
 
 ![Dense burg coverage with hierarchical settlements](docs/images/readme-image-2026-05-22_21-48-02.png)
 
-### Paginated burgs overview
+## High cell counts (up to 500K)
 
-With ~20k burgs on a map, the original overview dialog rendered every row at once and froze the UI on open. The list is now paginated (200 per page) with sort and filter operating across the full filtered set.
+The heightmap pipeline now produces proper continents at every density the slider exposes:
+
+- The `blobPower`/`linePower` tables capped at 100k cells upstream — anything above silently reused the 10k value and continents collapsed into scattered specks. The tables now extend through 500k.
+- Hill/blob shape operations scale their **op counts** with cell count instead of capping BFS depth, so terrain features keep their intended footprint at any density (fractional template syntax like `Hill 0.5` still works).
+- New heightmap tooling: a `Power` template step exposing elevation-curve compression, flatten-first elevation distribution for the continents/oldWorld/pangea templates, and a `globeWorld` template that produces ocean-edged worlds suitable for globe rendering.
+
+![High point count — 200k cells producing continents](docs/images/readme-image-2026-05-22_21-35-28.png)
+
+## Performance at scale
+
+A 500K-cell map with ~100K burgs generates in ~12 seconds. Getting there required fixing a series of hot paths that upstream never hits at default densities:
+
+- **Generation:** culture and state expansion BFS rewritten to kill GC pressure and stale queue work; cost arrays use `Float64Array` (Float32 silently broke priority-queue staleness checks); deep-depression lake filling rewritten as an O(N log N) priority flood; route lookups (`getRoute`/`hasRoad`/`isCrossroad`) moved from linear scans to O(1) `Map` lookups; old pack buffers are released before regeneration to avoid out-of-memory SIGILLs at high densities.
+- **Rendering & UI:** burg icons and anchors are culled at low zoom; sky burgs are tiered by population for zoom culling; the map hover tooltip short-circuits when the hovered cell hasn't changed.
+- **Editors:** the burgs, states, cultures, religions, rivers, and routes overview dialogs are **paginated** (200 rows per page). Upstream rendered every row at once — with ~20K burgs the dialog froze the UI on open. Sort, filter, and CSV export operate across the full filtered set, not just the visible page.
 
 ![Burgs overview with pagination — page 1 of 98](docs/images/readme-image-2026-05-22_21-34-33.png)
 
-### Sky burgs and sky ports
+## Trade routes
 
-Burgs can now fly. Toggle Flying in the burg editor (or use _Add sky burg_ from the overview) to lift a settlement above the map; toggle Sky Port to mark any ground burg as an air-route hub. Sky ports are connected to each other by airroutes (Urquhart graph), regenerated automatically whenever the set changes.
+Sea routes are no longer a simple nearest-neighbour graph. Two systems layer together:
+
+**Gravity maritime network.** Every port gets an importance score (population weighted by settlement role). Routes are selected by a gravity model (importance × importance / distance²) in three tiers — trunk lanes between major ports, regional feeders (each major port connects to its top gravity partners within ~300 km), and short coastal hops (≤120 km Urquhart pairs). Gravity selection is bounded to the top ports per navigable ocean component, so it stays tractable with tens of thousands of ports, and pathfinding uses multi-target Dijkstra for the feeder tier.
+
+**Global trade hub network.** On top of the lanes, burgs are assigned trade roles: each state gets one **hub** (the qualifying port nearest its capital) and other large ports become **waystations**. Hubs are linked through a leg graph (same ocean component, within one leg's range) with multi-hop routing and per-leg usage counts, rendered as a dedicated `traderoutes` layer. Legs with no coastal path fall back to routing offshore through deep water. Roles can be overridden per-burg and survive regeneration.
+
+## Globe-aware (seam-wrapping) routes
+
+On full-globe maps (360° longitude), sea and air routes can cross the antimeridian instead of detouring across the whole map: burg pairing uses a toroidal Urquhart graph, sea pathfinding runs on a seam-augmented adjacency graph with wrap-aware A*, and seam-crossing routes are split at the map edge at render time with correctly wrapped lengths.
+
+## Sky burgs & air routes
+
+Burgs can fly. Toggle **Flying** in the burg editor (or _Add sky burg_ from the overview) to lift a settlement above the map at a chosen altitude, and **Sky Port** to mark any ground burg as an air-route hub. Sky ports are connected by an `airroutes` group (Urquhart graph), regenerated automatically whenever the set changes. Map generation can also seed a floating-island archipelago cluster with capital skyports, and sky burgs get their own layer toggle and zoom tiering.
 
 ![Sky port editor with altitude field](docs/images/readme-image-2026-05-22_22-20-00.png)
 
----
+## Other additions
 
-## Upstream previews
+- **States editor:** merge a state down into provinces of a neighbour, and a paint-mode picker to demote a whole state to a province — with demoted provinces coloured and iconed like generated ones.
+- **GeoJSON exports:** standalone, bookmarklet-loadable export scripts in `tools/geojson-exports/`.
 
-[![preview](https://github.com/Azgaar/Fantasy-Map-Generator/assets/26469650/9502eae9-92e0-4d0d-9f17-a2ba4a565c01)](https://github.com/Azgaar/Fantasy-Map-Generator/assets/26469650/11a42446-4bd5-4526-9cb1-3ef97c868992)
+## Contributed upstream
 
-[![preview](https://github.com/Azgaar/Fantasy-Map-Generator/assets/26469650/e751a9e5-7986-4638-b8a9-362395ef7583)](https://github.com/Azgaar/Fantasy-Map-Generator/assets/26469650/e751a9e5-7986-4638-b8a9-362395ef7583)
+Generic improvements are submitted back to Azgaar's repo rather than kept fork-only — e.g. editor pagination ([#1469](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1469)) and a Full-JSON importer ([#1468](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1468)).
 
-[![preview](https://github.com/Azgaar/Fantasy-Map-Generator/assets/26469650/b0d0efde-a0d1-4e80-8818-ea3dd83c2323)](https://github.com/Azgaar/Fantasy-Map-Generator/assets/26469650/b0d0efde-a0d1-4e80-8818-ea3dd83c2323)
+## Development
 
-Join our [Discord server](https://discordapp.com/invite/X7E84HU) and [Reddit community](https://www.reddit.com/r/FantasyMapGenerator) to share your creations, discuss the Generator, suggest ideas and get the most recent updates.
+```sh
+nix develop      # dev shell with dependencies (this fork uses a Nix flake, not bare npm install)
+npm run dev      # vite dev server
+npm run build    # tsc + vite build (output in ../dist/)
+npm test         # vitest (src/**/*.test.ts)
+npm run lint     # biome (also runs as a pre-commit hook)
+```
 
-Contact me via [email](mailto:azgaar.fmg@yandex.com) if you have non-public suggestions. For bug reports please use [GitHub issues](https://github.com/Azgaar/Fantasy-Map-Generator/issues) or _#fmg-bugs_ channel on Discord. If you are facing performance issues, please read [the tips](https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Tips#performance-tips).
+New systems live as TypeScript modules in `src/modules/` (e.g. `burgs-generator`, `routes-generator`, `trade-network-generator`, `air-routes-generator`) with renderers in `src/renderers/`; legacy upstream code remains as vanilla JS in `public/modules/`. The codebase follows upstream's gradual TS migration: world data and styles (state) → generators (model) → editors (controllers) → renderers (view), keeping compatibility with old `.map` files.
 
-You can support the project on [Patreon](https://www.patreon.com/azgaar).
+## Credits
 
-_Inspiration:_
-
-- Martin O'Leary's [_Generating fantasy maps_](https://mewo2.com/notes/terrain)
-
-- Amit Patel's [_Polygonal Map Generation for Games_](http://www-cs-students.stanford.edu/~amitp/game-programming/polygon-map-generation)
-
-- Scott Turner's [_Here Dragons Abound_](https://heredragonsabound.blogspot.com)
-
-## Contribution
-
-Pull requests are highly welcomed. The codebase is messy and I will appreciate if you start with minor changes. Check out the [data model](https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Data-model) before contributing.
-
-The codebase is gradually transitioning from **vanilla JavaScript to TypeScript** while maintaining compatibility with the existing generation pipeline and old `.map` user files.
-
-The expected **future** architecture is based on a separation between **world data**, **procedural generation**, **interactive editing**, and **rendering**. The application is conceptually divided into four main layers: world data and styles (state), generators (model), editors (controllers), renderers (view).
-
-Flow:
-settings → generators → world data → renderer
-UI → editors → world data → renderer.
-
-The data layer must contain no logic and no rendering code. Generators implement the procedural world simulation. Editors implement interactive editing tools used by the user. They perform controlled mutations of the world state. Editors can be viewed as interactive generators. The renderer converts the world state into SVG or WebGl graphics. Renderer must be pure visualization step and not modify world data.
+All the heavy lifting of the original generator is [Azgaar's](https://github.com/Azgaar/Fantasy-Map-Generator) — see the upstream project for the web app, wiki, community links, and ways to support it.
