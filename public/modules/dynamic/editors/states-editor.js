@@ -192,10 +192,15 @@ function statesEditorAddLines() {
     totalBurgs += s.burgs;
   }
 
+  // Manual assignment picks the brush state by clicking its row, so every state must have a
+  // row in the DOM. Pagination would hide states beyond the first page (the pager is hidden in
+  // this mode too), making them unselectable. Render the full set while painting.
+  const isManualAssignment = customization === 2;
   const pageInfo = getEditorPage(allStates, statesPage);
+  const rows = isManualAssignment ? allStates : pageInfo.items;
   let lines = "";
 
-  for (const s of pageInfo.items) {
+  for (const s of rows) {
     const area = getArea(s.area);
     const rural = s.rural * populationRate;
     const urban = s.urban * populationRate * urbanization;
@@ -309,10 +314,15 @@ function statesEditorAddLines() {
   ensureEl("statesFooterPopulation").innerHTML = si(totalPopulation);
   ensureEl("statesFooterPopulation").dataset.population = totalPopulation;
 
-  renderEditorPagination(ensureEl("statesFooter"), pageInfo, page => {
-    statesPage.page = page;
-    statesEditorAddLines();
-  });
+  // No pager while painting: all rows are rendered and the footer is hidden anyway.
+  if (isManualAssignment) {
+    ensureEl("statesFooter").querySelector(":scope > .editorPagination")?.remove();
+  } else {
+    renderEditorPagination(ensureEl("statesFooter"), pageInfo, page => {
+      statesPage.page = page;
+      statesEditorAddLines();
+    });
+  }
 
   // add listeners
   $body.querySelectorAll(":scope > div").forEach($line => {
@@ -1350,6 +1360,9 @@ function exitAddStateMode() {
 function openStateMergeDialog() {
   const emblem = i => /* html */ `<svg class="coaIcon" viewBox="0 0 200 200"><use href="#stateCOA${i}"></use></svg>`;
   const validStates = pack.states.filter(s => s.i && !s.removed);
+  // Mirror the editor's active sort so the merge list reads in the same order the user is
+  // looking at (e.g. by culture), instead of always by state id.
+  sortDataByActiveHeader(ensureEl("statesHeader"), validStates, STATES_SORT_ACCESSORS);
 
   const statesSelector = validStates
     .map(
@@ -1493,7 +1506,9 @@ function openStateMergeDialog() {
       const burg = state.capital || 0;
       const center = burg ? pack.burgs[burg].cell : state.center;
       const name = state.name;
-      const formName = "Province";
+      // Keep the former state's government form (e.g. a demoted Duchy stays "<name> Duchy"),
+      // falling back to a generic "Province" if the state had no form name.
+      const formName = state.formName || "Province";
       const fullName = name + " " + formName;
       const color = state.color;
       const coa = state.coa; // reuse the former state's emblem
@@ -1571,10 +1586,16 @@ function openStateMergeDialog() {
     debug.selectAll(".highlight").remove();
 
     States.getPoles();
-    if (mergeToProvinces) Provinces.getPoles();
     layerIsOn("toggleStates") ? drawStates() : toggleStates();
     layerIsOn("toggleBorders") ? drawBorders() : toggleBorders();
-    layerIsOn("toggleProvinces") && drawProvinces();
+    // When demoting to provinces, force the provinces layer on so the newly created province is
+    // actually visible. Otherwise (layer off) the result looks identical to a plain merge.
+    if (mergeToProvinces) {
+      Provinces.getPoles();
+      layerIsOn("toggleProvinces") ? drawProvinces() : toggleProvinces();
+    } else if (layerIsOn("toggleProvinces")) {
+      drawProvinces();
+    }
     drawStateLabels([rulingStateId]);
 
     refreshStatesEditor();
