@@ -1612,7 +1612,11 @@ function mergeStates(statesToMerge, rulingStateId, mergeToProvinces = false) {
       // falling back to a generic "Province" if the state had no form name.
       const formName = state.formName || "Province";
       const fullName = name + " " + formName;
-      const color = state.color;
+      // Province fills render at full opacity (#provs opacity:1), so generated provinces use a
+      // mixed/brightened shade of the state colour rather than the raw colour. Match that, else a
+      // dark-themed state's raw colour renders as a solid black province. getMixedColor keeps ~80%
+      // of the state colour, so the province still reads as "this used to be that state".
+      const color = getMixedColor(state.color);
       const coa = state.coa; // reuse the former state's emblem
       const pole = state.pole || pack.cells.p[center];
 
