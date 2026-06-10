@@ -64,19 +64,13 @@
         left: 50%;
         transform: translate(-50%, -50%);
       }
-      #loading > #loading-rose > use {
-        fill: none;
-        stroke: black;
-        opacity: 0.7;
-        transform-origin: center;
-        animation: 20s linear 0s infinite spin;
-      }
       #loading > #loading-typography {
         opacity: 1;
+        top: 88%;
         font-size: 11px;
         color: #fff5da;
         text-align: center;
-        text-shadow: 0px 1px 4px #4c3a35;
+        text-shadow: 0 0 2px #000, 0 0 8px #000, 0 2px 14px rgba(0, 0, 0, 0.85);
         width: 80vw;
         max-width: 540px;
       }
@@ -126,14 +120,6 @@
         }
         100% {
           opacity: 0.1;
-        }
-      }
-      @keyframes spin {
-        0% {
-          transform: rotate(0deg);
-        }
-        100% {
-          transform: rotate(359deg);
         }
       }
     </style>
@@ -355,14 +341,18 @@
 
     <div id="loading">
       <svg width="100%" height="100%">
-        <rect x="-1%" y="-1%" width="102%" height="102%" fill="#466eab" />
-        <rect x="-1%" y="-1%" width="102%" height="102%" fill="url(#oceanic)" />
-      </svg>
-      <svg id="loading-rose" width="100%" height="100%" viewBox="0 0 700 700">
-        <use href="#defs-compass-rose" x="50%" y="50%" />
+        <rect x="-1%" y="-1%" width="102%" height="102%" fill="#000" />
+        <image
+          href="images/splash-world.webp"
+          x="-1%"
+          y="-1%"
+          width="102%"
+          height="102%"
+          preserveAspectRatio="xMidYMid slice"
+        />
       </svg>
       <div id="loading-typography">
-        <div id="titleName">Azgaar's</div>
+        <div id="titleName">Bazgaar's</div>
         <div id="title">Fantasy Map Generator</div>
         <div id="versionText">‎ ‎</div>
         <p id="loading-text">LOADING<span>.</span><span>.</span><span>.</span></p>
