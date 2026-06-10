@@ -86,6 +86,9 @@ function insertEditorHtml() {
 
       <button id="statesManually" data-tip="Manually re-assign states" class="icon-brush"></button>
       <div id="statesManuallyButtons" style="display: none">
+        <div data-tip="State to paint with. Lists every state, so states beyond the current page are still selectable" style="margin-block: 0.3em;">
+          <label>Paint as: <select id="statesManuallyState" style="max-width: 14em"></select></label>
+        </div>
         <div data-tip="Change brush size. Shortcuts: + / ] to increase; - / [ to decrease" style="margin-block: 0.3em;">
           <slider-input id="statesBrush" min="1" max="100" value="15">Brush size:</slider-input>
         </div>
@@ -126,6 +129,7 @@ function addListeners() {
   ensureEl("statesRandomize").on("click", randomizeStatesExpansion);
   ensureEl("statesGrowthRate").on("input", () => recalculateStates(false));
   ensureEl("statesManually").on("click", enterStatesManualAssignent);
+  ensureEl("statesManuallyState").on("change", highlightBrushRow);
   ensureEl("statesManuallyUndo").on("click", undoStatesManualAssignment);
   ensureEl("statesManuallyApply").on("click", applyStatesManualAssignent);
   ensureEl("statesManuallyCancel").on("click", () => exitStatesManualAssignment(false));
@@ -192,15 +196,10 @@ function statesEditorAddLines() {
     totalBurgs += s.burgs;
   }
 
-  // Manual assignment picks the brush state by clicking its row, so every state must have a
-  // row in the DOM. Pagination would hide states beyond the first page (the pager is hidden in
-  // this mode too), making them unselectable. Render the full set while painting.
-  const isManualAssignment = customization === 2;
   const pageInfo = getEditorPage(allStates, statesPage);
-  const rows = isManualAssignment ? allStates : pageInfo.items;
   let lines = "";
 
-  for (const s of rows) {
+  for (const s of pageInfo.items) {
     const area = getArea(s.area);
     const rural = s.rural * populationRate;
     const urban = s.urban * populationRate * urbanization;
@@ -314,15 +313,10 @@ function statesEditorAddLines() {
   ensureEl("statesFooterPopulation").innerHTML = si(totalPopulation);
   ensureEl("statesFooterPopulation").dataset.population = totalPopulation;
 
-  // No pager while painting: all rows are rendered and the footer is hidden anyway.
-  if (isManualAssignment) {
-    ensureEl("statesFooter").querySelector(":scope > .editorPagination")?.remove();
-  } else {
-    renderEditorPagination(ensureEl("statesFooter"), pageInfo, page => {
-      statesPage.page = page;
-      statesEditorAddLines();
-    });
-  }
+  renderEditorPagination(ensureEl("statesFooter"), pageInfo, page => {
+    statesPage.page = page;
+    statesEditorAddLines();
+  });
 
   // add listeners
   $body.querySelectorAll(":scope > div").forEach($line => {
@@ -947,22 +941,53 @@ function enterStatesManualAssignent() {
   $body.querySelectorAll("div > input, select, span, svg").forEach(e => (e.style.pointerEvents = "none"));
   $("#statesEditor").dialog({ position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" } });
 
-  tip("Click on state to select, drag the circle to change state", true);
+  // The editor list is paginated, so the brush target is chosen from a lightweight all-states
+  // dropdown (plain text, no emblems) rather than from a rendered row — otherwise states beyond
+  // the current page would be unselectable, and rendering every emblem at once freezes the tab.
+  populateBrushStateSelect();
+  highlightBrushRow();
+
+  tip("Pick a state to paint with, then drag the circle. Click the map to pick the state under the cursor", true);
   viewbox
     .style("cursor", "crosshair")
     .on("click", selectStateOnMapClick)
     .call(d3.drag().on("start", dragStateBrush))
     .on("touchmove mousemove", moveStateBrush);
 
-  $body.querySelector("div").classList.add("selected");
   statesManualHistory = [];
+}
+
+// Fill the brush-target dropdown with every (non-removed) state, ordered to match the editor's
+// active sort. Cheap: one plain <option> per state instead of a full emblem-bearing row.
+function populateBrushStateSelect() {
+  const select = ensureEl("statesManuallyState");
+  if (!select) return;
+  const states = pack.states.filter(s => !s.removed);
+  sortDataByActiveHeader(ensureEl("statesHeader"), states, STATES_SORT_ACCESSORS);
+  select.innerHTML = states
+    .map(s => `<option value="${s.i}">${s.i ? s.fullName : s.name}</option>`)
+    .join("");
+}
+
+// Active brush target: the state the next stroke paints cells into.
+function getBrushStateId() {
+  const select = ensureEl("statesManuallyState");
+  return select && select.value !== "" ? +select.value : 0;
+}
+
+// Mirror the dropdown selection onto a visible row (purely cosmetic; the row may be off-page).
+function highlightBrushRow() {
+  const id = getBrushStateId();
+  $body.querySelector("div.selected")?.classList.remove("selected");
+  $body.querySelector("div[data-id='" + id + "']")?.classList.add("selected");
 }
 
 function selectStateOnLineClick() {
   if (customization !== 2) return;
   if (this.parentNode.id !== "statesBodySection") return;
-  $body.querySelector("div.selected").classList.remove("selected");
-  this.classList.add("selected");
+  const select = ensureEl("statesManuallyState");
+  if (select) select.value = this.dataset.id;
+  highlightBrushRow();
 }
 
 function selectStateOnMapClick() {
@@ -973,10 +998,10 @@ function selectStateOnMapClick() {
   const assigned = statesBody.select("#temp").select("polygon[data-cell='" + i + "']");
   const state = assigned.size() ? +assigned.attr("data-state") : pack.cells.state[i];
 
-  const $row = $body.querySelector("div[data-id='" + state + "']");
-  if (!$row) return; // clicked state's row is on another page; ignore to avoid a crash
-  $body.querySelector("div.selected")?.classList.remove("selected");
-  $row.classList.add("selected");
+  // Set the brush to the clicked state even when its row is on another page.
+  const select = ensureEl("statesManuallyState");
+  if (select) select.value = state;
+  highlightBrushRow();
 }
 
 function dragStateBrush() {
@@ -998,8 +1023,7 @@ function dragStateBrush() {
 function changeStateForSelection(selection) {
   const temp = statesBody.select("#temp");
 
-  const $selected = $body.querySelector("div.selected");
-  const stateNew = +$selected.dataset.id;
+  const stateNew = getBrushStateId();
   const color = pack.states[stateNew].color || "#ffffff";
   const preventOverwrite = document.getElementById("statesManuallyProtect")?.checked;
 
