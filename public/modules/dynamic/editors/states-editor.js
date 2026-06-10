@@ -1672,7 +1672,10 @@ function mergeStates(statesToMerge, rulingStateId, mergeToProvinces = false) {
       if (statesToMerge.includes(burg.state)) {
         if (burg.capital) {
           burg.capital = 0;
-          Burgs.changeGroup(burg);
+          // On a plain merge an absorbed capital becomes an ordinary burg. When demoting to a
+          // province it stays the province's centre, so keep its icon/label as-is (changeGroup
+          // would re-bucket it by population and spawn a town/village icon over the old capital).
+          if (!mergeToProvinces) Burgs.changeGroup(burg);
         }
         burg.state = rulingStateId;
       }
