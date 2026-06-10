@@ -87,7 +87,11 @@ function insertEditorHtml() {
       <button id="statesManually" data-tip="Manually re-assign states" class="icon-brush"></button>
       <div id="statesManuallyButtons" style="display: none">
         <div data-tip="State to paint with. Lists every state, so states beyond the current page are still selectable" style="margin-block: 0.3em;">
-          <label>Paint as: <select id="statesManuallyState" style="max-width: 14em"></select></label>
+          <label><span id="statesManuallyStateLabel">Paint as: </span><select id="statesManuallyState" style="max-width: 14em"></select></label>
+        </div>
+        <div data-tip="Picker mode: click a whole state on the map to stage it for demotion into a single province of the state selected above (keeping its name, form, colour and emblem). Staged states are committed on Apply." style="margin-block: 0.3em;">
+          <input id="statesManuallyDemote" class="checkbox" type="checkbox" />
+          <label for="statesManuallyDemote" class="checkbox-label"><i>demote clicked state to a province</i></label>
         </div>
         <div data-tip="Change brush size. Shortcuts: + / ] to increase; - / [ to decrease" style="margin-block: 0.3em;">
           <slider-input id="statesBrush" min="1" max="100" value="15">Brush size:</slider-input>
@@ -130,6 +134,7 @@ function addListeners() {
   ensureEl("statesGrowthRate").on("input", () => recalculateStates(false));
   ensureEl("statesManually").on("click", enterStatesManualAssignent);
   ensureEl("statesManuallyState").on("change", highlightBrushRow);
+  ensureEl("statesManuallyDemote").on("change", updateDemotePickerLabel);
   ensureEl("statesManuallyUndo").on("click", undoStatesManualAssignment);
   ensureEl("statesManuallyApply").on("click", applyStatesManualAssignent);
   ensureEl("statesManuallyCancel").on("click", () => exitStatesManualAssignment(false));
@@ -946,6 +951,8 @@ function enterStatesManualAssignent() {
   // the current page would be unselectable, and rendering every emblem at once freezes the tab.
   populateBrushStateSelect();
   highlightBrushRow();
+  ensureEl("statesManuallyDemote").checked = false;
+  updateDemotePickerLabel();
 
   tip("Pick a state to paint with, then drag the circle. Click the map to pick the state under the cursor", true);
   viewbox
@@ -982,6 +989,48 @@ function highlightBrushRow() {
   $body.querySelector("div[data-id='" + id + "']")?.classList.add("selected");
 }
 
+// Picker mode: clicking a whole state stages it for demotion into a province instead of brushing.
+function isDemotePickerOn() {
+  return Boolean(ensureEl("statesManuallyDemote")?.checked);
+}
+
+// The dropdown is the brush target normally, but the receiving state in picker mode.
+function updateDemotePickerLabel() {
+  const label = ensureEl("statesManuallyStateLabel");
+  if (label) label.textContent = isDemotePickerOn() ? "Demote into: " : "Paint as: ";
+}
+
+// Stage a whole-state demotion: preview every land cell of `stateId` recoloured into the receiving
+// state and tagged data-demote, so Apply routes it through mergeStates(..., toProvinces). The real
+// reassignment/province creation happens on Apply; this is visual + undoable like a brush stroke.
+function stageStateDemotion(stateId) {
+  const ownerId = getBrushStateId();
+  if (!stateId) return tip("Neutral land cannot be demoted to a province", false, "error");
+  if (!ownerId) return tip("Pick a receiving state from the dropdown first", false, "error");
+  if (ownerId === stateId) return tip("A state cannot be demoted into itself", false, "error");
+
+  saveStatesManualSnapshot();
+  const temp = statesBody.select("#temp");
+  const color = pack.states[ownerId].color || "#ffffff";
+  const { state: cellState, h } = pack.cells;
+  for (let i = 0; i < cellState.length; i++) {
+    if (cellState[i] !== stateId || h[i] < 20) continue;
+    const existing = temp.select("polygon[data-cell='" + i + "']");
+    if (existing.size())
+      existing.attr("data-state", ownerId).attr("data-demote", stateId).attr("fill", color).attr("stroke", color);
+    else
+      temp
+        .append("polygon")
+        .attr("data-cell", i)
+        .attr("data-state", ownerId)
+        .attr("data-demote", stateId)
+        .attr("points", getPackPolygon(i))
+        .attr("fill", color)
+        .attr("stroke", color);
+  }
+  tip(`${pack.states[stateId].fullName} staged to become a province of ${pack.states[ownerId].name}. Apply to commit`, true);
+}
+
 function selectStateOnLineClick() {
   if (customization !== 2) return;
   if (this.parentNode.id !== "statesBodySection") return;
@@ -995,6 +1044,10 @@ function selectStateOnMapClick() {
   const i = findCell(point[0], point[1]);
   if (pack.cells.h[i] < 20) return;
 
+  // In picker mode, the clicked cell's true owner (from pack, ignoring any staged preview) is the
+  // state being demoted into a province.
+  if (isDemotePickerOn()) return stageStateDemotion(pack.cells.state[i]);
+
   const assigned = statesBody.select("#temp").select("polygon[data-cell='" + i + "']");
   const state = assigned.size() ? +assigned.attr("data-state") : pack.cells.state[i];
 
@@ -1005,6 +1058,7 @@ function selectStateOnMapClick() {
 }
 
 function dragStateBrush() {
+  if (isDemotePickerOn()) return; // picker stages whole states on click; no cell brushing
   const r = +statesBrush.value;
   saveStatesManualSnapshot();
 
@@ -1059,10 +1113,24 @@ function applyStatesManualAssignent() {
   const affectedStates = [];
   const affectedProvinces = [];
 
+  // Whole-state demotions staged by the picker, grouped by receiving state. Each group is committed
+  // via mergeStates(..., toProvinces=true) — the same path as the dialog's "merge down to provinces".
+  // Collected up front; their cells are skipped by the plain reassignment below (mergeStates owns them).
+  const demotionsByOwner = new Map();
+
   statesBody
     .select("#temp")
     .selectAll("polygon")
     .each(function () {
+      if (this.dataset.demote) {
+        const ownerId = +this.dataset.state;
+        const sourceId = +this.dataset.demote;
+        if (ownerId && sourceId && ownerId !== sourceId) {
+          if (!demotionsByOwner.has(ownerId)) demotionsByOwner.set(ownerId, new Set());
+          demotionsByOwner.get(ownerId).add(sourceId);
+        }
+        return;
+      }
       const i = +this.dataset.cell;
       const c = +this.dataset.state;
       affectedStates.push(cells.state[i], c);
@@ -1081,7 +1149,13 @@ function applyStatesManualAssignent() {
     if (layerIsOn("toggleProvinces")) drawProvinces();
   }
 
+  // Leave paint mode (this removes #temp) before committing demotions; mergeStates does all the
+  // cell/burg/province/regiment reassignment, province creation and redraws itself.
   exitStatesManualAssignment(false);
+  demotionsByOwner.forEach((sourceSet, ownerId) => {
+    const ids = [...sourceSet].filter(id => pack.states[id] && !pack.states[id].removed);
+    if (ids.length) mergeStates(ids, ownerId, true);
+  });
 }
 
 function adjustProvinces(affectedProvinces) {
@@ -1502,8 +1576,12 @@ function openStateMergeDialog() {
       }
     }
   });
+}
 
-  function mergeStates(statesToMerge, rulingStateId, mergeToProvinces = false) {
+// Merge `statesToMerge` into `rulingStateId`. With `mergeToProvinces`, each merged state is demoted
+// into a single province of the ruling state (keeping its name/form/colour/emblem) instead of being
+// dissolved. At module scope so both the merge dialog and the paint-mode picker can call it.
+function mergeStates(statesToMerge, rulingStateId, mergeToProvinces = false) {
     const rulingState = pack.states[rulingStateId];
     const rulingStateArmy = document.getElementById("army" + rulingStateId);
 
@@ -1623,7 +1701,6 @@ function openStateMergeDialog() {
     drawStateLabels([rulingStateId]);
 
     refreshStatesEditor();
-  }
 }
 
 function downloadStatesCsv() {
