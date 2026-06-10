@@ -47,6 +47,8 @@ Sea routes are no longer a simple nearest-neighbour graph. Two systems layer tog
 
 **Global trade hub network.** On top of the lanes, burgs are assigned trade roles: each state gets one **hub** (the qualifying port nearest its capital) and other large ports become **waystations**. Hubs are linked through a leg graph (same ocean component, within one leg's range) with multi-hop routing and per-leg usage counts, rendered as a dedicated `traderoutes` layer. Legs with no coastal path fall back to routing offshore through deep water. Roles can be overridden per-burg and survive regeneration.
 
+![Trade lanes spanning the oceans and wrapping across the antimeridian](docs/images/readme-image-2026-06-10_17-20.png)
+
 ## Globe-aware (seam-wrapping) routes
 
 On full-globe maps (360° longitude), sea and air routes can cross the antimeridian instead of detouring across the whole map: burg pairing uses a toroidal Urquhart graph, sea pathfinding runs on a seam-augmented adjacency graph with wrap-aware A*, and seam-crossing routes are split at the map edge at render time with correctly wrapped lengths.
