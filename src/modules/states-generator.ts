@@ -71,7 +71,10 @@ class StatesModule {
       const coa = COA.generate(null, null, null, type);
       coa.shield = COA.getShield(burg.culture!);
       states.push({
-        i: burg.i,
+        // i must equal the array index — pack.states[id] lookups rely on it.
+        // Capital burg ids are NOT contiguous (the flying sky capital is
+        // placed after all ground burgs), so burg.i cannot be used here.
+        i: states.length,
         name,
         expansionism,
         capital: burg.i,

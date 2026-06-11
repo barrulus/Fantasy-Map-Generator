@@ -71,6 +71,36 @@ function buildPack() {
   (globalThis as any).biomesData = { cost: new Array(13).fill(10) };
 }
 
+describe("createStates", () => {
+  it("keeps state.i equal to the array index when a capital burg has a high id (sky capital)", () => {
+    const g = globalThis as any;
+    g.Names = { getCultureShort: () => "Test", getState: () => "Testland" };
+    g.COA = { generate: () => ({}), getShield: () => "heater" };
+    const prevGetEl = g.document.getElementById;
+    // createStates reads ensureEl("sizeVariety").valueAsNumber
+    g.document.getElementById = () => ({ valueAsNumber: 1, value: "1" });
+    try {
+      g.pack = {
+        cultures: [{ type: "Generic" }, { type: "Generic" }],
+        burgs: [
+          0,
+          { i: 1, capital: 1, cell: 0, culture: 1, name: "Alpha" }, // ground capital
+          { i: 2, cell: 1, culture: 1, name: "Beta" }, // ordinary burg
+          { i: 9, capital: 1, flying: 1, cell: 2, culture: 1, name: "Sky" } // sky capital, non-contiguous id
+        ]
+      };
+      const states = (States as any).createStates();
+      expect(states).toHaveLength(3); // neutrals + ground + sky
+      for (let index = 0; index < states.length; index++) {
+        expect(states[index].i).toBe(index); // pack.states is indexed by id
+      }
+      expect(states[2].capital).toBe(9); // capital field keeps the burg reference
+    } finally {
+      g.document.getElementById = prevGetEl;
+    }
+  });
+});
+
 describe("expandStates with a sky state", () => {
   it("never seeds or claims territory for the flying-capital state", () => {
     buildPack();
