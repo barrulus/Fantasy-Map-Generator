@@ -972,26 +972,50 @@ class BurgModule {
   specify() {
     TIME && console.time("specifyBurgs");
 
+    // Per-phase cost breakdown: specifyBurgs dominates generation on dense
+    // maps (~11s at 80k burgs) and one opaque number hides where it goes.
+    const diag = { population: 0, emblem: 0, features: 0, popIndex: 0, groups: 0, coas: 0 };
+
     pack.burgs.forEach(burg => {
       if (!burg.i || burg.removed || burg.lock) return;
+      let t = TIME ? performance.now() : 0;
       this.definePopulation(burg);
+      if (TIME) diag.population += performance.now() - t;
       if (burg.flying) burg.altitude = skyburgAltitude(burg.population as number);
+      t = TIME ? performance.now() : 0;
       this.defineEmblem(burg);
+      if (TIME) {
+        diag.emblem += performance.now() - t;
+        if (burg.coa) diag.coas++;
+      }
+      t = TIME ? performance.now() : 0;
       this.defineFeatures(burg);
+      if (TIME) diag.features += performance.now() - t;
     });
 
+    let t = TIME ? performance.now() : 0;
     const populations = pack.burgs
       .filter(b => b.i && !b.removed)
       .map(b => b.population as number)
       .sort((a: number, b: number) => a - b); // ascending
 
     const popIndex = this.buildPopIndex(populations);
+    if (TIME) diag.popIndex = performance.now() - t;
 
+    t = TIME ? performance.now() : 0;
     pack.burgs.forEach(burg => {
       if (!burg.i || burg.removed) return;
       this.defineGroup(burg, popIndex, populations.length);
     });
+    if (TIME) diag.groups = performance.now() - t;
 
+    TIME &&
+      console.log(
+        `  specifyBurgs breakdown: population=${diag.population.toFixed(0)}ms`,
+        `emblem=${diag.emblem.toFixed(0)}ms (${diag.coas} coas)`,
+        `features=${diag.features.toFixed(0)}ms`,
+        `popIndex=${diag.popIndex.toFixed(0)}ms groups=${diag.groups.toFixed(0)}ms`
+      );
     TIME && console.timeEnd("specifyBurgs");
   }
 
