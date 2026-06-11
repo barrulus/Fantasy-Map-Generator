@@ -646,12 +646,18 @@ class BurgModule {
 
   private definePopulation(burg: Burg) {
     if (burg.flying) {
-      // Skyburgs: small floating settlements, 200-1500 people. Skip the
-      // ground-route connectivity modifier — flying burgs aren't on roads.
-      let population = gauss(0.6, 0.4, 0.2, 1.5);
+      // Skyburgs: small floating settlements (~100-1500 people); the sky
+      // capital is the cluster's metropolis (~2k-6k). Skip the ground-route
+      // connectivity modifier — flying burgs aren't on roads.
+      let population = burg.capital ? gauss(3, 1.5, 2, 6) : gauss(0.6, 0.4, 0.2, 1.5);
       population += (((burg.i as number) % 100) - (burg.cell % 100)) / 1000;
+      // Hard floor: never below 100 people, whatever the map's population settings
+      // (the > 0 guard also covers unset globals, where the product is NaN)
+      const peoplePerUnit = populationRate * urbanization;
+      const minUnits = peoplePerUnit > 0 ? 100 / peoplePerUnit : 0.1;
+      population = Math.max(population, minUnits);
       burg.basePopulation = population;
-      burg.population = rn(Math.max(population, 0.01), 3);
+      burg.population = rn(population, 3);
       return;
     }
     const sType = burg.settlementType || "hamlet";
@@ -849,6 +855,12 @@ class BurgModule {
         preview: "watabou-village"
       },
       {
+        name: "skyburg-capital",
+        active: true,
+        order: 10,
+        features: { flying: true }
+      },
+      {
         name: "skyburg",
         active: true,
         order: 10,
@@ -893,7 +905,7 @@ class BurgModule {
 
     // Flying burgs: assign group by population tier for zoom-level culling
     if (burg.flying) {
-      burg.group = skyburgGroupFromPopulation(burg.population as number);
+      burg.group = burg.capital ? "skyburg-capital" : skyburgGroupFromPopulation(burg.population as number);
       return;
     }
 
@@ -906,7 +918,7 @@ class BurgModule {
 
     for (const group of options.burgs.groups) {
       if (!group.active) continue;
-      if (group.name === "skyburg" || group.name === "skyburg-mid" || group.name === "skyburg-small") continue; // skip skyburg groups for non-flying burgs
+      if (group.name.startsWith("skyburg")) continue; // skip skyburg groups for non-flying burgs
 
       if (group.min) {
         const isFit = (burg.population as number) >= group.min;
@@ -947,6 +959,7 @@ class BurgModule {
     pack.burgs.forEach(burg => {
       if (!burg.i || burg.removed || burg.lock) return;
       this.definePopulation(burg);
+      if (burg.flying) burg.altitude = skyburgAltitude(burg.population as number);
       this.defineEmblem(burg);
       this.defineFeatures(burg);
     });

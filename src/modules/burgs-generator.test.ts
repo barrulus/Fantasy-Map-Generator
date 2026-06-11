@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { nearestBurgId, skyburgAltitude, skyburgGroupFromPopulation, skyburgPlacementWeight } from "./burgs-generator";
 
 describe("skyburgGroupFromPopulation", () => {
@@ -88,5 +88,63 @@ describe("nearestBurgId", () => {
 
   it("returns -1 for an empty id list", () => {
     expect(nearestBurgId(burgs, [], 0, 0)).toBe(-1);
+  });
+});
+
+describe("definePopulation for flying burgs", () => {
+  let Burgs: any;
+
+  beforeAll(async () => {
+    const g = globalThis as any;
+    g.window = g.window ?? {};
+    g.document = g.document ?? {
+      readyState: "complete",
+      getElementById: () => null,
+      addEventListener: () => {},
+      querySelector: () => null
+    };
+    g.TIME = false;
+    g.WARN = false;
+    g.ERROR = false;
+    g.pack = g.pack ?? {};
+    await import("./burgs-generator");
+    Burgs = (g.window as any).Burgs;
+  });
+
+  const makeFlying = (over: any = {}) => ({ i: 7, cell: 13, flying: 1, ...over }) as any;
+
+  it("never drops below 100 people at default rates", () => {
+    const g = globalThis as any;
+    g.populationRate = 1000;
+    g.urbanization = 1;
+    for (let n = 0; n < 200; n++) {
+      const burg = makeFlying({ i: n + 1, cell: (n * 37) % 100 });
+      (Burgs as any).definePopulation(burg);
+      expect(burg.population * 1000 * 1).toBeGreaterThanOrEqual(100);
+    }
+  });
+
+  it("holds the 100-person floor when urbanization shrinks people-per-unit", () => {
+    const g = globalThis as any;
+    g.populationRate = 1000;
+    g.urbanization = 0.2; // people = units * 200 — old 0.1-unit floor would mean 20 people
+    for (let n = 0; n < 200; n++) {
+      const burg = makeFlying({ i: n + 1, cell: (n * 37) % 100 });
+      (Burgs as any).definePopulation(burg);
+      expect(burg.population * 1000 * 0.2).toBeGreaterThanOrEqual(100 - 0.5); // rn() rounds to 3 decimals
+    }
+    g.urbanization = 1;
+  });
+
+  it("gives the sky capital 2-6 units (~2k-6k people)", () => {
+    const g = globalThis as any;
+    g.populationRate = 1000;
+    g.urbanization = 1;
+    for (let n = 0; n < 50; n++) {
+      const burg = makeFlying({ i: n + 1, cell: (n * 37) % 100, capital: 1 });
+      (Burgs as any).definePopulation(burg);
+      expect(burg.population).toBeGreaterThanOrEqual(1.9); // gauss min 2 minus jitter
+      expect(burg.population).toBeLessThanOrEqual(6.1); // gauss max 6 plus jitter
+    }
   });
 });
