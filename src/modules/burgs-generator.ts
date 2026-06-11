@@ -56,6 +56,41 @@ export function skyburgGroupFromPopulation(population: number): string {
   return "skyburg-small";
 }
 
+// Flying-burg altitude in feet above the local surface (ground or sea).
+// Population-scaled: tiny settlements hover low, the largest sky cities ride
+// high. Linear from 50 ft at the 0.1-unit floor to 500 ft at 1.5+ units,
+// rounded to 10 ft.
+export function skyburgAltitude(population: number): number {
+  const t = Math.min(Math.max((population - 0.1) / 1.4, 0), 1);
+  return Math.round((50 + 450 * t) / 10) * 10;
+}
+
+// Acceptance weight for a skyburg candidate by the cell's distance-to-coast
+// field (cells.t): hug coastlines and islands, thin out over open ocean and
+// deep inland.
+export function skyburgPlacementWeight(t: number): number {
+  const d = Math.abs(t);
+  if (d === 1) return 1;
+  if (d === 2) return 0.5;
+  return 0.15;
+}
+
+// Id of the burg (among `ids`) closest to (ax, ay); -1 if ids is empty.
+// `ids` must not include 0 — pack.burgs[0] is the numeric placeholder slot.
+export function nearestBurgId(burgs: { x: number; y: number }[], ids: number[], ax: number, ay: number): number {
+  let best = -1;
+  let bestD = Infinity;
+  for (const id of ids) {
+    const b = burgs[id];
+    const d = (b.x - ax) ** 2 + (b.y - ay) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = id;
+    }
+  }
+  return best;
+}
+
 class BurgModule {
   shift() {
     const { cells, features, burgs } = pack;
