@@ -59,6 +59,22 @@ const stateLabelsRenderer = (list?: number[]): void => {
       const maxLakeSize = state.cells! / 20;
       const [x0, y0] = state.pole!;
 
+      if (!state.cells) {
+        // Zero-territory state (sky state): no owned cells to raycast against.
+        // Use a short horizontal path through the pole — drawLabelPath
+        // prolongs it to fit the name.
+        const span = 20;
+        labelPaths.push([
+          state.i,
+          [
+            [x0 - span, y0],
+            [x0, y0],
+            [x0 + span, y0]
+          ]
+        ]);
+        continue;
+      }
+
       const rays: Ray[] = angles.map(({ angle, dx, dy }) => {
         const { length, x, y } = raycast({
           stateId: state.i,

@@ -250,6 +250,9 @@ class StatesModule {
       }
     }
 
+    // At most one sky state exists today (one skyburg cluster per map); if
+    // multiple flying capitals ever appear, this find() must become a lookup
+    // per cluster.
     const skyState = states.find(s => s.i && !s.removed && burgs[s.capital]?.flying);
     const skyStateId = skyState?.i ?? 0;
     burgs
