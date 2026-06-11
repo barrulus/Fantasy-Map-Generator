@@ -1568,6 +1568,32 @@ class RoutesModule {
     TIME && console.timeEnd("rebuildAirroutes");
   }
 
+  // Rebuild the global trade network (group "traderoutes") in place. Called when
+  // a burg's trade role changes in the editor. Other route groups are untouched;
+  // assignTradeRoles inside generateTradeNetwork skips tradeRoleManual burgs, so
+  // manual overrides survive the rebuild.
+  rebuildTradeRoutes(): void {
+    TIME && console.time("rebuildTradeRoutes");
+
+    pack.routes = pack.routes.filter(r => r.group !== "traderoutes");
+
+    const components = this.buildNavigableComponents();
+    const seaAdjacency = isWrapEnabled() ? this.buildSeaAdjacency() : undefined;
+    const tradeRoutes = this.generateTradeNetwork(components, seaAdjacency);
+
+    let nextId = this.getNextId();
+    for (const route of tradeRoutes) {
+      route.i = nextId++;
+      pack.routes.push(route);
+    }
+
+    pack.cells.routes = this.buildLinks(pack.routes);
+
+    if (layerIsOn("toggleRoutes")) drawRoutes();
+
+    TIME && console.timeEnd("rebuildTradeRoutes");
+  }
+
   // connect cell with routes system by land
   connect(cellId: number): Route | undefined {
     const getCost = this.createCostEvaluator({

@@ -114,8 +114,10 @@ describe("rebuildTradeRoutes", () => {
     }
   });
 
-  it("manual none on a hub excludes it (single hub left => no network)", () => {
-    const { cap1 } = setupPack();
+  it("manual none on a hub excludes it and promotes the next-best port", () => {
+    // NOTE: exclusion does NOT shrink the network — assignTradeRoles picks the
+    // nearest qualifying port to the state capital, so `way` is promoted to hub.
+    const { cap1, way } = setupPack();
     cap1.tradeRole = undefined;
     cap1.tradeRoleManual = true;
 
@@ -123,7 +125,13 @@ describe("rebuildTradeRoutes", () => {
 
     const pack = (globalThis as any).pack;
     expect(cap1.tradeRole).toBeUndefined(); // manual override survives assignTradeRoles
-    expect(pack.routes.filter((r: any) => r.group === "traderoutes")).toHaveLength(0);
+    expect(way.tradeRole).toBe("hub"); // nearest remaining state-1 port takes over
+
+    const trade = pack.routes.filter((r: any) => r.group === "traderoutes");
+    expect(trade.length).toBeGreaterThan(0);
+    // the excluded burg's cell is not an endpoint of any trade lane
+    const endpoints = trade.flatMap((r: any) => [r.points[0][2], r.points[r.points.length - 1][2]]);
+    expect(endpoints).not.toContain(1);
   });
 
   it("manual hub role survives the rebuild", () => {

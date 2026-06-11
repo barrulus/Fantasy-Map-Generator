@@ -749,3 +749,163 @@ describe("generateTradeNetwork", () => {
     expect(direct).toBe(false);
   });
 });
+
+describe("rebuildTradeRoutes", () => {
+  const N = 13;
+  const STEP = 1000 / (N - 1);
+
+  const buildGrid = (landCells: number[]) => {
+    const i = new Uint32Array(N * N);
+    const c: number[][] = [];
+    const p: [number, number][] = [];
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const id = y * N + x;
+        i[id] = id;
+        p.push([x * STEP, y * STEP]);
+        const neibs: number[] = [];
+        if (x > 0) neibs.push(id - 1);
+        if (x < N - 1) neibs.push(id + 1);
+        if (y > 0) neibs.push(id - N);
+        if (y < N - 1) neibs.push(id + N);
+        c.push(neibs);
+      }
+    }
+    const h = new Array(N * N).fill(0); // water
+    for (const land of landCells) h[land] = 30;
+    return { i, c, p, h, t: new Array(N * N).fill(0), g: new Array(N * N).fill(0), f: new Array(N * N).fill(1) };
+  };
+
+  const setupPack = () => {
+    const g = globalThis as any;
+    g.window = g.window ?? {};
+    g.window.FlatQueue = FlatQueue;
+    g.graphWidth = 1000;
+    g.graphHeight = 1000;
+    g.mapCoordinates = { lonT: 180 };
+    g.layerIsOn = () => false; // rebuild must not try to draw in the test env
+
+    const cap1 = {
+      i: 1,
+      state: 1,
+      capital: 1,
+      port: 1,
+      cell: 1,
+      x: STEP,
+      y: 0,
+      population: 50,
+      settlementType: "largePort"
+    } as any;
+    const cap2 = {
+      i: 2,
+      state: 2,
+      capital: 1,
+      port: 1,
+      cell: 7,
+      x: 7 * STEP,
+      y: 0,
+      population: 50,
+      settlementType: "largePort"
+    } as any;
+    const way = {
+      i: 3,
+      state: 1,
+      port: 1,
+      cell: 4,
+      x: 4 * STEP,
+      y: 0,
+      population: 20,
+      settlementType: "largePort"
+    } as any;
+
+    // pre-existing routes: a road that must survive, a stale trade lane that must go
+    const road = {
+      i: 0,
+      group: "roads",
+      feature: 1,
+      points: [
+        [STEP, 0, 1],
+        [4 * STEP, 0, 4]
+      ]
+    } as any;
+    const staleTrade = {
+      i: 1,
+      group: "traderoutes",
+      feature: 1,
+      points: [
+        [4 * STEP, 0, 4],
+        [7 * STEP, 0, 7]
+      ]
+    } as any;
+
+    g.pack = { cells: buildGrid([1, 4, 7]), burgs: [{}, cap1, cap2, way], routes: [road, staleTrade] };
+    g.pack.cells.routes = (Routes as any).buildLinks(g.pack.routes);
+    g.grid = { cells: { temp: [20] } };
+
+    return { cap1, cap2, way, road };
+  };
+
+  it("replaces traderoutes, renumbers uniquely, and leaves other groups untouched", () => {
+    const { road } = setupPack();
+    (Routes as any).rebuildTradeRoutes();
+
+    const pack = (globalThis as any).pack;
+    const trade = pack.routes.filter((r: any) => r.group === "traderoutes");
+    const roads = pack.routes.filter((r: any) => r.group === "roads");
+
+    expect(roads).toEqual([road]); // untouched
+    expect(trade.length).toBe(2); // cap1<->way and way<->cap2, as in generateTradeNetwork
+    const ids = pack.routes.map((r: any) => r.i);
+    expect(new Set(ids).size).toBe(ids.length); // unique ids after renumbering
+
+    // cells.routes was rebuilt: every link points at an existing route
+    const routeIds = new Set(ids);
+    for (const links of Object.values(pack.cells.routes) as any[]) {
+      for (const routeId of Object.values(links) as number[]) {
+        expect(routeIds.has(routeId)).toBe(true);
+      }
+    }
+  });
+
+  it("manual none on a hub excludes it and promotes the next-best port", () => {
+    const { cap1, way } = setupPack();
+    cap1.tradeRole = undefined;
+    cap1.tradeRoleManual = true;
+
+    (Routes as any).rebuildTradeRoutes();
+
+    const pack = (globalThis as any).pack;
+    expect(cap1.tradeRole).toBeUndefined(); // manual override survives assignTradeRoles
+    expect(way.tradeRole).toBe("hub"); // nearest remaining state-1 port takes over
+
+    const trade = pack.routes.filter((r: any) => r.group === "traderoutes");
+    expect(trade.length).toBeGreaterThan(0);
+    // the excluded burg's cell is not an endpoint of any trade lane
+    const endpoints = trade.flatMap((r: any) => [r.points[0][2], r.points[r.points.length - 1][2]]);
+    expect(endpoints).not.toContain(1);
+  });
+
+  it("manual hub role survives the rebuild", () => {
+    const { way } = setupPack();
+    way.tradeRole = "hub";
+    way.tradeRoleManual = true;
+
+    (Routes as any).rebuildTradeRoutes();
+
+    expect(way.tradeRole).toBe("hub"); // not demoted back to waystation
+  });
+
+  it("is idempotent: consecutive rebuilds keep counts stable with no leftovers", () => {
+    setupPack();
+    (Routes as any).rebuildTradeRoutes();
+    const pack = (globalThis as any).pack;
+    const countAfterFirst = pack.routes.filter((r: any) => r.group === "traderoutes").length;
+    const totalAfterFirst = pack.routes.length;
+
+    (Routes as any).rebuildTradeRoutes();
+    expect(pack.routes.filter((r: any) => r.group === "traderoutes").length).toBe(countAfterFirst);
+    expect(pack.routes.length).toBe(totalAfterFirst);
+    const ids = pack.routes.map((r: any) => r.i);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
