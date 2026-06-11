@@ -138,6 +138,7 @@ class StatesModule {
     // that protects seed cells from being overwritten by reverse expansion.
     for (const state of states) {
       if (!state.i || state.removed) continue;
+      if (burgs[state.capital]?.flying) continue; // sky state: zero ground territory
       const capitalCell = burgs[state.capital].cell;
       cells.state[capitalCell] = state.i;
       const center = state.center;
@@ -249,10 +250,13 @@ class StatesModule {
       }
     }
 
+    const skyState = states.find(s => s.i && !s.removed && burgs[s.capital]?.flying);
+    const skyStateId = skyState?.i ?? 0;
     burgs
       .filter(b => b.i && !b.removed)
       .forEach(b => {
-        b.state = cells.state[b.cell]; // assign state to burgs
+        // flying burgs belong to the sky state, never to the ground below them
+        b.state = b.flying ? skyStateId : cells.state[b.cell];
       });
     TIME && console.timeEnd("expandStates");
   }
@@ -311,7 +315,9 @@ class StatesModule {
 
     pack.states.forEach(s => {
       if (!s.i || s.removed) return;
-      s.pole = poles[s.i] || [0, 0];
+      const capital = pack.burgs[s.capital];
+      // sky state owns no cells — pole at the capital so its label sits on the cluster
+      s.pole = capital?.flying ? [capital.x, capital.y] : poles[s.i] || [0, 0];
     });
   }
 
