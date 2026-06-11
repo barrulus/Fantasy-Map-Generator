@@ -807,14 +807,15 @@ function toggleRoutes(event) {
 }
 
 function toggleSkyburgs() {
+  const SKYBURG_GROUPS = "#skyburg-capital, #skyburg, #skyburg-mid, #skyburg-small";
   if (!layerIsOn("toggleSkyburgs")) {
     turnButtonOn("toggleSkyburgs");
-    burgIcons.selectAll("#skyburg, #skyburg-mid, #skyburg-small").style("display", null);
-    burgLabels.selectAll("#skyburg, #skyburg-mid, #skyburg-small").style("display", null);
+    burgIcons.selectAll(SKYBURG_GROUPS).style("display", null);
+    burgLabels.selectAll(SKYBURG_GROUPS).style("display", null);
     routes.select("#airroutes").style("display", null);
   } else {
-    burgIcons.selectAll("#skyburg, #skyburg-mid, #skyburg-small").style("display", "none");
-    burgLabels.selectAll("#skyburg, #skyburg-mid, #skyburg-small").style("display", "none");
+    burgIcons.selectAll(SKYBURG_GROUPS).style("display", "none");
+    burgLabels.selectAll(SKYBURG_GROUPS).style("display", "none");
     routes.select("#airroutes").style("display", "none");
     turnButtonOff("toggleSkyburgs");
   }
