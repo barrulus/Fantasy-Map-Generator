@@ -548,7 +548,7 @@ function invokeActiveZooming() {
   // rescale labels on zoom
   const BURG_MIN_ZOOM = {
     states: 0,
-    capital: 1, skyburg: 4, "skyburg-mid": 6, "skyburg-small": 8,
+    capital: 1, "skyburg-capital": 2, skyburg: 4, "skyburg-mid": 6, "skyburg-small": 8,
     city: 4, town: 6,
     fort: 7, monastery: 7, caravanserai: 7, trading_post: 7,
     village: 10, hamlet: 14

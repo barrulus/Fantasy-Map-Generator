@@ -552,7 +552,7 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
   }
 
   function downloadBurgsData() {
-    let data = `Id,Burg,Province,Province Full Name,State,State Full Name,Culture,Religion,Group,Population,X,Y,Latitude,Longitude,Elevation (${heightUnit.value}),Temperature,Temperature likeness,Capital,Port,Citadel,Walls,Plaza,Temple,Shanty Town,Emblem,Preview link\n`; // headers
+    let data = `Id,Burg,Province,Province Full Name,State,State Full Name,Culture,Religion,Group,Population,X,Y,Latitude,Longitude,Elevation (${heightUnit.value}),Altitude (ft),Temperature,Temperature likeness,Capital,Port,Citadel,Walls,Plaza,Temple,Shanty Town,Emblem,Preview link\n`; // headers
     const valid = pack.burgs.filter(b => b.i && !b.removed); // all valid burgs
 
     valid.forEach(b => {
@@ -574,6 +574,7 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
       data += getLatitude(b.y, 2) + ",";
       data += getLongitude(b.x, 2) + ",";
       data += parseInt(getHeight(pack.cells.h[b.cell])) + ",";
+      data += (b.flying ? (b.altitude ?? "") : "") + ",";
       const temperature = grid.cells.temp[pack.cells.g[b.cell]];
       data += convertTemperature(temperature) + ",";
       data += getTemperatureLikeness(temperature) + ",";

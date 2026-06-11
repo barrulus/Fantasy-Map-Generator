@@ -64,6 +64,7 @@
           settlementType: b.settlementType || "",
           flying: b.flying || 0,
           skyPort: b.skyPort || 0,
+          altitude: b.altitude || 0,
           elevation: b.cell != null ? pack.cells.h[b.cell] : 0,
           temperature: b.cell != null && window.grid
             ? window.grid.cells.temp[pack.cells.g[b.cell]]

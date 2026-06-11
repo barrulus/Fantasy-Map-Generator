@@ -82,7 +82,9 @@ function editBurg(id) {
     ensureEl("burgTemperature").innerHTML = convertTemperature(temperature);
     ensureEl("burgTemperatureLikeIn").dataset.tip =
       "Average yearly temperature is like in " + getTemperatureLikeness(temperature);
-    ensureEl("burgElevation").innerHTML = getHeight(pack.cells.h[b.cell]);
+    ensureEl("burgElevation").innerHTML = b.flying
+      ? `${b.altitude ?? "?"} ft above ${pack.cells.h[b.cell] < 20 ? "the sea" : "ground level"}`
+      : getHeight(pack.cells.h[b.cell]) + " above sea level";
 
     // toggle features
     ensureEl("burgCapital").classList.toggle("inactive", !b.capital);
