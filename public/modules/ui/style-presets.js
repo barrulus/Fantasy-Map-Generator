@@ -244,6 +244,7 @@ function addStylePreset() {
       "#trails": ["opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "filter", "mask"],
       "#searoutes": ["opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "filter", "mask"],
       "#airroutes": ["opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "filter", "mask"],
+      "#traderoutes": ["opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "filter", "mask"],
       "#statesBody": ["opacity", "filter"],
       "#statesHalo": ["opacity", "data-width", "stroke-width", "filter"],
       "#provs": ["opacity", "fill", "font-size", "font-family", "filter"],
@@ -368,7 +369,7 @@ function addStylePreset() {
     });
 
     const routeTypeAttrs = ["stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "opacity"];
-    for (const type of ["royal", "main", "market", "town", "trail", "footpath", "major", "local"]) {
+    for (const type of ["royal", "main", "market", "town", "trail", "footpath", "local"]) {
       attributes[`#routes [id="${type}"]`] = routeTypeAttrs;
     }
 

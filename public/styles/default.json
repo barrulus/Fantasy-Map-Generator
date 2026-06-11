@@ -254,12 +254,6 @@
   "#routes #footpath": {
     "stroke-width": 0.15
   },
-  "#routes #major": {
-    "stroke-width": 1.3,
-    "stroke": "#e0742f",
-    "opacity": 0.95,
-    "stroke-dasharray": "none"
-  },
   "#routes #local": {
     "stroke-width": 0.36
   },

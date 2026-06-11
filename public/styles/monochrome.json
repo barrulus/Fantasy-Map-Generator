@@ -212,6 +212,13 @@
     "filter": null,
     "mask": null
   },
+  "#traderoutes": {
+    "opacity": 0.9,
+    "stroke": "#000000",
+    "stroke-width": 1,
+    "stroke-dasharray": "3 2",
+    "stroke-linecap": "butt"
+  },
   "#airroutes": {
     "opacity": 0.8,
     "stroke": "#888888",
@@ -240,9 +247,6 @@
   },
   "#routes #footpath": {
     "stroke-width": 0.15
-  },
-  "#routes #major": {
-    "stroke-width": 0.63
   },
   "#routes #local": {
     "stroke-width": 0.36

@@ -216,6 +216,13 @@
     "stroke-dasharray": "2 2",
     "stroke-linecap": "butt"
   },
+  "#traderoutes": {
+    "opacity": 0.9,
+    "stroke": "#6b3a17",
+    "stroke-width": 1,
+    "stroke-dasharray": "3 2",
+    "stroke-linecap": "butt"
+  },
   "#airroutes": {
     "opacity": 0.8,
     "stroke": "#8a6040",
@@ -244,9 +251,6 @@
   },
   "#routes #footpath": {
     "stroke-width": 0.3
-  },
-  "#routes #major": {
-    "stroke-width": 0.84
   },
   "#routes #local": {
     "stroke-width": 0.48

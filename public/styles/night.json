@@ -218,6 +218,13 @@
     "filter": "",
     "mask": ""
   },
+  "#traderoutes": {
+    "opacity": 0.9,
+    "stroke": "#aebdf7",
+    "stroke-width": 1,
+    "stroke-dasharray": "3 2",
+    "stroke-linecap": "butt"
+  },
   "#airroutes": {
     "opacity": 0.8,
     "stroke": "#b388ff",
@@ -246,9 +253,6 @@
   },
   "#routes #footpath": {
     "stroke-width": 0.21
-  },
-  "#routes #major": {
-    "stroke-width": 0.7
   },
   "#routes #local": {
     "stroke-width": 0.4
