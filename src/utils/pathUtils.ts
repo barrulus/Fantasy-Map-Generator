@@ -285,6 +285,7 @@ export const connectVertices = ({
 let scratchFrom: Int32Array | null = null;
 let scratchCost: Float32Array | null = null;
 let scratchMark: Uint32Array | null = null;
+let scratchClosed: Uint32Array | null = null;
 let scratchGen = 0;
 
 function ensureScratch(cellCount: number) {
@@ -292,6 +293,7 @@ function ensureScratch(cellCount: number) {
     scratchFrom = new Int32Array(cellCount);
     scratchCost = new Float32Array(cellCount);
     scratchMark = new Uint32Array(cellCount);
+    scratchClosed = new Uint32Array(cellCount);
     scratchGen = 0;
   }
 }
@@ -403,9 +405,18 @@ export const findPathTree = (
   cost[start] = 0;
   from[start] = -1;
   mark[start] = gen;
+  const closed = scratchClosed!;
 
   while (queue.length && remaining.size) {
     const current = queue.pop();
+    // Closed-set skip: a cell relaxed k times leaves k-1 stale queue entries;
+    // re-expanding them re-scans every neighbor for nothing. Plain Dijkstra
+    // (no heuristic) settles optimally on first pop, so later pops are pure
+    // waste. Generation-marked to avoid clearing between calls; NOT a float
+    // cost comparison — Float32 scratch vs Float64 priorities breaks equality
+    // (see the expandStates staleness comment in states-generator).
+    if (closed[current] === gen) continue;
+    closed[current] = gen;
     const currentCost = cost[current];
     const neighbors = packedGraph.cells.c[current];
     for (let i = 0; i < neighbors.length; i++) {
