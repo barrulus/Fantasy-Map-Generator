@@ -3480,6 +3480,20 @@
                 <input id="burgPopulation" type="number" min="0" step="1" style="width: 9em" />
               </div>
 
+              <div
+                id="burgTradeRoleRow"
+                data-tip="Trade-network role: Auto lets generation decide; Hub/Waystation/None override it permanently"
+                style="display: none"
+              >
+                <div class="label">Trade role:</div>
+                <select id="burgTradeRole" style="width: 9em">
+                  <option value="auto">Auto</option>
+                  <option value="hub">Hub</option>
+                  <option value="waystation">Waystation</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+
               <div data-tip="Burg average yearly temperature" style="display: flex; justify-content: space-between">
                 <div>
                   <div class="label">Temperature:</div>
@@ -8600,7 +8614,7 @@
     <script defer src="modules/ui/rivers-creator.js?v=1.106.0"></script>
     <script defer src="modules/ui/relief-editor.js?v=1.99.00"></script>
     <script defer src="modules/ui/burg-group-editor.js?v=1.122.11"></script>
-    <script defer src="modules/ui/burg-editor.js?v=1.120.5"></script>
+    <script defer src="modules/ui/burg-editor.js?v=1.122.12"></script>
     <script defer src="modules/ui/units-editor.js?v=1.120.5"></script>
     <script defer src="modules/ui/notes-editor.js?v=1.120.5"></script>
     <script defer src="modules/ui/ai-generator.js?v=1.120.5"></script>

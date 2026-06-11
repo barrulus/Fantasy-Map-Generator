@@ -31,6 +31,7 @@ function editBurg(id) {
   ensureEl("burgNameReCulture").on("click", generateNameCulture);
   ensureEl("burgPopulation").on("change", changePopulation);
   ensureEl("burgAltitude").on("change", changeAltitude);
+  ensureEl("burgTradeRole").on("change", changeTradeRole);
   burgBody.querySelectorAll(".burgFeature").forEach(el => el.on("click", toggleFeature));
   ensureEl("burgLinkOpen").on("click", openBurgLink);
 
@@ -95,6 +96,7 @@ function editBurg(id) {
     ensureEl("burgSkyPort").classList.toggle("inactive", !b.skyPort);
     ensureEl("burgAltitudeRow").style.display = b.flying ? "block" : "none";
     ensureEl("burgAltitude").value = b.altitude || 500;
+    updateTradeRoleControl(b);
 
     updateBurgLockIcon();
 
@@ -179,7 +181,28 @@ function editBurg(id) {
 
     ensureEl("burgEditAnchorStyle").style.display = burg.port ? "inline-block" : "none";
     ensureEl("burgAltitudeRow").style.display = burg.flying ? "block" : "none";
+    updateTradeRoleControl(burg);
     updateBurgPreview(burg);
+  }
+
+  function updateTradeRoleControl(burg) {
+    ensureEl("burgTradeRoleRow").style.display = burg.port ? "block" : "none";
+    const select = ensureEl("burgTradeRole");
+    select.options[0].text = !burg.tradeRoleManual && burg.tradeRole ? `Auto (${burg.tradeRole})` : "Auto";
+    select.value = burg.tradeRoleManual ? burg.tradeRole || "none" : "auto";
+  }
+
+  function changeTradeRole() {
+    const burg = pack.burgs[+elSelected.attr("data-id")];
+    if (this.value === "auto") {
+      delete burg.tradeRoleManual;
+    } else {
+      burg.tradeRoleManual = true;
+      if (this.value === "none") delete burg.tradeRole;
+      else burg.tradeRole = this.value;
+    }
+    Routes.rebuildTradeRoutes();
+    updateTradeRoleControl(burg); // refresh the Auto label with the recomputed role
   }
 
   function toggleFlying(burgId) {
