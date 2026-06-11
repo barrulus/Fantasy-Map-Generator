@@ -65,6 +65,15 @@ const TRADE_MAX_HOPS = 5; // max intermediate-stop legs between two hubs
 // can have tens of thousands of ports in one ocean, so this cap is essential.
 const SEA_TRADE_MAX_PORTS = 500;
 
+// Population multiplier per route connection by group (getConnectivityRate).
+const CONNECTIVITY_RATE_BY_GROUP: Record<string, number> = {
+  roads: 0.2,
+  trails: 0.1,
+  searoutes: 0.2,
+  airroutes: 0.15,
+  default: 0.1
+};
+
 // Trade importance of a port: population weighted by its settlement role.
 export function portImportance(burg: Burg): number {
   const role = burg.capital ? "capital" : (burg.settlementType ?? "");
@@ -1702,18 +1711,13 @@ class RoutesModule {
     const connections = pack.cells.routes[cellId];
     if (!connections) return 0;
 
-    const connectivityRateMap: Record<string, number> = {
-      roads: 0.2,
-      trails: 0.1,
-      searoutes: 0.2,
-      airroutes: 0.15,
-      default: 0.1
-    };
-
+    // O(1) id lookups via the cached index — called once per burg from
+    // definePopulation, so a pack.routes.find here is O(burgs x routes).
+    const index = this.getRoutesIndex();
     const connectivity = Object.values(connections).reduce((acc, routeId) => {
-      const route = pack.routes.find(route => route.i === routeId);
+      const route = index.get(routeId);
       if (!route) return acc;
-      const rate = connectivityRateMap[route.group] || connectivityRateMap.default;
+      const rate = CONNECTIVITY_RATE_BY_GROUP[route.group] || CONNECTIVITY_RATE_BY_GROUP.default;
       return acc + rate;
     }, 0.8);
 

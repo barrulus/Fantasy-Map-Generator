@@ -145,6 +145,23 @@ describe("Routes lookup performance", () => {
     // for slow CI hardware. The current O(n) impl typically takes 250ms+.
     expect(elapsed).toBeLessThan(150);
   });
+
+  it("getConnectivityRate does not scale with total route count", () => {
+    // definePopulation calls this once per burg; with pack.routes.find it is
+    // O(routes) per connection and dominated specifyBurgs (~3s at 80k burgs).
+    buildPack(50_000);
+
+    const start = performance.now();
+    let total = 0;
+    for (let i = 0; i < 10_000; i++) {
+      const id = ((i * 4999) % 50_000) + 1;
+      total += Routes.getConnectivityRate(id);
+    }
+    const elapsed = performance.now() - start;
+
+    expect(total).toBeGreaterThan(0); // sanity: connections were found and rated
+    expect(elapsed).toBeLessThan(150);
+  });
 });
 
 describe("buildSeaAdjacency", () => {
