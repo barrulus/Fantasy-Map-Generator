@@ -552,8 +552,9 @@ class BurgModule {
       const radius = maxRadius;
 
       const skyQuadtree = quadtree();
+      const placedIds: number[] = [];
       let added = 0;
-      const maxAttempts = skyburgCount * 30;
+      const maxAttempts = skyburgCount * 60; // weighted rejection needs more draws
 
       for (let attempts = 0; added < skyburgCount && attempts < maxAttempts; attempts++) {
         const theta = Math.random() * Math.PI * 2;
@@ -564,6 +565,10 @@ class BurgModule {
         if (skyQuadtree.find(x, y, minSpacing) !== undefined) continue;
 
         const cell = window.findCell(x, y, undefined, pack) as number;
+        // Terrain weighting: density traces coastlines and islands inside the
+        // disc instead of a uniform circular blob.
+        if (Math.random() > skyburgPlacementWeight(cells.t[cell])) continue;
+
         const culture = cells.culture[cell] || 0;
         const burgId = burgs.length;
         burgs.push({
@@ -583,7 +588,18 @@ class BurgModule {
           settlementType: "regionalCenter"
         });
         skyQuadtree.add([x, y]);
+        placedIds.push(burgId);
         added++;
+      }
+
+      // Cluster capital: the most central skyburg. createStates() later founds
+      // the sky state from this capital flag. The double-cast is for the
+      // burgs[0] numeric placeholder; placedIds never contains 0 (see
+      // nearestBurgId's precondition), so the runtime access is safe.
+      const capitalId = nearestBurgId(burgs as unknown as { x: number; y: number }[], placedIds, ax, ay);
+      if (capitalId !== -1) {
+        burgs[capitalId].capital = 1;
+        burgs[capitalId].settlementType = "capital";
       }
     };
 
