@@ -163,6 +163,34 @@ describe("findPathTree", () => {
     expect(findPathTree(0, [], () => 1, g).size).toBe(0);
     expect(findPathTree(3, [3], () => 1, g).size).toBe(0); // only target is the start
   });
+
+  it("stops exploring beyond maxCost, dropping targets that are farther by water", () => {
+    const g = makeGrid(5); // unit cost: path cost == step count
+    // target 4 costs 4 steps; target 24 costs 8 steps
+    const paths = findPathTree(0, [4, 24], () => 1, g, { maxCost: 5 });
+
+    expect(paths.has(4)).toBe(true);
+    expect(paths.has(24)).toBe(false);
+  });
+
+  it("maxCost bounds the number of expanded cells", () => {
+    const g = makeGrid(11); // 121 cells
+    const far = 120; // opposite corner, cost 20 — far beyond the bound
+    const stats = { expanded: 0 };
+    const paths = findPathTree(0, [far], () => 1, g, { maxCost: 4, stats });
+
+    expect(paths.size).toBe(0);
+    // expansion stays within the cost-4 ball (15 cells), not the whole grid
+    expect(stats.expanded).toBeLessThanOrEqual(15);
+  });
+
+  it("still settles a target discovered from a frontier cell at maxCost", () => {
+    const g = makeGrid(5);
+    // target 4 is 4 steps away; the cell before it (cost 3) is within the bound,
+    // and discovery settles targets before the cost gate — exactly like land ports.
+    const paths = findPathTree(0, [4], () => 1, g, { maxCost: 3 });
+    expect(paths.has(4)).toBe(true);
+  });
 });
 
 function makeCylinderGrid(n: number) {

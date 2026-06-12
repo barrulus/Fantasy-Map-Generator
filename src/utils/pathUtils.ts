@@ -380,12 +380,18 @@ export const findPath = (
  *
  * No A* heuristic — with many goals there is no single point to aim at, and the
  * targets are clustered near the source so the explored frontier stays bounded.
+ *
+ * `maxCost` bounds the search ball: Dijkstra pops in non-decreasing cost order,
+ * so once a popped cell exceeds it every unsettled target is farther than the
+ * bound and the search stops (those targets are omitted from the result). A
+ * target discovered from a frontier cell within the bound still settles.
  */
 export const findPathTree = (
   start: number,
   targets: Iterable<number>,
   getCost: (current: number, next: number) => number,
-  packedGraph: any = {}
+  packedGraph: any = {},
+  options?: { maxCost?: number; stats?: { expanded: number } }
 ): Map<number, number[]> => {
   const result = new Map<number, number[]>();
   const remaining = new Set<number>();
@@ -407,6 +413,9 @@ export const findPathTree = (
   mark[start] = gen;
   const closed = scratchClosed!;
 
+  const maxCost = options?.maxCost ?? Infinity;
+  const stats = options?.stats;
+
   while (queue.length && remaining.size) {
     const current = queue.pop();
     // Closed-set skip: a cell relaxed k times leaves k-1 stale queue entries;
@@ -418,6 +427,8 @@ export const findPathTree = (
     if (closed[current] === gen) continue;
     closed[current] = gen;
     const currentCost = cost[current];
+    if (currentCost > maxCost) break;
+    if (stats) stats.expanded++;
     const neighbors = packedGraph.cells.c[current];
     for (let i = 0; i < neighbors.length; i++) {
       const next = neighbors[i];
