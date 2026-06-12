@@ -891,6 +891,17 @@ function openNearSeaLakes() {
   TIME && console.time("openLakes");
   const LIMIT = 22; // max height that can be breached by water
 
+  // Deferred feature relabel: eagerly rescanning all cells per breached lake is
+  // O(lakes × cells). Every in-loop guard reads features[id].type (flipped eagerly
+  // below), never the raw cells.f id, so relabelling can be batched into one pass.
+  // A breach may target a former lake whose own relabel is still pending, so
+  // entries chain (A -> B -> ocean) and are resolved at the end.
+  const remap = new Map();
+  const resolveFeature = id => {
+    while (remap.has(id)) id = remap.get(id);
+    return id;
+  };
+
   for (const i of cells.i) {
     const lakeFeatureId = cells.f[i];
     if (features[lakeFeatureId].type !== "lake") continue; // not a lake
@@ -907,6 +918,12 @@ function openNearSeaLakes() {
     }
   }
 
+  if (remap.size) {
+    for (const i of cells.i) {
+      if (remap.has(cells.f[i])) cells.f[i] = resolveFeature(cells.f[i]);
+    }
+  }
+
   function removeLake(thresholdCellId, lakeFeatureId, oceanFeatureId) {
     cells.h[thresholdCellId] = 19;
     cells.t[thresholdCellId] = -1;
@@ -915,9 +932,7 @@ function openNearSeaLakes() {
       if (cells.h[c] >= 20) cells.t[c] = 1; // mark as coastline
     });
 
-    cells.i.forEach(i => {
-      if (cells.f[i] === lakeFeatureId) cells.f[i] = oceanFeatureId;
-    });
+    remap.set(lakeFeatureId, oceanFeatureId);
     features[lakeFeatureId].type = "ocean"; // mark former lake as ocean
   }
 
