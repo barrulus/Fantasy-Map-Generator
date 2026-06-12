@@ -52,10 +52,18 @@ const ROLE_MULT: Record<string, number> = {
   hamlet: 0.8
 };
 
-// Sea-trade-network density preset ("medium/balanced"). Retune here.
-const SEA_FEEDER_LINKS = 3; // top gravity partners each port connects to
+// Sea-trade-network density preset. Retune here. Feeder reach/links were lowered
+// from 300km/3 to 200km/2 for perf (feeder tree time scales with the water-distance
+// ball to the farthest partner): -46% feeder A* time, ~5% fewer feeder routes on a
+// 500K-cell test map. Long-haul connectivity is the trade-hub network's job.
+const SEA_FEEDER_LINKS = 2; // top gravity partners each port connects to
 const SEA_COASTAL_CAP_KM = 120; // max length for short coastal Urquhart pairs
-const SEA_FEEDER_CAP_KM = 300; // feeders are regional; long-haul connections are handled by the trade hub network
+const SEA_FEEDER_CAP_KM = 200; // feeders are regional; long-haul connections are handled by the trade hub network
+// Feeder Dijkstra exploration bound, as a multiple of SEA_FEEDER_CAP_KM of WATER
+// distance. Partners are picked by straight-line distance; one whose water route
+// detours beyond this is dropped instead of letting its tree flood the ocean
+// (the worst trees expanded ~28K cells settling targets a regional hop away as the crow flies).
+const SEA_FEEDER_DETOUR_FACTOR = 2;
 const MIN_HUB_SIZE = 0; // min portImportance to qualify as a state hub (tunable)
 const TRADE_LEG_RANGE_KM = 300; // max single-leg sailing distance (refuel range)
 const TRADE_MAX_HOPS = 5; // max intermediate-stop legs between two hubs
@@ -1137,6 +1145,9 @@ class RoutesModule {
     // Per-tier A* time + edge counts: where the sea-trade budget actually goes.
     const diagPathMs: Record<string, number> = { feeder: 0, coastal: 0 };
     const diagEdges: Record<string, number> = { feeder: 0, coastal: 0 };
+    // Per-tree feeder cost distribution: is the budget uniform, or do a few
+    // pathological trees (far-by-water targets) dominate?
+    const diagTrees: { ms: number; expanded: number; targets: number; settled: number }[] = [];
     let diagSeamRoutes = 0;
     const seamThreshold = graphWidth / 2;
     const crossesSeam = (cells: number[]) => {
@@ -1200,14 +1211,21 @@ class RoutesModule {
         laySegments(segments, e.tier, a.port as number);
       };
 
+      // Feeder cost is linear pixel distance (with reuse discounts), so the
+      // exploration bound converts km -> pixels via the same mapScale used to
+      // pick the partners in selectSeaTradeEdges.
+      const mapScale = Math.sqrt((graphWidth * graphHeight) / 1_000_000);
+      const feederMaxCost = SEA_FEEDER_CAP_KM * SEA_FEEDER_DETOUR_FACTOR * mapScale;
+
       // Feeder before coastal so feeders claim shared corridors first.
       for (const [source, targets] of feederBySource) {
         const start = ports[source].cell;
         const targetCells = targets.map(t => ports[t].cell);
         if (TIME) diagEdges.feeder += targets.length;
         const t0 = TIME ? performance.now() : 0;
+        const stats = TIME ? { expanded: 0 } : undefined;
         const getCost = this.createCostEvaluator({ isWater: true, connections, routeType: "feeder" });
-        const paths = findPathTree(start, targetCells, getCost, feederGraph);
+        const paths = findPathTree(start, targetCells, getCost, feederGraph, { maxCost: feederMaxCost, stats });
         // Paths from one tree share a prefix near `source`; process them in settle
         // order (nearest first) so getRouteSegments collapses the shared corridor —
         // the first sibling claims it, later siblings only add their divergent tails.
@@ -1215,7 +1233,15 @@ class RoutesModule {
           const segments = this.getRouteSegments(pathCells, connections);
           laySegments(segments, "feeder", ports[source].port as number);
         }
-        if (TIME) diagPathMs.feeder += performance.now() - t0;
+        if (TIME) {
+          diagPathMs.feeder += performance.now() - t0;
+          diagTrees.push({
+            ms: performance.now() - t0,
+            expanded: stats!.expanded,
+            targets: targetCells.length,
+            settled: paths.size
+          });
+        }
       }
 
       for (const e of coastalEdges) layPerEdge(e);
@@ -1234,6 +1260,25 @@ class RoutesModule {
           ])
         )
       );
+    if (TIME && diagTrees.length) {
+      const sorted = [...diagTrees].sort((a, b) => b.ms - a.ms);
+      const totalMs = diagTrees.reduce((s, t) => s + t.ms, 0);
+      const pct = (n: number) => sorted.slice(0, n).reduce((s, t) => s + t.ms, 0) / Math.max(totalMs, 1e-9);
+      const unsettled = diagTrees.reduce((s, t) => s + (t.targets - t.settled), 0);
+      const median = sorted[Math.floor(sorted.length / 2)].ms;
+      console.log(
+        `  feeder trees: ${diagTrees.length} / ${totalMs.toFixed(0)}ms | median ${median.toFixed(2)}ms | ` +
+          `top10 ${(pct(10) * 100).toFixed(0)}% top50 ${(pct(50) * 100).toFixed(0)}% of time | ` +
+          `unsettled targets: ${unsettled}`
+      );
+      console.log(
+        "  worst trees:",
+        sorted
+          .slice(0, 5)
+          .map(t => `${t.ms.toFixed(0)}ms/${t.expanded}exp/${t.settled}of${t.targets}`)
+          .join(" ")
+      );
+    }
     TIME && console.timeEnd("generateSeaTradeNetwork");
     return { localRoutes };
   }
