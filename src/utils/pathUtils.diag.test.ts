@@ -65,7 +65,9 @@ describe("findPathTree cost (diagnostic)", () => {
     const elapsed = performance.now() - t0;
 
     expect(found).toBe(200 * 8); // sanity: every target reached every run
-    console.log(`  findPathTree x200 (90k cells, 8 targets@r=${R}): ${elapsed.toFixed(0)}ms (${(elapsed / 200).toFixed(2)}ms per tree)`);
+    console.log(
+      `  findPathTree x200 (90k cells, 8 targets@r=${R}): ${elapsed.toFixed(0)}ms (${(elapsed / 200).toFixed(2)}ms per tree)`
+    );
     expect(elapsed).toBeLessThan(60_000);
   });
 });
