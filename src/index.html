@@ -46,6 +46,9 @@
     <link rel="canonical" href="https://azgaar.github.io/Fantasy-Map-Generator/" />
     <link rel="manifest" href="manifest.webmanifest" />
 
+    <!-- splash background must paint immediately; SVG <image> alone is fetched late and low-priority -->
+    <link rel="preload" href="images/splash-world.webp" as="image" fetchpriority="high" />
+
     <!-- inline css for loading screen -->
     <style type="text/css">
       body {
