@@ -14,6 +14,34 @@
 
 ---
 
+## Outcome (2026-06-14) — implemented as commit `0ae9ce82`
+
+Tasks 1–3 landed; **Task 4 was dropped** after measurement. Deterministic A/B
+(`perfdata/ab-levers.mjs`, seed 987654321, density 9 = 19.6K burgs / 26.8K cells):
+
+| metric | baseline | after (Tasks 1–3) |
+|---|---|---|
+| PAN | 640ms (script9 style4 layout4) | 631ms — neutral |
+| ZOOM | 2821ms (script38 style404 layout1356) | 2075ms (script9 style73 layout1321) — **−26%** |
+
+- **Task 1 (defer invokeActiveZooming → `scheduleActiveZooming`)** and **Task 2
+  (`layerIsOn` instead of forced-reflow style reads)** — implemented. Task 2 is the
+  visible light-map win (style 404→73); both scale much larger on heavy maps where
+  per-frame `invokeActiveZooming` was the ~5s/gesture Layout cost.
+- **Task 3 (cull burg labels)** — implemented.
+- **Task 4 (optimizeSpeed + drop filters during the gesture) — DROPPED.** Measured: it
+  *regressed* pan +58% on light/moderate maps (640→1012ms) because dropping AA/filters
+  forces a full-map re-raster at gesture start **and** end, a fixed cost that exceeds the
+  per-frame savings; and on the 95K-burg map pan stayed ~17.8s of paint *with*
+  optimizeSpeed active, so it barely helped where it was supposed to. Correctness was
+  fine; the issue is net cost. **Revisit as a map-size-gated option** (engage only above
+  ~70K cells) alongside the WebGL burg-icon work, where the paint wall is the real target.
+
+Correctness verified in-browser: after a wheel-zoom settle, `#map` shape-rendering and
+the coastline filter are restored; burg labels cull at low zoom and reappear at high zoom.
+
+---
+
 ## File Structure
 
 - Modify only: `public/main.js`

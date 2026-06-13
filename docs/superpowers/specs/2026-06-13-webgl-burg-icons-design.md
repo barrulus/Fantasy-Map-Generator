@@ -80,6 +80,11 @@ Expected: removes the ~7s Layout+Style from a zoom gesture.
   `shape-rendering: optimizeSpeed` on `#map` and drop the expensive blur/drop-shadow filters
   (coastline `#sea_island`, `statesHalo`); restore on gesture end (debounced). Must not clobber
   the user's persisted `shapeRendering` option — save and restore the prior value.
+  > **Update (2026-06-14): this sub-lever was prototyped and dropped.** Measured A/B showed it
+  > regresses light/moderate maps (+58% pan) — the two extra full-map re-rasters at gesture
+  > start/end outweigh the per-frame savings — and barely helps heavy maps (paint is node-count
+  > bound, not AA bound). Revisit only as a **map-size-gated** option (engage above ~70K cells)
+  > alongside the WebGL work. The label-cull half of Lever 2 shipped. See the levers plan Outcome.
 
 ### Part 3 — WebGL burg-icon layer (the main build)
 
