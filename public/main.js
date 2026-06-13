@@ -177,6 +177,23 @@ let viewY = 0;
 let rafId = null;
 let pendingScaleChange = false;
 let pendingPositionChange = false;
+
+// Defer the expensive label/emblem/marker rescale: while the user is actively
+// zooming we do only the cheap per-frame work (the viewbox transform + scale bar);
+// invokeActiveZooming() runs ONCE, ~120ms after the last scale change. On big maps
+// this removes the per-frame Style+Layout (~7s over a wheel-zoom gesture at 80K burgs).
+// Every gesture (wheel, drag-zoom, pinch, programmatic transition) funnels through
+// zoomRaf, so this one funnel covers them all.
+// NOTE: a render-quality bracket (optimizeSpeed + dropping filters during the gesture)
+// was prototyped here and removed — it regressed light/moderate maps (two extra
+// full-map re-rasters at gesture start/end outweighed the per-frame savings) and barely
+// dented heavy-map paint. Revisit as a map-size-gated option alongside the WebGL work.
+let interactionSettleTimer = null;
+function scheduleActiveZooming() {
+  clearTimeout(interactionSettleTimer);
+  interactionSettleTimer = setTimeout(invokeActiveZooming, 120);
+}
+
 function zoomRaf() {
   const {k, x, y} = d3.event.transform;
 
@@ -225,9 +242,11 @@ function zoomRaf() {
     }
 
     if (didScaleChange) {
-      invokeActiveZooming();
+      // Scale bar is cheap — keep it live so the gesture feels responsive.
       drawScaleBar(scaleBar, scale);
       fitScaleBar(scaleBar, svgWidth, svgHeight);
+      // Defer the heavy rescale/cull to ~120ms after the last scale change.
+      scheduleActiveZooming();
     }
 
     if (didPositionChange || didScaleChange) {
@@ -554,9 +573,21 @@ function invokeActiveZooming() {
     village: 10, hamlet: 14
   };
 
-  if (labels.style("display") !== "none") {
+  if (layerIsOn("toggleLabels")) {
     labels.selectAll("g").each(function () {
-      if (this.id === "burgLabels") return;
+      if (this.id === "burgLabels") {
+        if (!hideLabels.checked) return;
+        for (const sub of this.children) {
+          const desiredSub = +sub.dataset.size;
+          const relativeSub = Math.max(rn((desiredSub + desiredSub / scale) / 2, 2), 1);
+          if (rescaleLabels.checked) sub.setAttribute("font-size", relativeSub);
+          const minZoomSub = +sub.dataset.minZoom || BURG_MIN_ZOOM[sub.id] || 0;
+          const hiddenSub = scale < minZoomSub || relativeSub * scale < 6 || relativeSub * scale > 60;
+          if (hiddenSub) sub.classList.add("hidden");
+          else sub.classList.remove("hidden");
+        }
+        return;
+      }
       const desired = +this.dataset.size;
       const relative = Math.max(rn((desired + desired / scale) / 2, 2), 1);
       if (rescaleLabels.checked) this.setAttribute("font-size", relative);
@@ -570,8 +601,9 @@ function invokeActiveZooming() {
 
   // cull burg icons + anchors at low zoom to skip ~100K nodes per repaint
   if (hideLabels.checked) {
+    const burgIconsOn = layerIsOn("toggleBurgIcons");
     for (const group of [burgIcons.node(), anchors.node()]) {
-      if (!group || getComputedStyle(group).display === "none") continue;
+      if (!group || !burgIconsOn) continue;
       for (const sub of group.children) {
         const minZoom = +sub.dataset.minZoom || BURG_MIN_ZOOM[sub.id] || 0;
         if (scale < minZoom) sub.classList.add("hidden");
@@ -581,7 +613,7 @@ function invokeActiveZooming() {
   }
 
   // toggle route visibility by type on zoom
-  if (routes.style("display") !== "none") {
+  if (layerIsOn("toggleRoutes")) {
     const ROUTE_MIN_ZOOM = {
       royal: 1, main: 1, major: 1,
       market: 4, town: 4, local: 4,
@@ -598,7 +630,7 @@ function invokeActiveZooming() {
   }
 
   // rescale emblems on zoom
-  if (emblems.style("display") !== "none") {
+  if (layerIsOn("toggleEmblems")) {
     emblems.selectAll("g").each(function () {
       const size = this.getAttribute("font-size") * scale;
       const hidden = hideEmblems.checked && (size < 25 || size > 300);
