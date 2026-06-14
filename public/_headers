@@ -1,0 +1,8 @@
+# Always revalidate the service worker and the HTML entry so new deploys are picked
+# up promptly. (Hashed assets under their content-addressed names stay cacheable.)
+/sw.js
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/
+  Cache-Control: no-cache
