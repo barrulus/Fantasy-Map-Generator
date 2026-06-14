@@ -51,7 +51,7 @@ const burgIconsRenderer = (): void => {
 
 const drawBurgIconRenderer = (burg: Burg): void => {
   if ((window as { burgWebglActive?: () => boolean }).burgWebglActive?.()) {
-    void (window as { rebuildBurgGL?: () => Promise<void> }).rebuildBurgGL?.();
+    (window as { scheduleRebuildBurgGL?: () => void }).scheduleRebuildBurgGL?.();
     return;
   }
 
@@ -86,7 +86,7 @@ const drawBurgIconRenderer = (burg: Burg): void => {
 
 const removeBurgIconRenderer = (burgId: number): void => {
   if ((window as { burgWebglActive?: () => boolean }).burgWebglActive?.()) {
-    void (window as { rebuildBurgGL?: () => Promise<void> }).rebuildBurgGL?.();
+    (window as { scheduleRebuildBurgGL?: () => void }).scheduleRebuildBurgGL?.();
     return;
   }
 

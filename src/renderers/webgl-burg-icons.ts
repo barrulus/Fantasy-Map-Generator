@@ -148,6 +148,17 @@ export async function rebuildBurgGL(): Promise<void> {
   drawBurgGL();
 }
 
+// Coalesce rapid single-burg edits (add/remove/changeGroup are called in per-burg
+// loops in several editors/loaders) into ONE rebuild, so N edits cost O(n) not O(n²).
+let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
+export function scheduleRebuildBurgGL(): void {
+  if (rebuildTimer) return;
+  rebuildTimer = setTimeout(() => {
+    rebuildTimer = null;
+    void rebuildBurgGL();
+  }, 50);
+}
+
 export function drawBurgGL(): void {
   if (!gl || !atlas) return;
   const t = (window as any).getMapTransform?.() || { scale: 1, viewX: 0, viewY: 0 };
@@ -204,14 +215,13 @@ export function destroyBurgGL(): void {
   }
 }
 
-const AUTO_BURG_THRESHOLD = 5000; // auto-enable GL above this many burgs
-
 export function burgWebglActive(): boolean {
   const w = window as any;
   const burgs = w.pack?.burgs?.length || 0;
   if (burgs <= 1 || !w.layerIsOn?.("toggleBurgIcons")) return false;
-  const pref = w.webglBurgs; // true = forced on, false = forced off, null/undefined = auto
-  return pref == null ? burgs > AUTO_BURG_THRESHOLD : !!pref;
+  // Opt-in only: GL burgs render solely when explicitly enabled (Options → GPU burgs → On).
+  // (Auto-on was disabled after a production-only freeze under investigation.)
+  return w.webglBurgs === true;
 }
 
 // Update one burg's instance position (the caller has already set pack.burgs[id].x/y).
@@ -248,5 +258,6 @@ Object.assign(window, {
   getBurgQuadtree,
   getBurgSizes,
   hitTestBurg,
-  moveBurgGL
+  moveBurgGL,
+  scheduleRebuildBurgGL
 });
