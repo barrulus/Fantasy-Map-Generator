@@ -281,7 +281,7 @@ let svgWidth = graphWidth;
 let svgHeight = graphHeight;
 
 // WebGL burg-icon canvas (stacked over the SVG, transform-synced in zoomRaf).
-// webglBurgs: true = on (opt-in, experimental), anything else = off (default).
+// webglBurgs: true = forced on, false = forced off, null = auto (on above ~5000 burgs).
 window.webglBurgs = JSON.safeParse(localStorage.getItem("webglBurgs"));
 (function wireWebglBurgsOption() {
   const sel = document.getElementById("webglBurgsSelect");
