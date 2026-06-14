@@ -174,6 +174,10 @@ let scale = 1;
 let viewX = 0;
 let viewY = 0;
 
+// Expose the live viewbox transform to ES modules (e.g. the WebGL burg renderer),
+// which can't see classic-script `let` globals by bare name or via window.
+window.getMapTransform = () => ({scale, viewX, viewY});
+
 let rafId = null;
 let pendingScaleChange = false;
 let pendingPositionChange = false;
@@ -224,6 +228,9 @@ function zoomRaf() {
     // Uses global values, so each frame always draws using the latest positioning values
     viewbox.attr("transform", `translate(${viewX} ${viewY}) scale(${scale})`);
 
+    // Keep the WebGL burg layer in sync with the viewbox transform (composited, no SVG repaint).
+    if (window.burgWebglActive && window.burgWebglActive()) window.drawBurgGL();
+
     if (didPositionChange) {
       if (layerIsOn("toggleCoordinates")) drawCoordinates();
     }
@@ -272,6 +279,43 @@ var graphHeight = +mapHeightInput.value;
 // svg canvas resolution, can be changed
 let svgWidth = graphWidth;
 let svgHeight = graphHeight;
+
+// WebGL burg-icon canvas (stacked over the SVG, transform-synced in zoomRaf).
+// webglBurgs: true = forced on, false = forced off, null = auto (on above ~5000 burgs).
+window.webglBurgs = JSON.safeParse(localStorage.getItem("webglBurgs"));
+(function wireWebglBurgsOption() {
+  const sel = document.getElementById("webglBurgsSelect");
+  if (!sel) return;
+  sel.value = window.webglBurgs === true ? "on" : window.webglBurgs === false ? "off" : "auto";
+  sel.addEventListener("change", () => {
+    if (sel.value === "auto") {
+      window.webglBurgs = null;
+      localStorage.removeItem("webglBurgs");
+    } else {
+      window.webglBurgs = sel.value === "on";
+      localStorage.setItem("webglBurgs", JSON.stringify(window.webglBurgs));
+    }
+    if (window.destroyBurgGL) window.destroyBurgGL(); // clear GL canvas; drawBurgIcons re-picks the renderer
+    if (typeof drawBurgIcons === "function" && layerIsOn("toggleBurgIcons")) drawBurgIcons();
+  });
+})();
+function ensureBurgGLCanvas() {
+  let c = document.getElementById("burgIconsGL");
+  if (!c) {
+    c = document.createElement("canvas");
+    c.id = "burgIconsGL";
+    document.getElementById("map").after(c); // sibling of the SVG, stacked above
+  }
+  // size in device pixels to the on-screen map rect
+  const rect = document.getElementById("map").getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  c.style.width = rect.width + "px";
+  c.style.height = rect.height + "px";
+  c.width = Math.round(rect.width * dpr);
+  c.height = Math.round(rect.height * dpr);
+  return c;
+}
+window.ensureBurgGLCanvas = ensureBurgGLCanvas;
 
 landmass.append("rect").attr("x", 0).attr("y", 0).attr("width", graphWidth).attr("height", graphHeight);
 oceanPattern

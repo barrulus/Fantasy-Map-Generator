@@ -1132,3 +1132,13 @@ function applyMapFilter(event) {
   button.classList.add("pressed");
   svg.attr("data-filter", button.id).attr("filter", "url(#filter-" + button.id + ")");
 }
+
+// WebGL burgs: re-bake the GL atlas when burg-icon styles change (debounced).
+let _burgGLRestyleTimer = null;
+function rebakeBurgGLOnStyleChange() {
+  if (styleElement !== "burgIcons" || !window.burgWebglActive || !window.burgWebglActive()) return;
+  clearTimeout(_burgGLRestyleTimer);
+  _burgGLRestyleTimer = setTimeout(() => window.rebuildBurgGL && window.rebuildBurgGL(), 150);
+}
+document.getElementById("styleContent").addEventListener("input", rebakeBurgGLOnStyleChange);
+document.getElementById("styleContent").addEventListener("change", rebakeBurgGLOnStyleChange);

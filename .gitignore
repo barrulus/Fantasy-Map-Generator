@@ -12,3 +12,14 @@
 .github/prompts/bmad-*
 .direnv/
 .claude/
+
+# local perf/debug/data artifacts — never commit
+/perfdata/
+/debug-artifacts/
+/hist/
+/sample_maps/
+/repomix-output.xml
+/.mcp.json
+/.envrc
+*.har
+/*Full*.json

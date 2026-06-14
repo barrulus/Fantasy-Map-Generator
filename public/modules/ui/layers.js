@@ -935,6 +935,7 @@ function toggleBurgIcons(event) {
     if (event && isCtrlClick(event)) return editStyle("burgIcons");
     turnButtonOff("toggleBurgIcons");
     icons.selectAll("circle, use").remove();
+    if (window.destroyBurgGL) window.destroyBurgGL(); // clear the GL canvas too
   }
 }
 

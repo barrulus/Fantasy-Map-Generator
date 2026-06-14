@@ -13,6 +13,16 @@ function restoreDefaultEvents() {
 
 // handle viewbox click
 function clicked() {
+  // WebGL burgs have no per-burg DOM, so hit-test the click against the burg quadtree.
+  if (window.burgWebglActive && window.burgWebglActive()) {
+    const [mx, my] = d3.mouse(ensureEl("viewbox"));
+    const qt = window.getBurgQuadtree && window.getBurgQuadtree();
+    if (qt) {
+      const id = window.hitTestBurg(qt, mx, my, scale, window.getBurgSizes());
+      if (id) return editBurg(id);
+    }
+  }
+
   const el = d3.event.target;
   const parent = el?.parentElement;
   const grand = parent?.parentElement;

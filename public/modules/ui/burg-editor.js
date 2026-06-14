@@ -453,6 +453,7 @@ function editBurg(id) {
     burg.state = newState;
     burg.x = x;
     burg.y = y;
+    if (window.burgWebglActive && window.burgWebglActive()) window.moveBurgGL(id, x, y);
     if (burg.capital) pack.states[newState].center = burg.cell;
 
     if (d3.event.shiftKey === false) toggleRelocateBurg();

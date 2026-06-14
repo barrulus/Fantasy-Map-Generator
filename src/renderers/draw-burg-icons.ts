@@ -15,6 +15,14 @@ const burgIconsRenderer = (): void => {
   TIME && console.time("drawBurgIcons");
   createIconGroups();
 
+  // WebGL path: the styled <g> groups exist (the atlas bakes them); skip populating
+  // ~80K <use> nodes and render the icons on the GPU canvas instead.
+  if ((window as { burgWebglActive?: () => boolean }).burgWebglActive?.()) {
+    void (window as { rebuildBurgGL?: () => Promise<void> }).rebuildBurgGL?.();
+    TIME && console.timeEnd("drawBurgIcons");
+    return;
+  }
+
   for (const { name } of options.burgs.groups as BurgGroup[]) {
     const burgsInGroup = pack.burgs.filter(b => b.group === name && !b.removed);
     if (!burgsInGroup.length) continue;
@@ -42,6 +50,11 @@ const burgIconsRenderer = (): void => {
 };
 
 const drawBurgIconRenderer = (burg: Burg): void => {
+  if ((window as { burgWebglActive?: () => boolean }).burgWebglActive?.()) {
+    void (window as { rebuildBurgGL?: () => Promise<void> }).rebuildBurgGL?.();
+    return;
+  }
+
   const iconGroup = burgIcons.select<SVGGElement>(`#${burg.group}`);
   if (iconGroup.empty()) {
     drawBurgIcons();
@@ -72,6 +85,11 @@ const drawBurgIconRenderer = (burg: Burg): void => {
 };
 
 const removeBurgIconRenderer = (burgId: number): void => {
+  if ((window as { burgWebglActive?: () => boolean }).burgWebglActive?.()) {
+    void (window as { rebuildBurgGL?: () => Promise<void> }).rebuildBurgGL?.();
+    return;
+  }
+
   const existingIcon = document.getElementById(`burg${burgId}`);
   if (existingIcon) existingIcon.remove();
 
