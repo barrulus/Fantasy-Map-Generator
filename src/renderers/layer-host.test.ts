@@ -185,6 +185,14 @@ describe("reconcileLayers (integration)", () => {
     expect(topIds()).toBeNull();
     expect(vbIds()).toEqual(["ocean", "icons", "labels"]);
   });
+
+  it("syncs #viewboxTop to #viewbox's transform on split (split while already zoomed)", () => {
+    buildDom(["ocean", "icons", "labels"]);
+    document.getElementById("viewbox")!.setAttribute("transform", "translate(50 30) scale(3)");
+    (window as any).burgWebglActive = () => true;
+    reconcileLayers(); // split happens with a pre-existing transform, no zoom frame
+    expect(document.getElementById("viewboxTop")!.getAttribute("transform")).toBe("translate(50 30) scale(3)");
+  });
 });
 
 describe("onFrameLayers", () => {
@@ -203,6 +211,14 @@ describe("onFrameLayers", () => {
   it("mirrors the #viewbox transform onto #viewboxTop", () => {
     onFrameLayers();
     expect(document.getElementById("viewboxTop")!.getAttribute("transform")).toBe("translate(10 20) scale(2)");
+  });
+
+  it("clears a stale #viewboxTop transform when #viewbox has none", () => {
+    const vt = document.getElementById("viewboxTop")!;
+    vt.setAttribute("transform", "translate(99 99) scale(9)"); // stale value from a prior frame
+    document.getElementById("viewbox")!.removeAttribute("transform"); // #viewbox now untransformed
+    onFrameLayers();
+    expect(vt.hasAttribute("transform")).toBe(false);
   });
 
   it("draws only visible webgl layers", () => {

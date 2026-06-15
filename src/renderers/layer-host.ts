@@ -124,6 +124,10 @@ export function reconcileLayers(): void {
     parent.insertBefore(top, canvas.nextSibling);
     const viewboxTop = top.querySelector("#viewboxTop")!;
     splitSuffix(viewbox, viewboxTop, icons);
+    // Sync the transform immediately: a split can happen while the map is already zoomed
+    // (toggle/reorder/GL-activate with no pending zoom frame). Without this, #viewboxTop
+    // renders untransformed until the next onFrame, misplacing the overlay layers.
+    syncTopTransform(viewbox, viewboxTop);
     w().bindTopLayerEvents?.();
   } else {
     // State 0 with GL on top: canvas right after #map (today's behavior), no overlay.
@@ -132,14 +136,18 @@ export function reconcileLayers(): void {
   }
 }
 
+/** Copy #viewbox's transform onto #viewboxTop (or clear it when #viewbox has none), keeping the two roots in lockstep. */
+function syncTopTransform(viewbox: Element, viewboxTop: Element): void {
+  const t = viewbox.getAttribute("transform");
+  if (t != null) viewboxTop.setAttribute("transform", t);
+  else viewboxTop.removeAttribute("transform");
+}
+
 /** Called every frame from zoomRaf: mirror the viewbox transform to #viewboxTop and draw webgl layers. */
 export function onFrameLayers(): void {
   const vb = document.getElementById("viewbox");
   const vt = document.getElementById("viewboxTop");
-  if (vb && vt) {
-    const t = vb.getAttribute("transform");
-    if (t != null) vt.setAttribute("transform", t);
-  }
+  if (vb && vt) syncTopTransform(vb, vt);
   for (const layer of webglLayers) {
     if (layer.visible()) layer.draw();
   }
