@@ -29,7 +29,7 @@ export function buildLabelBoxes(
     if (!s) continue;
     let adv = 0;
     for (const ch of b.name) if (metrics[ch]) adv += metrics[ch].advance;
-    const halfW = (adv * s.fontSize) / 2;
+    const halfW = (adv * s.fontSize) / 2 + geom.originXEm * s.fontSize;
     const halfH = (geom.cellEm * s.fontSize) / 2;
     out.push({
       id: b.i,
@@ -108,10 +108,15 @@ function compile(src: string, type: number): WebGLShader {
   return s;
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "#000000");
-  if (!m) return [0, 0, 0];
-  return [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255];
+export function hexToRgb(color: string): [number, number, number] {
+  const c = (color || "").trim();
+  const six = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c);
+  if (six) return [parseInt(six[1], 16) / 255, parseInt(six[2], 16) / 255, parseInt(six[3], 16) / 255];
+  const three = /^#?([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(c);
+  if (three) return [parseInt(three[1] + three[1], 16) / 255, parseInt(three[2] + three[2], 16) / 255, parseInt(three[3] + three[3], 16) / 255];
+  const rgb = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(c);
+  if (rgb) return [+rgb[1] / 255, +rgb[2] / 255, +rgb[3] / 255];
+  return [0, 0, 0];
 }
 
 /** Read live #burgLabels group <g> styles into LabelGroupStyle, mirroring buildBurgAtlas. */

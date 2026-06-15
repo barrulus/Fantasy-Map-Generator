@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLabelBoxes, type LabelGroupStyle } from "./webgl-burg-labels";
+import { buildLabelBoxes, hexToRgb, type LabelGroupStyle } from "./webgl-burg-labels";
 import type { GlyphMetric } from "./label-layout";
 
 const metrics: Record<string, GlyphMetric> = {
@@ -11,6 +11,23 @@ const styles: Record<string, LabelGroupStyle> = {
   city: { order: 1, fontSize: 4, minZoom: 4 },
   capital: { order: 0, fontSize: 6, minZoom: 1 }
 };
+
+describe("hexToRgb", () => {
+  it("parses 6-digit hex", () => {
+    expect(hexToRgb("#ff8000")).toEqual([1, 128 / 255, 0]);
+  });
+  it("parses 3-digit shorthand hex", () => {
+    expect(hexToRgb("#fff")).toEqual([1, 1, 1]);
+    expect(hexToRgb("#000")).toEqual([0, 0, 0]);
+    expect(hexToRgb("#f80")).toEqual([1, 136 / 255, 0]);
+  });
+  it("parses rgb() form", () => {
+    expect(hexToRgb("rgb(255, 128, 0)")).toEqual([1, 128 / 255, 0]);
+  });
+  it("falls back to black on unparseable input", () => {
+    expect(hexToRgb("nonsense")).toEqual([0, 0, 0]);
+  });
+});
 
 describe("buildLabelBoxes", () => {
   it("creates one box per live burg with half-extents from its name + group fontSize", () => {
@@ -34,5 +51,13 @@ describe("buildLabelBoxes", () => {
     const boxes = buildLabelBoxes(burgs, styles, metrics, geom);
     expect(boxes[0].x).toBe(105);
     expect(boxes[0].y).toBe(97);
+  });
+
+  it("widens halfW by the cell padding (originXEm)", () => {
+    const padGeom = { cellEm: 1, originXEm: 0.25, baselineYEm: 1 };
+    const burgs = [{}, { i: 1, x: 0, y: 0, name: "A", group: "city" }] as any;
+    const boxes = buildLabelBoxes(burgs, styles, metrics, padGeom);
+    // "A": advance 1 * fontSize 4 / 2 = 2, plus originXEm 0.25 * 4 = 1 => halfW 3
+    expect(boxes[0].halfW).toBeCloseTo(3);
   });
 });
