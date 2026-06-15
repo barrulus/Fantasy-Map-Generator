@@ -37,6 +37,8 @@ export interface Burg {
   altitude?: number;
   tradeRole?: "hub" | "waystation";
   tradeRoleManual?: boolean;
+  labelDx?: number; // GPU-label x offset from anchor (map units); set by drag-to-reposition
+  labelDy?: number; // GPU-label y offset from anchor (map units)
 }
 
 // Cultural spacing modifiers for settlement placement
