@@ -3,6 +3,15 @@
   publish = "dist"
   environment = { NODE_VERSION = "24" }
 
+# This fork deploys at the site root (vite base "/"), but Azgaar's PWA manifest and
+# some links use the GitHub-Pages "/Fantasy-Map-Generator/" prefix. Redirect those to
+# root so scripts/assets resolve — otherwise they 404 -> SPA fallback HTML -> every
+# <script> fails to parse and nothing initializes. Must precede the SPA catch-all.
+[[redirects]]
+  from = "/Fantasy-Map-Generator/*"
+  to = "/:splat"
+  status = 301
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
