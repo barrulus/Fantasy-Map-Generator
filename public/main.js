@@ -643,6 +643,7 @@ function invokeActiveZooming() {
   if (layerIsOn("toggleLabels")) {
     labels.selectAll("g").each(function () {
       if (this.id === "burgLabels") {
+        if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) return; // GPU owns burg labels; shader rescales for free
         if (!hideLabels.checked) return;
         for (const sub of this.children) {
           const desiredSub = +sub.dataset.size;

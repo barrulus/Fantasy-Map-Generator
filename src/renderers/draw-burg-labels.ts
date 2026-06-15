@@ -15,6 +15,14 @@ const burgLabelsRenderer = (): void => {
   TIME && console.time("drawBurgLabels");
   createLabelGroups();
 
+  // When the GPU label layer is active it owns burg-name rendering; build only the styled group
+  // shells (createLabelGroups above) and skip emitting ~67K <text> nodes. Trigger a GPU rebuild.
+  if ((window as any).burgLabelsWebglActive?.()) {
+    (window as any).scheduleRebuildBurgLabelGL?.();
+    TIME && console.timeEnd("drawBurgLabels");
+    return;
+  }
+
   for (const { name } of options.burgs.groups as BurgGroup[]) {
     const burgsInGroup = pack.burgs.filter(b => b.group === name && !b.removed);
     if (!burgsInGroup.length) continue;
