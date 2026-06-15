@@ -14,6 +14,11 @@ function restoreDefaultEvents() {
 
 // The interleaved overlay (#viewboxTop) is a separate SVG root, so the #viewbox-delegated
 // click/move handlers never fire for layers moved into it — bind the same handlers there.
+// Coordinate note: the handlers below derive map coords via #viewbox's CTM (clicked) or the
+// event's own element (onMouseMove). This stays correct because #mapTop is built by
+// createTopOverlay() with the SAME viewBox/geometry as #map and #viewboxTop is fed the SAME
+// transform each frame (LayerHost.onFrame), so both roots share one map coordinate space. If
+// that geometry/transform parity is ever broken, top-layer hit coords would silently drift.
 function bindTopLayerEvents() {
   const vt = document.getElementById("viewboxTop");
   if (vt) d3.select(vt).on("click", clicked).on("touchmove mousemove", onMouseMove);
