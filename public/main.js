@@ -319,6 +319,27 @@ function ensureBurgGLCanvas() {
 }
 window.ensureBurgGLCanvas = ensureBurgGLCanvas;
 
+function ensureBurgLabelGLCanvas() {
+  let c = document.getElementById("burgLabelsGL");
+  if (!c) {
+    c = document.createElement("canvas");
+    c.id = "burgLabelsGL";
+    (document.getElementById("burgIconsGL") || document.getElementById("map")).after(c);
+  }
+  const rect = document.getElementById("map").getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  c.style.width = rect.width + "px";
+  c.style.height = rect.height + "px";
+  c.style.position = "absolute";
+  c.style.top = "0";
+  c.style.left = "0";
+  c.style.pointerEvents = "none";
+  c.width = Math.round(rect.width * dpr);
+  c.height = Math.round(rect.height * dpr);
+  return c;
+}
+window.ensureBurgLabelGLCanvas = ensureBurgLabelGLCanvas;
+
 landmass.append("rect").attr("x", 0).attr("y", 0).attr("width", graphWidth).attr("height", graphHeight);
 oceanPattern
   .append("rect")

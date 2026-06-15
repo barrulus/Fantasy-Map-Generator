@@ -73,6 +73,19 @@ export function _resetLayers(): void {
   webglLayers.length = 0;
 }
 
+/**
+ * Stack the burg-label canvas directly above the burg-icon canvas (or right after #map when
+ * icons are off), keeping it below the #mapTop overlay. Idempotent.
+ */
+export function positionLabelCanvas(labelCanvas: Element): void {
+  const icons = document.getElementById("burgIconsGL");
+  const map = document.getElementById("map");
+  const anchor = icons ?? map;
+  if (!anchor || !anchor.parentNode) return;
+  if (anchor.nextElementSibling === labelCanvas) return; // already placed
+  anchor.parentNode.insertBefore(labelCanvas, anchor.nextSibling);
+}
+
 function w(): any {
   return window as any;
 }
@@ -133,6 +146,19 @@ export function reconcileLayers(): void {
     // State 0 with GL on top: canvas right after #map (today's behavior), no overlay.
     removeTopOverlay();
     parent.insertBefore(canvas, svg.nextSibling);
+  }
+
+  // Keep the burg-label GL canvas stacked above icons / below the overlay when labels are active.
+  if (w().burgLabelsWebglActive && w().burgLabelsWebglActive()) {
+    const labelCanvas =
+      (document.getElementById("burgLabelsGL") as HTMLElement | null) ??
+      (w().ensureBurgLabelGLCanvas?.() as HTMLElement | undefined);
+    if (labelCanvas) {
+      positionLabelCanvas(labelCanvas);
+      // The label canvas must sit below #mapTop; if the overlay exists, move the canvas before it.
+      const top = document.getElementById("mapTop");
+      if (top && top.parentNode === labelCanvas.parentNode) labelCanvas.parentNode!.insertBefore(labelCanvas, top);
+    }
   }
 }
 

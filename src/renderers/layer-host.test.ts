@@ -7,6 +7,7 @@ import {
   hitTestTopDown,
   mergeSuffix,
   onFrameLayers,
+  positionLabelCanvas,
   reconcileLayers,
   registerLayer,
   splitSuffix
@@ -302,5 +303,37 @@ describe("hitTestTopDown", () => {
       hitTest: () => null
     });
     expect(hitTestTopDown(0, 0)).toBeNull();
+  });
+});
+
+describe("positionLabelCanvas", () => {
+  it("places burgLabelsGL immediately after burgIconsGL when both exist", () => {
+    const wrap = document.createElement("div");
+    const map = document.createElement("div");
+    map.id = "map";
+    const icons = document.createElement("canvas");
+    icons.id = "burgIconsGL";
+    const labels = document.createElement("canvas");
+    labels.id = "burgLabelsGL";
+    wrap.append(map, icons);
+    document.body.append(wrap);
+
+    positionLabelCanvas(labels);
+    expect(icons.nextElementSibling).toBe(labels);
+    document.body.removeChild(wrap);
+  });
+
+  it("places burgLabelsGL right after #map when the icon canvas is absent", () => {
+    const wrap = document.createElement("div");
+    const map = document.createElement("div");
+    map.id = "map";
+    const labels = document.createElement("canvas");
+    labels.id = "burgLabelsGL";
+    wrap.append(map);
+    document.body.append(wrap);
+
+    positionLabelCanvas(labels);
+    expect(map.nextElementSibling).toBe(labels);
+    document.body.removeChild(wrap);
   });
 });
