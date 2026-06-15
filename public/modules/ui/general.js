@@ -3,6 +3,7 @@
 
 window.addEventListener("resize", function (e) {
   if (window.resizeBurgGL) window.resizeBurgGL(); // keep the GL canvas sized to the viewport
+  if (window.resizeBurgLabelGL) window.resizeBurgLabelGL(); // keep the label GL canvas sized to the viewport
   if (window.LayerHost) window.LayerHost.reconcile();
   if (stored("mapWidth") && stored("mapHeight")) return;
   mapWidthInput.value = window.innerWidth;

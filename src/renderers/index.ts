@@ -13,4 +13,5 @@ import "./draw-scalebar";
 import "./draw-state-labels";
 import "./draw-temperature";
 import "./webgl-burg-icons";
+import "./webgl-burg-labels";
 import "./layer-host";
