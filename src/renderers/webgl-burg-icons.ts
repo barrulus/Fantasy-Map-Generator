@@ -6,6 +6,7 @@ import {
   hitTestBurg,
   INSTANCE_STRIDE
 } from "./burg-instances";
+import { registerLayer } from "./layer-host";
 import { type BurgAtlas, buildBurgAtlas } from "./webgl-burg-atlas";
 
 const VERT = `#version 300 es
@@ -146,6 +147,7 @@ export async function rebuildBurgGL(): Promise<void> {
   burgQuadtree = buildBurgQuadtree((window as any).pack.burgs);
   (window as any).__burgGLids = ids;
   drawBurgGL();
+  (window as any).LayerHost?.reconcile(); // position the canvas at its z-slot once instances are ready
 }
 
 // Coalesce rapid single-burg edits (add/remove/changeGroup are called in per-burg
@@ -248,6 +250,20 @@ export function getBurgSizes(): Record<string, number> {
   if (atlas) for (const [name, t] of Object.entries(atlas.tiles)) out[name] = t.size;
   return out;
 }
+
+registerLayer({
+  id: "toggleBurgIcons",
+  renderer: "webgl",
+  visible: () => burgWebglActive(),
+  draw: () => drawBurgGL(),
+  clear: () => destroyBurgGL(),
+  hitTest: (mapX, mapY) => {
+    const qt = getBurgQuadtree();
+    if (!qt) return null;
+    const id = hitTestBurg(qt, mapX, mapY, (window as any).scale ?? 1, getBurgSizes());
+    return id ?? null;
+  }
+});
 
 Object.assign(window, {
   initBurgGL,
