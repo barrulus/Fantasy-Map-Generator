@@ -228,8 +228,9 @@ function zoomRaf() {
     // Uses global values, so each frame always draws using the latest positioning values
     viewbox.attr("transform", `translate(${viewX} ${viewY}) scale(${scale})`);
 
-    // Keep the WebGL burg layer in sync with the viewbox transform (composited, no SVG repaint).
-    if (window.burgWebglActive && window.burgWebglActive()) window.drawBurgGL();
+    // Compositor: mirror the transform to any #viewboxTop and draw WebGL layers (no SVG repaint).
+    if (window.LayerHost) window.LayerHost.onFrame();
+    else if (window.burgWebglActive && window.burgWebglActive()) window.drawBurgGL(); // fallback pre-init
 
     if (didPositionChange) {
       if (layerIsOn("toggleCoordinates")) drawCoordinates();
@@ -297,6 +298,7 @@ window.webglBurgs = JSON.safeParse(localStorage.getItem("webglBurgs"));
     }
     if (window.destroyBurgGL) window.destroyBurgGL(); // clear GL canvas; drawBurgIcons re-picks the renderer
     if (typeof drawBurgIcons === "function" && layerIsOn("toggleBurgIcons")) drawBurgIcons();
+    if (window.LayerHost) window.LayerHost.reconcile();
   });
 })();
 function ensureBurgGLCanvas() {

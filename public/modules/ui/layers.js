@@ -222,6 +222,7 @@ function drawLayers() {
   if (layerIsOn("toggleRulers")) rulers.draw();
   // scale bar
   // vignette
+  if (window.LayerHost) window.LayerHost.reconcile();
 }
 
 function toggleHeight(event) {
@@ -931,11 +932,13 @@ function toggleBurgIcons(event) {
     turnButtonOn("toggleBurgIcons");
     drawBurgIcons();
     if (event && isCtrlClick(event)) editStyle("burgIcons");
+    if (window.LayerHost) window.LayerHost.reconcile();
   } else {
     if (event && isCtrlClick(event)) return editStyle("burgIcons");
     turnButtonOff("toggleBurgIcons");
     icons.selectAll("circle, use").remove();
     if (window.destroyBurgGL) window.destroyBurgGL(); // clear the GL canvas too
+    if (window.LayerHost) window.LayerHost.reconcile();
   }
 }
 
@@ -1048,6 +1051,7 @@ function moveLayer(event, ui) {
   const next = getLayer(ui.item.next().attr("id"));
   if (prev) el.insertAfter(prev);
   else if (next) el.insertBefore(next);
+  if (window.LayerHost) window.LayerHost.reconcile();
 }
 
 // define connection between option layer buttons and actual svg groups to move the element

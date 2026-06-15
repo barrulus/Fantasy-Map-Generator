@@ -7,20 +7,26 @@ modules.editors = true;
 function restoreDefaultEvents() {
   svg.call(zoom);
   viewbox.style("cursor", "default").on(".drag", null).on("click", clicked).on("touchmove mousemove", onMouseMove);
+  bindTopLayerEvents();
   legend.call(d3.drag().on("start", dragLegendBox));
   svg.call(zoom);
 }
 
+// The interleaved overlay (#viewboxTop) is a separate SVG root, so the #viewbox-delegated
+// click/move handlers never fire for layers moved into it — bind the same handlers there.
+function bindTopLayerEvents() {
+  const vt = document.getElementById("viewboxTop");
+  if (vt) d3.select(vt).on("click", clicked).on("touchmove mousemove", onMouseMove);
+}
+window.bindTopLayerEvents = bindTopLayerEvents;
+
 // handle viewbox click
 function clicked() {
   // WebGL burgs have no per-burg DOM, so hit-test the click against the burg quadtree.
-  if (window.burgWebglActive && window.burgWebglActive()) {
+  if (window.LayerHost) {
     const [mx, my] = d3.mouse(ensureEl("viewbox"));
-    const qt = window.getBurgQuadtree && window.getBurgQuadtree();
-    if (qt) {
-      const id = window.hitTestBurg(qt, mx, my, scale, window.getBurgSizes());
-      if (id) return editBurg(id);
-    }
+    const hit = window.LayerHost.hitTestTopDown(mx, my);
+    if (hit) return editBurg(hit);
   }
 
   const el = d3.event.target;

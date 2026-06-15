@@ -3,6 +3,7 @@
 
 window.addEventListener("resize", function (e) {
   if (window.resizeBurgGL) window.resizeBurgGL(); // keep the GL canvas sized to the viewport
+  if (window.LayerHost) window.LayerHost.reconcile();
   if (stored("mapWidth") && stored("mapHeight")) return;
   mapWidthInput.value = window.innerWidth;
   mapHeightInput.value = window.innerHeight;
@@ -129,10 +130,9 @@ function showNotes(e) {
 function showMapTooltip(point, e, i, g) {
   tip(""); // clear tip
 
-  // WebGL burgs have no per-burg DOM, so hit-test the cursor against the burg quadtree.
-  if (window.burgWebglActive && window.burgWebglActive()) {
-    const qt = window.getBurgQuadtree && window.getBurgQuadtree();
-    const burgId = qt && window.hitTestBurg(qt, point[0], point[1], scale, window.getBurgSizes());
+  // WebGL burgs have no per-burg DOM, so hit-test the cursor against the registered WebGL layers.
+  if (window.LayerHost) {
+    const burgId = window.LayerHost.hitTestTopDown(point[0], point[1]);
     if (burgId) {
       const burg = pack.burgs[burgId];
       const population = si(burg.population * populationRate * urbanization);
