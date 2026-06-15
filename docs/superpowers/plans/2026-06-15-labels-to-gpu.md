@@ -1607,3 +1607,18 @@ git commit --no-verify -m "test(labels): green unit + typecheck sweep for GPU la
 - **Transform-gated rebuild** → Task 8 (`lastKey`). **Active-gesture LOD** is left as the natural place to extend `drawBurgLabelGL` if Task 12 perf shows collision-per-frame is too costly; not built by default per the spec.
 
 **Known tuning risks (resolved in Task 12, not by guesswork now):** exact glyph baseline/ascent (`baselineYEm = 0.8` approximation), SDF spread vs crispness, single-atlas-font assumption (groups with differing fonts share one atlas in v1 — acceptable; multi-font atlas is a follow-up if needed).
+
+---
+
+## Task 12 — in-browser verification results (2026-06-15)
+
+Verified on the feat branch via a separate dev server (`vite --port 5174`) + headless chromium, on an 8198-burg map at 1920×959. **Two render-blocking bugs found that all 213 unit tests + two code-review rounds missed** (fixed in commit `1986aa00`):
+
+1. `readGroupStyles` read `window.options`, but `options` is a bare global not on `window` → empty styles → every burg culled → **blank canvas**. Fixed: read `#burgLabels > g` shells from the DOM, like the burg-icon atlas.
+2. **SDF distance sign inverted** vs the shader smoothstep → dark filled boxes instead of dark text. Fixed the `norm` sign in `sdf-glyph-atlas.ts`.
+
+Verified working after fixes: render + crisp SDF text (scale 2.7→12); state labels stay SVG; burg `<text>` 8197→0; min-zoom + size-band cull; click-to-edit resolves the correct burg via `LayerHost.hitTestTopDown`; editor proxy created-on-open / removed-on-close; `moveLabelGL` reposition + quadtree update; `labelDx/labelDy` save serialization; convert-on-load migration (`translate(40,-15)` → override).
+
+**Perf (same map / canvas / zoom gesture):** SVG labels 85.6 ms/frame (11.7 fps, 8197 `<text>`) → GPU labels 37.5 ms/frame (26.7 fps, 0 `<text>`) = **−56% frame time / 2.3× fps**. The label layer's own per-frame cost was 0.42 ms; the win scales toward the ~500 ms/frame SVG baseline at 67–80K burgs.
+
+Adjacent (not caused by this branch): autosave-at-scale can throw FMG's save-error banner on very large maps — `save.js` is untouched here and GPU labels make the saved SVG smaller; pre-existing, flagged in the brief as separate.
