@@ -119,26 +119,31 @@ export function hexToRgb(color: string): [number, number, number] {
   return [0, 0, 0];
 }
 
-/** Read live #burgLabels group <g> styles into LabelGroupStyle, mirroring buildBurgAtlas. */
+/**
+ * Read live #burgLabels group <g> shells into LabelGroupStyle, reading the DOM directly
+ * (like the burg-icon atlas reads #burgIcons > g). The `options` global is NOT on window,
+ * so we derive group order from DOM order — createLabelGroups appends shells sorted by order.
+ */
 function readGroupStyles(): Record<string, LabelGroupStyle> {
   const MIN_ZOOM: Record<string, number> = {
     capital: 1, "skyburg-capital": 2, skyburg: 4, "skyburg-mid": 6, "skyburg-small": 8,
     city: 4, town: 6, fort: 7, monastery: 7, caravanserai: 7, trading_post: 7, village: 10, hamlet: 14
   };
   const out: Record<string, LabelGroupStyle> = {};
-  const groups = ((window as any).options?.burgs?.groups || []) as { name: string; order: number }[];
-  for (const g of groups) {
-    const el = document.getElementById(g.name);
-    const fontSize = el ? parseFloat(getComputedStyle(el).fontSize) || 4 : 4;
-    out[g.name] = {
-      order: g.order,
+  const shells = Array.from(document.querySelectorAll<SVGGElement>("#burgLabels > g"));
+  shells.forEach((el, order) => {
+    const fontSize = parseFloat(getComputedStyle(el).fontSize) || 4;
+    const stroke = el.getAttribute("stroke");
+    out[el.id] = {
+      order,
       fontSize,
-      minZoom: MIN_ZOOM[g.name] ?? 0,
-      fill: el?.getAttribute("fill") || "#3e3e4b",
-      halo: el?.getAttribute("stroke") || "#ffffff",
-      haloWidth: +(el?.getAttribute("stroke-width") || 0.5)
+      minZoom: MIN_ZOOM[el.id] ?? 0,
+      fill: el.getAttribute("fill") || getComputedStyle(el).fill || "#3e3e4b",
+      halo: stroke || "#ffffff",
+      // only halo when the group actually has a stroke; 0 width disables the halo ring in the shader
+      haloWidth: stroke ? +(el.getAttribute("stroke-width") || 0.5) : 0
     };
-  }
+  });
   return out;
 }
 

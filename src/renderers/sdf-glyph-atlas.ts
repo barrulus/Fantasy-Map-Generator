@@ -126,8 +126,9 @@ export function buildGlyphAtlas(glyphs: Set<string>, font: string): GlyphAtlas {
     for (let y = 0; y < CELL; y++) {
       for (let x = 0; x < CELL; x++) {
         const p = y * CELL + x;
-        const signed = Math.sqrt(dOut[p]) - Math.sqrt(dIn[p]); // +outside, -inside
-        const norm = 0.5 - signed / (2 * SPREAD); // edge -> 0.5
+        const signed = Math.sqrt(dOut[p]) - Math.sqrt(dIn[p]); // + inside glyph, - outside
+        // inside glyph -> >0.5, outside -> <0.5, edge -> 0.5 (matches shader smoothstep fill at 0.5)
+        const norm = 0.5 + signed / (2 * SPREAD);
         const v = Math.max(0, Math.min(1, norm)) * 255;
         const dx = col * CELL + x;
         const dy = row * CELL + y;
