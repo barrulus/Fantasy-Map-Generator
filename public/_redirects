@@ -1,0 +1,8 @@
+# This fork deploys at the site root (vite base "/"), but Azgaar's PWA manifest and old
+# links use the GitHub-Pages "/Fantasy-Map-Generator/" prefix. Send those to root so
+# scripts/assets resolve — otherwise they 404 -> SPA fallback (HTML) -> every <script>
+# fails to parse and nothing initializes. The force flag (!) beats the SPA catch-all.
+/Fantasy-Map-Generator/*  /:splat  301!
+
+# SPA fallback for everything else.
+/*  /index.html  200
