@@ -163,6 +163,13 @@ in `#map`. Browsers resolve same-document `url(#)` across separate inline SVG ro
 This risk exists only in State 1 and only for the layers above the burg canvas; the default map
 never touches it.
 
+**Spike result (2026-06-15):** GO on Chromium 148 (headless). A `<rect>` and `<text>` in a
+second inline SVG root resolved `url(#g)` (linearGradient), `url(#f)` (filter/blur), and
+`url(#c)` (clipPath) defined in the first SVG root: pixel-sampled gradient red→blue
+(`[222,0,34]`→`[22,0,235]`) with blur bleed past the rect edge. → Proceed with the single-`<defs>`
+design; no duplication fallback. Residual: WebKit/Safari not tested headless here; revisit if a
+Safari regression surfaces (fallback path #3 remains available).
+
 ## Testing
 
 - **Unit (vitest, existing pattern):** `LayerHost` order/`reconcile` logic with a jsdom-mocked
