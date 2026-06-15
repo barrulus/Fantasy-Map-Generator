@@ -53,6 +53,10 @@ const burgLabelsRenderer = (): void => {
 };
 
 const drawBurgLabelRenderer = (burg: Burg): void => {
+  if ((window as any).burgLabelsWebglActive?.()) {
+    (window as any).scheduleRebuildBurgLabelGL?.();
+    return;
+  }
   const labelGroup = burgLabels.select<SVGGElement>(`#${burg.group}`);
   if (labelGroup.empty()) {
     drawBurgLabels();
@@ -76,6 +80,10 @@ const drawBurgLabelRenderer = (burg: Burg): void => {
 };
 
 const removeBurgLabelRenderer = (burgId: number): void => {
+  if ((window as any).burgLabelsWebglActive?.()) {
+    (window as any).scheduleRebuildBurgLabelGL?.();
+    return;
+  }
   const existingLabel = document.getElementById(`burgLabel${burgId}`);
   if (existingLabel) existingLabel.remove();
 };

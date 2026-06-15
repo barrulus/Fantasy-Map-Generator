@@ -517,7 +517,9 @@ function stateChangeCapitalName(state, line, value) {
   const capital = pack.states[state].capital;
   if (!capital) return;
   pack.burgs[capital].name = value;
-  document.querySelector("#burgLabel" + capital).textContent = value;
+  const capitalLabel = document.querySelector("#burgLabel" + capital);
+  if (capitalLabel) capitalLabel.textContent = value;
+  if (window.burgLabelsWebglActive && window.burgLabelsWebglActive() && window.scheduleRebuildBurgLabelGL) window.scheduleRebuildBurgLabelGL();
 }
 
 function changePopulation(stateId) {

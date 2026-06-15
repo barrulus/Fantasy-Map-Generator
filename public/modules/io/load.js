@@ -362,7 +362,6 @@ async function parseLoadedData(data, mapVersion) {
       fogging = viewbox.select("#fogging");
       debug = viewbox.select("#debug");
       burgLabels = labels.select("#burgLabels");
-      if (window.burgLabelsWebglActive && window.burgLabelsWebglActive() && window.migrateLabelOverrides) window.migrateLabelOverrides();
 
       if (!texture.size()) {
         texture = viewbox
@@ -394,6 +393,7 @@ async function parseLoadedData(data, mapVersion) {
       pack.cultures = JSON.parse(data[13]);
       pack.states = JSON.parse(data[14]);
       pack.burgs = JSON.parse(data[15]);
+      if (window.migrateLabelOverrides) window.migrateLabelOverrides(); // capture legacy SVG label offsets before redraw clears them
       pack.religions = data[29] ? JSON.parse(data[29]) : [{i: 0, name: "No religion"}];
       pack.provinces = data[30] ? JSON.parse(data[30]) : [0];
       pack.rivers = data[32] ? JSON.parse(data[32]) : [];

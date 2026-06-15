@@ -259,8 +259,9 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
   function zoomIntoBurg() {
     const burg = +this.parentNode.dataset.id;
     const label = document.querySelector("#burgLabels [data-id='" + burg + "']");
-    const x = +label.getAttribute("x");
-    const y = +label.getAttribute("y");
+    const b = pack.burgs[burg];
+    const x = label ? +label.getAttribute("x") : b.x;
+    const y = label ? +label.getAttribute("y") : b.y;
     zoomTo(x, y, 8, 2000);
   }
 
@@ -313,6 +314,7 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
       el.querySelector(".burgName").value = name;
       pack.burgs[burg].name = el.dataset.name = name;
       burgLabels.select("[data-id='" + burg + "']").text(name);
+      if (window.burgLabelsWebglActive && window.burgLabelsWebglActive() && window.scheduleRebuildBurgLabelGL) window.scheduleRebuildBurgLabelGL();
     });
   }
 
@@ -651,6 +653,7 @@ function overviewBurgs(settings = {stateId: null, cultureId: null}) {
         const id = change[i].id;
         pack.burgs[id].name = change[i].name;
         burgLabels.select("[data-id='" + id + "']").text(change[i].name);
+        if (window.burgLabelsWebglActive && window.burgLabelsWebglActive() && window.scheduleRebuildBurgLabelGL) window.scheduleRebuildBurgLabelGL();
       }
       burgsOverviewAddLines();
     };

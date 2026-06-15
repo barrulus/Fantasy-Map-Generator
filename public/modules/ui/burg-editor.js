@@ -10,6 +10,7 @@ function editBurg(id) {
   // GPU label mode: no SVG <text> exists. Create an invisible proxy in #burgLabels (map-space,
   // transform-synced) so the editor's elSelected handle + label dragging keep working.
   if (window.burgLabelsWebglActive && window.burgLabelsWebglActive() && elSelected.empty()) {
+    burgLabels.selectAll("text.gpu-proxy").remove(); // drop any stale proxy if an editor was left open
     const b = pack.burgs[+burg];
     if (b) {
       elSelected = burgLabels

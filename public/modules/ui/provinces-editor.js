@@ -272,8 +272,9 @@ function editProvinces() {
   function capitalZoomIn(p) {
     const capital = pack.provinces[p].burg;
     const l = burgLabels.select("[data-id='" + capital + "']");
-    const x = +l.attr("x");
-    const y = +l.attr("y");
+    const b = pack.burgs[capital];
+    const x = l.empty() ? b.x : +l.attr("x");
+    const y = l.empty() ? b.y : +l.attr("y");
     zoomTo(x, y, 8, 2000);
   }
 
