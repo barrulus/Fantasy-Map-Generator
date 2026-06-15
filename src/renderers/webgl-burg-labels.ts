@@ -198,6 +198,19 @@ function rebuildQuadtree(): void {
     .addAll(boxes);
 }
 
+/** Update one burg's label override (caller already set burg.labelDx/labelDy) and redraw. */
+export function moveLabelGL(id: number): void {
+  const burg = ((window as any).pack.burgs as Burg[])[id];
+  const box = boxes.find(b => b.id === id);
+  if (burg && box) {
+    box.x = burg.x! + (burg.labelDx || 0);
+    box.y = burg.y! + (burg.labelDy || 0);
+    rebuildQuadtree();
+  }
+  lastKey = ""; // force visibility/instance rebuild next draw
+  drawBurgLabelGL();
+}
+
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
 export function scheduleRebuildBurgLabelGL(): void {
   if (rebuildTimer) return;
@@ -348,5 +361,6 @@ Object.assign(window, {
   destroyBurgLabelGL,
   burgLabelsWebglActive,
   getLabelQuadtree,
-  scheduleRebuildBurgLabelGL
+  scheduleRebuildBurgLabelGL,
+  moveLabelGL
 });

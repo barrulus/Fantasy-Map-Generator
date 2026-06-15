@@ -7,6 +7,22 @@ function editBurg(id) {
 
   const burg = id || d3.event.target.dataset.id;
   elSelected = burgLabels.select("[data-id='" + burg + "']");
+  // GPU label mode: no SVG <text> exists. Create an invisible proxy in #burgLabels (map-space,
+  // transform-synced) so the editor's elSelected handle + label dragging keep working.
+  if (window.burgLabelsWebglActive && window.burgLabelsWebglActive() && elSelected.empty()) {
+    const b = pack.burgs[+burg];
+    if (b) {
+      elSelected = burgLabels
+        .append("text")
+        .attr("id", "burgLabel" + burg)
+        .attr("data-id", burg)
+        .attr("x", b.x + (b.labelDx || 0))
+        .attr("y", b.y + (b.labelDy || 0))
+        .attr("opacity", 0)
+        .classed("gpu-proxy", true)
+        .text(b.name);
+    }
+  }
   burgLabels.selectAll("text").call(d3.drag().on("start", dragBurgLabel)).classed("draggable", true);
   updateGroupsList();
   updateBurgValues();
@@ -111,6 +127,19 @@ function editBurg(id) {
   }
 
   function dragBurgLabel() {
+    if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) {
+      const id = +this.dataset.id;
+      const burg = pack.burgs[id];
+      d3.event.on("drag", function () {
+        burg.labelDx = rn((burg.labelDx || 0) + d3.event.dx, 2);
+        burg.labelDy = rn((burg.labelDy || 0) + d3.event.dy, 2);
+        this.setAttribute("x", burg.x + burg.labelDx);
+        this.setAttribute("y", burg.y + burg.labelDy);
+        if (window.moveLabelGL) window.moveLabelGL(id);
+        tip('Use dragging for fine-tuning only, to actually move burg use "Relocate" button', false, "warning");
+      });
+      return;
+    }
     const tr = parseTransform(this.getAttribute("transform"));
     const dx = +tr[0] - d3.event.x,
       dy = +tr[1] - d3.event.y;
@@ -127,6 +156,8 @@ function editBurg(id) {
     const id = +elSelected.attr("data-id");
     pack.burgs[id].name = burgName.value;
     elSelected.text(burgName.value);
+    if (window.burgLabelsWebglActive && window.burgLabelsWebglActive() && window.scheduleRebuildBurgLabelGL)
+      window.scheduleRebuildBurgLabelGL();
   }
 
   function generateNameRandom() {
@@ -501,6 +532,7 @@ function editBurg(id) {
   function closeBurgEditor() {
     ensureEl("burgRelocate").classList.remove("pressed");
     burgLabels.selectAll("text").call(d3.drag().on("drag", null)).classed("draggable", false);
+    burgLabels.selectAll("text.gpu-proxy").remove();
     unselect();
   }
 }

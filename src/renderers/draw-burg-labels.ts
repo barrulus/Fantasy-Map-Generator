@@ -4,6 +4,7 @@ declare global {
   var drawBurgLabels: () => void;
   var drawBurgLabel: (burg: Burg) => void;
   var removeBurgLabel: (burgId: number) => void;
+  var migrateLabelOverrides: () => void;
 }
 
 interface BurgGroup {
@@ -101,6 +102,38 @@ function createLabelGroups(): void {
     group.attr("id", name);
   }
 }
+
+/**
+ * Convert legacy SVG-baked label positions to burg.labelDx/labelDy before the GPU layer
+ * discards the <text> nodes. Handles both relocate-style (moved x/y) and fine-tune-drag
+ * (transform translate) overrides. A net offset > epsilon from the burg anchor is preserved.
+ */
+function migrateLabelOverrides(): void {
+  const EPS = 0.5;
+  const nodes = document.querySelectorAll<SVGTextElement>("#burgLabels text[data-id]");
+  for (const node of nodes) {
+    const id = +node.getAttribute("data-id")!;
+    const burg = pack.burgs[id];
+    if (!burg) continue;
+    const x = parseFloat(node.getAttribute("x") || "");
+    const y = parseFloat(node.getAttribute("y") || "");
+    if (Number.isNaN(x) || Number.isNaN(y)) continue;
+    let tx = 0;
+    let ty = 0;
+    const tr = /translate\(\s*([-\d.]+)[ ,]+([-\d.]+)/.exec(node.getAttribute("transform") || "");
+    if (tr) {
+      tx = +tr[1];
+      ty = +tr[2];
+    }
+    const dx = x + tx - burg.x;
+    const dy = y + ty - burg.y;
+    if (Math.abs(dx) > EPS || Math.abs(dy) > EPS) {
+      burg.labelDx = Math.round(dx * 100) / 100;
+      burg.labelDy = Math.round(dy * 100) / 100;
+    }
+  }
+}
+window.migrateLabelOverrides = migrateLabelOverrides;
 
 window.drawBurgLabels = burgLabelsRenderer;
 window.drawBurgLabel = drawBurgLabelRenderer;

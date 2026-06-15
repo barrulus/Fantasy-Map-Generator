@@ -362,6 +362,7 @@ async function parseLoadedData(data, mapVersion) {
       fogging = viewbox.select("#fogging");
       debug = viewbox.select("#debug");
       burgLabels = labels.select("#burgLabels");
+      if (window.burgLabelsWebglActive && window.burgLabelsWebglActive() && window.migrateLabelOverrides) window.migrateLabelOverrides();
 
       if (!texture.size()) {
         texture = viewbox
