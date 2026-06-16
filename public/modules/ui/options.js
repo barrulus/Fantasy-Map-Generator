@@ -223,6 +223,12 @@ function fitMapToScreen() {
 
   fitScaleBar(scaleBar, svgWidth, svgHeight);
   if (window.fitLegendBox) fitLegendBox();
+
+  // Keep the WebGL burg/label canvases sized to the SVG viewport. Unlike SVG layers they don't
+  // ride the SVG's clip, so a stale (larger) canvas spills GPU burgs/labels past the map edge
+  // when the canvas size shrinks. Resize AFTER the svg width/height above are applied.
+  if (window.resizeBurgGL) window.resizeBurgGL();
+  if (window.resizeBurgLabelGL) window.resizeBurgLabelGL();
 }
 
 function toggleTranslateExtent(el) {

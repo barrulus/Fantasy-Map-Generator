@@ -2,9 +2,9 @@
 // Module to store generic UI functions
 
 window.addEventListener("resize", function (e) {
-  if (window.resizeBurgGL) window.resizeBurgGL(); // keep the GL canvas sized to the viewport
-  if (window.resizeBurgLabelGL) window.resizeBurgLabelGL(); // keep the label GL canvas sized to the viewport
   if (window.LayerHost) window.LayerHost.reconcile();
+  // GL canvas resize is handled inside fitMapToScreen (called below, or by the stored-size path
+  // which intentionally keeps the current size). It must run after the svg is refit, not before.
   if (stored("mapWidth") && stored("mapHeight")) return;
   mapWidthInput.value = window.innerWidth;
   mapHeightInput.value = window.innerHeight;
