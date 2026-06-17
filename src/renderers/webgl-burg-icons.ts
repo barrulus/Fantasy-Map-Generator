@@ -163,6 +163,18 @@ export function scheduleRebuildBurgGL(): void {
 
 export function drawBurgGL(): void {
   if (!gl || !atlas) return;
+  // When the layer is inactive (GPU burgs off, below the auto threshold, or the icons layer hidden)
+  // keep the canvas clear instead of repainting stale instances. onFrame already skips inactive
+  // layers, but direct callers — resizeBurgGL() fires from fitMapToScreen on every refit regardless
+  // of state — would otherwise repaint a frozen frame that doesn't ride pan/zoom, leaving burg dots
+  // stuck in screen space.
+  if (!burgWebglActive()) {
+    const c = gl.canvas as HTMLCanvasElement;
+    gl.viewport(0, 0, c.width, c.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    return;
+  }
   const t = (window as any).getMapTransform?.() || { scale: 1, viewX: 0, viewY: 0 };
   const w = t.scale;
   const vx = t.viewX;
