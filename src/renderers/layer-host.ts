@@ -27,14 +27,24 @@ export function mergeSuffix(viewbox: Element, viewboxTop: Element): void {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+// The attributes that define an SVG root's clip box. #mapTop is a sibling root, so it clips its
+// own content to these — they must track #map or the overlay spills past the map edge.
+const GEOMETRY_ATTRS = ["viewBox", "width", "height", "preserveAspectRatio"];
+
+/** Mirror the SVG-root geometry attrs from `src` onto `dst` (removing any the source lacks). */
+function copyGeometryAttrs(dst: Element, src: Element): void {
+  for (const a of GEOMETRY_ATTRS) {
+    const v = src.getAttribute(a);
+    if (v != null) dst.setAttribute(a, v);
+    else dst.removeAttribute(a);
+  }
+}
+
 /** Create the `#mapTop` overlay SVG (with inner `#viewboxTop` group) mirroring `srcSvg`'s geometry. */
 export function createTopOverlay(doc: Document, srcSvg: Element): SVGSVGElement {
   const top = doc.createElementNS(SVG_NS, "svg") as SVGSVGElement;
   top.id = "mapTop";
-  for (const a of ["viewBox", "width", "height", "preserveAspectRatio"]) {
-    const v = srcSvg.getAttribute(a);
-    if (v != null) top.setAttribute(a, v);
-  }
+  copyGeometryAttrs(top, srcSvg);
   top.style.position = "absolute";
   top.style.top = "0";
   top.style.left = "0";
@@ -101,6 +111,19 @@ function ensureTopOverlay(svg: Element): SVGSVGElement {
 
 function removeTopOverlay(): void {
   document.getElementById("mapTop")?.remove();
+}
+
+/**
+ * Re-sync #mapTop's geometry (its clip box) to #map. createTopOverlay snapshots these attrs once
+ * at creation; fitMapToScreen later resizes #map on a canvas-size change without touching the
+ * overlay, leaving #mapTop's clip rect stale and larger — so split-out #viewboxTop layers spill
+ * past the map edge into the letterbox. Call after #map's width/height are applied; no-op when the
+ * overlay isn't mounted (passthrough / State 0).
+ */
+export function syncTopOverlayGeometry(): void {
+  const map = document.getElementById("map");
+  const top = document.getElementById("mapTop");
+  if (map && top) copyGeometryAttrs(top, map);
 }
 
 /**
@@ -191,5 +214,11 @@ export function hitTestTopDown(mapX: number, mapY: number): number | null {
 }
 
 Object.assign(window, {
-  LayerHost: { reconcile: reconcileLayers, onFrame: onFrameLayers, hitTestTopDown, registerLayer }
+  LayerHost: {
+    reconcile: reconcileLayers,
+    onFrame: onFrameLayers,
+    hitTestTopDown,
+    registerLayer,
+    syncGeometry: syncTopOverlayGeometry
+  }
 });

@@ -229,6 +229,11 @@ function fitMapToScreen() {
   // when the canvas size shrinks. Resize AFTER the svg width/height above are applied.
   if (window.resizeBurgGL) window.resizeBurgGL();
   if (window.resizeBurgLabelGL) window.resizeBurgLabelGL();
+
+  // The #mapTop overlay is a sibling SVG root that clips to its own width/height, so it must track
+  // #map's new size too — otherwise its stale (larger) clip lets the split-out #viewboxTop layers
+  // spill past the map edge into the letterbox. No-op unless the overlay is mounted (State 1).
+  if (window.LayerHost && window.LayerHost.syncGeometry) window.LayerHost.syncGeometry();
 }
 
 function toggleTranslateExtent(el) {

@@ -10,7 +10,8 @@ import {
   positionLabelCanvas,
   reconcileLayers,
   registerLayer,
-  splitSuffix
+  splitSuffix,
+  syncTopOverlayGeometry
 } from "./layer-host";
 
 function ids(el: Element): string[] {
@@ -104,6 +105,42 @@ describe("createTopOverlay", () => {
     const g = top.querySelector("#viewboxTop")!;
     expect(g).toBeTruthy();
     expect((g as SVGElement).style.pointerEvents).toBe("auto");
+  });
+});
+
+describe("syncTopOverlayGeometry", () => {
+  const NS = "http://www.w3.org/2000/svg";
+
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("re-syncs #mapTop geometry to #map and no-ops when the overlay is absent", () => {
+    const map = document.createElementNS(NS, "svg");
+    map.id = "map";
+    map.setAttribute("viewBox", "0 0 1000 700");
+    map.setAttribute("width", "1000");
+    map.setAttribute("height", "700");
+    document.body.appendChild(map);
+
+    // No overlay yet → safe no-op (resize handler fires in passthrough / State 0 too).
+    expect(() => syncTopOverlayGeometry()).not.toThrow();
+
+    const top = createTopOverlay(document, map);
+    document.body.appendChild(top);
+    expect(top.getAttribute("width")).toBe("1000");
+
+    // fitMapToScreen shrinks #map on a canvas-size change; #mapTop must follow or its own
+    // clip rect stays large and split-out #viewboxTop layers spill into the letterbox.
+    map.setAttribute("width", "600");
+    map.setAttribute("height", "400");
+    map.setAttribute("viewBox", "0 0 600 400");
+
+    syncTopOverlayGeometry();
+
+    expect(top.getAttribute("width")).toBe("600");
+    expect(top.getAttribute("height")).toBe("400");
+    expect(top.getAttribute("viewBox")).toBe("0 0 600 400");
   });
 });
 
