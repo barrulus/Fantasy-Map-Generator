@@ -92,7 +92,9 @@ export function buildGlyphAtlas(glyphs: Set<string>, font: string): GlyphAtlas {
   const scratch = document.createElement("canvas");
   scratch.width = CELL;
   scratch.height = CELL;
-  const sctx = scratch.getContext("2d")!;
+  // willReadFrequently: this scratch canvas is read back with getImageData once per glyph,
+  // so keep its backing store in CPU memory to avoid GPU→CPU readback stalls during the bake.
+  const sctx = scratch.getContext("2d", { willReadFrequently: true })!;
   const family = font.replace(/^\s*\d+px\s*/, ""); // strip leading size
   sctx.font = `${FONT_PX}px ${family}`;
   sctx.textBaseline = "alphabetic";
