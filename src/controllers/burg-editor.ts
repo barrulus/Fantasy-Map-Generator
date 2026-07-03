@@ -146,9 +146,10 @@ function updateBurgValues(): void {
 
   updateBurgLockIcon();
 
-  // set emblem image
+  // set emblem image — small burgs get no coat of arms at generation, so guard the
+  // renderer call (it warns "Emblem … is undefined" on a missing coa).
   const coaID = `burgCOA${id}`;
-  COArenderer.trigger(coaID, b.coa);
+  if (b.coa) COArenderer.trigger(coaID, b.coa);
   ensureEl("burgEmblem").setAttribute("href", `#${coaID}`);
 
   updateBurgPreview(b);
