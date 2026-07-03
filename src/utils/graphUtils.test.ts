@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import type { Point } from "../modules/voronoi";
+import type { Point } from "../generators/voronoi";
 import { calculateVoronoi } from "./graphUtils";
 
 beforeAll(() => {

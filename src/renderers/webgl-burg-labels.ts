@@ -1,5 +1,5 @@
 import { type Quadtree, quadtree } from "d3-quadtree";
-import type { Burg } from "../modules/burgs-generator";
+import type { Burg } from "../generators/burgs-generator";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
 import { type FontGeometry, type GlyphMetric, layoutLabel } from "./label-layout";
 import { type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";

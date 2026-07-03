@@ -1,4 +1,4 @@
-import type { Burg } from "../modules/burgs-generator";
+import type { Burg } from "../generators/burgs-generator";
 
 declare global {
   var drawBurgLabels: () => void;
@@ -100,7 +100,7 @@ function createLabelGroups(): void {
 
   // create groups for each burg group and apply stored or default style
   const defaultStyle = style.burgLabels.town || Object.values(style.burgLabels)[0] || {};
-  const sortedGroups = [...(options.burgs.groups as BurgGroup[])].sort((a, b) => a.order - b.order);
+  const sortedGroups = [...options.burgs.groups].sort((a, b) => a.order - b.order);
   for (const { name } of sortedGroups) {
     const group = burgLabels.append("g");
     const styles = style.burgLabels[name] || defaultStyle;

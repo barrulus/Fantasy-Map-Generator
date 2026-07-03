@@ -1,4 +1,4 @@
-import type { Burg } from "../modules/burgs-generator";
+import type { Burg } from "../generators/burgs-generator";
 import type { FontGeometry, GlyphMetric } from "./label-layout";
 
 /** Distinct non-space glyphs across all live burg names (skips burg[0] + removed). */

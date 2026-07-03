@@ -31,7 +31,7 @@ function clicked() {
   if (window.LayerHost) {
     const [mx, my] = d3.mouse(ensureEl("viewbox"));
     const hit = window.LayerHost.hitTestTopDown(mx, my);
-    if (hit) return editBurg(hit);
+    if (hit) return window.Controllers.BurgEditor.open(hit);
   }
 
   const el = d3.event.target;
@@ -42,17 +42,19 @@ function clicked() {
   if (!ancestor) return;
 
   if (grand.id === "emblems") editEmblem();
-  else if (parent.id === "rivers") editRiver(el.id);
-  else if (grand.id === "routes") editRoute(el.id);
+  else if (parent.id === "rivers") window.Controllers.RiverEditor.open(el.id);
+  else if (grand.id === "routes") window.Controllers.RouteEditor.open(el.id);
   else if (ancestor.id === "labels" && el.tagName === "tspan") editLabel();
-  else if (grand.id === "burgLabels") editBurg();
-  else if (grand.id === "burgIcons") editBurg();
+  else if (grand.id === "burgLabels" || grand.id === "burgIcons") window.Controllers.BurgEditor.open(el.dataset.id);
   else if (parent.id === "ice") editIce(el);
   else if (parent.id === "terrain") editReliefIcon();
   else if (grand.id === "markers" || great.id === "markers") editMarker();
+  else if (grand.id === "markets" && el.tagName !== "path") window.Controllers.MarketOverview.open(Number(parent.dataset.id));
+  else if (grand.id === "goodsIcons" || parent.id === "goodsCells") window.Controllers.GoodsEditor.open();
+  else if (grand.id === "goodsBurgs") window.Controllers.ProductionOverview.open(Number(parent.dataset.id));
   else if (grand.id === "coastline") editCoastline();
   else if (grand.id === "lakes") editLake();
-  else if (great.id === "armies") editRegiment();
+  else if (great.id === "armies") window.Controllers.RegimentEditor.open("#" + parent.id);
 }
 
 // clear elSelected variable
@@ -1086,14 +1088,15 @@ function listen(element, event, handler) {
 
 // Calls the refresh functionality on all editors currently open.
 function refreshAllEditors() {
-  TIME && console.time("refreshAllEditors");
   if (document.getElementById("culturesEditorRefresh")?.offsetParent) culturesEditorRefresh.click();
-  if (ensureEl("biomesEditorRefresh").offsetParent) biomesEditorRefresh.click();
-  if (ensureEl("diplomacyEditorRefresh").offsetParent) diplomacyEditorRefresh.click();
-  if (ensureEl("provincesEditorRefresh").offsetParent) provincesEditorRefresh.click();
+  if (document.getElementById("biomesEditorRefresh").offsetParent) biomesEditorRefresh.click();
+  if (document.getElementById("diplomacyEditorRefresh").offsetParent) diplomacyEditorRefresh.click();
+  if (document.getElementById("provincesEditorRefresh").offsetParent) provincesEditorRefresh.click();
   if (document.getElementById("religionsEditorRefresh")?.offsetParent) religionsEditorRefresh.click();
   if (document.getElementById("statesEditorRefresh")?.offsetParent) statesEditorRefresh.click();
   if (ensureEl("zonesEditorRefresh").offsetParent) zonesEditorRefresh.click();
+  if (document.getElementById("goodsEditorRefresh")?.offsetParent) goodsEditorRefresh.click();
+  if (document.getElementById("marketsOverviewRefresh")?.offsetParent) marketsOverviewRefresh.click();
   TIME && console.timeEnd("refreshAllEditors");
 }
 
