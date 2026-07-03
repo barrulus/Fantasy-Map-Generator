@@ -1,4 +1,4 @@
-import type { Burg } from "../modules/burgs-generator";
+import type { Burg } from "../generators/burgs-generator";
 
 declare global {
   var drawBurgIcons: () => void;
@@ -118,7 +118,7 @@ function createIconGroups(): void {
   // create groups for each burg group and apply stored or default style
   const defaultIconStyle = style.burgIcons.town || Object.values(style.burgIcons)[0] || {};
   const defaultAnchorStyle = style.anchors.town || Object.values(style.anchors)[0] || {};
-  const sortedGroups = [...(options.burgs.groups as BurgGroup[])].sort((a, b) => a.order - b.order);
+  const sortedGroups = [...options.burgs.groups].sort((a, b) => a.order - b.order);
   for (const { name } of sortedGroups) {
     const burgGroup = burgIcons.append("g");
     const iconStyles = style.burgIcons[name] || defaultIconStyle;
