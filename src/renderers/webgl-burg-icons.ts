@@ -272,7 +272,11 @@ registerLayer({
   hitTest: (mapX, mapY) => {
     const qt = getBurgQuadtree();
     if (!qt) return null;
-    const id = hitTestBurg(qt, mapX, mapY, (window as any).scale ?? 1, getBurgSizes());
+    // Use the same live zoom scale the renderer draws with (window.scale never existed —
+    // main.js `scale` is a lexical `let`, not a window prop — so this used to be stuck at 1,
+    // making the tap-target tolerance wrong at every real zoom level).
+    const scale = (window as any).getMapTransform?.()?.scale ?? 1;
+    const id = hitTestBurg(qt, mapX, mapY, scale, getBurgSizes());
     return id ?? null;
   }
 });
