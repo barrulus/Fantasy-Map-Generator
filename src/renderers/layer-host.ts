@@ -25,6 +25,32 @@ export function mergeSuffix(viewbox: Element, viewboxTop: Element): void {
   }
 }
 
+/**
+ * Reunite LayerHost's split-out top layers into a *cloned* #map so the clone serializes as a
+ * unified SVG stack (as stock FMG and older builds expect). When the WebGL burg layer is active,
+ * reconcileLayers() moves the layers after #icons (labels, markers, ruler, armies, fogging, ...)
+ * into the sibling #mapTop/#viewboxTop overlay — which lives OUTSIDE #map — so a plain
+ * cloneNode(#map) drops them. Left unfixed, saved .map files and SVG/PNG exports silently lose
+ * those layers, and loading such a file into stock FMG crashes at `labels.style("display")`.
+ *
+ * This appends clones of the live #viewboxTop children onto the clone's #viewbox, restoring
+ * document order (they were the suffix after #icons, so appending to the end reproduces it).
+ * No-op in passthrough state (no #viewboxTop) and idempotent (skips ids already present in the
+ * clone). Burg labels are GPU-only and remain absent by design — everything else round-trips.
+ */
+export function unifyClonedMapStack(clonedMap: Element, doc: Document = document): void {
+  const viewboxTop = doc.getElementById("viewboxTop");
+  if (!viewboxTop || !viewboxTop.firstElementChild) return;
+  const clonedViewbox = clonedMap.querySelector("#viewbox");
+  if (!clonedViewbox) return;
+  const present = new Set(Array.from(clonedViewbox.children, c => c.id).filter(Boolean));
+  for (const child of Array.from(viewboxTop.children)) {
+    if (child.id && present.has(child.id)) continue; // already in the stack (mid-reconcile) — don't duplicate
+    clonedViewbox.appendChild(child.cloneNode(true));
+    if (child.id) present.add(child.id);
+  }
+}
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 // The attributes that define an SVG root's clip box. #mapTop is a sibling root, so it clips its

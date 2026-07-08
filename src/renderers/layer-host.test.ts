@@ -11,7 +11,8 @@ import {
   reconcileLayers,
   registerLayer,
   splitSuffix,
-  syncTopOverlayGeometry
+  syncTopOverlayGeometry,
+  unifyClonedMapStack
 } from "./layer-host";
 
 function ids(el: Element): string[] {
@@ -372,5 +373,68 @@ describe("positionLabelCanvas", () => {
     positionLabelCanvas(labels);
     expect(map.nextElementSibling).toBe(labels);
     document.body.removeChild(wrap);
+  });
+});
+
+describe("unifyClonedMapStack", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  function build(viewboxIds: string[], topIds: string[]): { map: HTMLElement; cleanup: () => void } {
+    const map = document.createElement("div");
+    map.id = "map";
+    const viewbox = document.createElement("div");
+    viewbox.id = "viewbox";
+    for (const id of viewboxIds) {
+      const g = document.createElement("div");
+      g.id = id;
+      viewbox.appendChild(g);
+    }
+    map.appendChild(viewbox);
+    document.body.appendChild(map);
+
+    if (topIds.length) {
+      const top = document.createElement("div");
+      top.id = "viewboxTop";
+      for (const id of topIds) {
+        const g = document.createElement("div");
+        g.id = id;
+        top.appendChild(g);
+      }
+      document.body.appendChild(top);
+    }
+    return {
+      map,
+      cleanup: () => {
+        map.remove();
+        document.getElementById("viewboxTop")?.remove();
+      }
+    };
+  }
+
+  it("reunites split-out #viewboxTop layers into the clone's #viewbox, preserving order", () => {
+    const { map, cleanup } = build(["ocean", "icons"], ["labels", "markers", "ruler"]);
+    const clone = map.cloneNode(true) as HTMLElement;
+    unifyClonedMapStack(clone);
+    expect(ids(clone.querySelector("#viewbox")!)).toEqual(["ocean", "icons", "labels", "markers", "ruler"]);
+    cleanup();
+  });
+
+  it("is a no-op in passthrough state (no #viewboxTop)", () => {
+    const { map, cleanup } = build(["ocean", "icons", "labels", "markers"], []);
+    const clone = map.cloneNode(true) as HTMLElement;
+    unifyClonedMapStack(clone);
+    expect(ids(clone.querySelector("#viewbox")!)).toEqual(["ocean", "icons", "labels", "markers"]);
+    cleanup();
+  });
+
+  it("does not duplicate a layer already present in the clone (idempotent / mid-reconcile safe)", () => {
+    const { map, cleanup } = build(["ocean", "icons", "labels"], ["labels", "markers"]);
+    const clone = map.cloneNode(true) as HTMLElement;
+    unifyClonedMapStack(clone);
+    // #labels already in the clone → only #markers is added, no duplicate #labels
+    expect(ids(clone.querySelector("#viewbox")!)).toEqual(["ocean", "icons", "labels", "markers"]);
+    cleanup();
   });
 });

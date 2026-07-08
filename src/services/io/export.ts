@@ -1,5 +1,6 @@
 import type { Selection } from "d3";
 import { select } from "d3";
+import { unifyClonedMapStack } from "@/renderers/layer-host";
 import { connectVertices, ensureEl, getBase64, getCoordinates, getGridPolygon, rn, unique } from "@/utils";
 
 type MapSelection = Selection<SVGSVGElement, unknown, null, undefined>;
@@ -238,6 +239,9 @@ async function getMapURL(type: string, options: GetMapURLOptions = {}): Promise<
   } = options;
 
   const cloneEl = (document.getElementById("map") as unknown as SVGSVGElement).cloneNode(true) as SVGSVGElement; // clone svg
+  // Reunite LayerHost's split-out top layers (labels, markers, ruler, …) so exports keep them:
+  // when the WebGL burg layer is active they live in the sibling #mapTop overlay, outside #map.
+  unifyClonedMapStack(cloneEl);
   cloneEl.id = "fantasyMap";
   document.body.appendChild(cloneEl);
   const clone: MapSelection = select(cloneEl);
