@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildLabelBoxes, hexToRgb, type LabelGroupStyle } from "./webgl-burg-labels";
 import type { GlyphMetric } from "./label-layout";
+import { buildLabelBoxes, hexToRgb, type LabelGroupStyle, readGroupStyles } from "./webgl-burg-labels";
 
 const metrics: Record<string, GlyphMetric> = {
   A: { advance: 1, u0: 0, v0: 0, u1: 1, v1: 1 },
@@ -53,11 +53,40 @@ describe("buildLabelBoxes", () => {
     expect(boxes[0].y).toBe(97);
   });
 
+  it("carries the group's maxPx ceiling onto each box", () => {
+    const capped: Record<string, LabelGroupStyle> = {
+      capital: { order: 0, fontSize: 6, minZoom: 1, maxPx: 240 }
+    };
+    const burgs = [{}, { i: 1, x: 0, y: 0, name: "A", group: "capital" }] as any;
+    expect(buildLabelBoxes(burgs, capped, metrics, geom)[0].maxPx).toBe(240);
+  });
+
   it("widens halfW by the cell padding (originXEm)", () => {
     const padGeom = { cellEm: 1, originXEm: 0.25, baselineYEm: 1 };
     const burgs = [{}, { i: 1, x: 0, y: 0, name: "A", group: "city" }] as any;
     const boxes = buildLabelBoxes(burgs, styles, metrics, padGeom);
     // "A": advance 1 * fontSize 4 / 2 = 2, plus originXEm 0.25 * 4 = 1 => halfW 3
     expect(boxes[0].halfW).toBeCloseTo(3);
+  });
+});
+
+describe("readGroupStyles", () => {
+  function mountGroups(...ids: string[]) {
+    // DOM order is SVG paint order: least-important first, capitals last (painted on top)
+    document.body.innerHTML = `<svg><g id="burgLabels">${ids.map(i => `<g id="${i}"></g>`).join("")}</g></svg>`;
+  }
+
+  it("ranks groups by importance, not by DOM order", () => {
+    mountGroups("hamlet", "village", "city", "capital");
+    const s = readGroupStyles();
+    expect(s.capital.order).toBeLessThan(s.city.order);
+    expect(s.city.order).toBeLessThan(s.village.order);
+    expect(s.village.order).toBeLessThan(s.hamlet.order);
+  });
+
+  it("gives important tiers a higher on-screen ceiling than small ones", () => {
+    mountGroups("hamlet", "capital");
+    const s = readGroupStyles();
+    expect(s.capital.maxPx).toBeGreaterThan(s.hamlet.maxPx ?? 60);
   });
 });

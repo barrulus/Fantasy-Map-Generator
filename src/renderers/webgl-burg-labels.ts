@@ -2,7 +2,7 @@ import { type Quadtree, quadtree } from "d3-quadtree";
 import type { Burg } from "../generators/burgs-generator";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
 import { type FontGeometry, type GlyphMetric, layoutLabel } from "./label-layout";
-import { type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";
+import { groupMaxPx, groupRank, type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";
 import { registerLayer } from "./layer-host";
 import { buildGlyphAtlas, collectGlyphs, type GlyphAtlas } from "./sdf-glyph-atlas";
 
@@ -10,6 +10,7 @@ export interface LabelGroupStyle {
   order: number;
   fontSize: number; // map units per em
   minZoom: number;
+  maxPx?: number; // on-screen ceiling for this group; defaults to the shared MAX_PX
   fill?: string;
   halo?: string;
   haloWidth?: number;
@@ -40,6 +41,7 @@ export function buildLabelBoxes(
       halfW,
       halfH,
       minZoom: s.minZoom,
+      maxPx: s.maxPx,
       fontSize: s.fontSize,
       name: b.name,
       group: b.group as string
@@ -113,7 +115,12 @@ export function hexToRgb(color: string): [number, number, number] {
   const six = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c);
   if (six) return [parseInt(six[1], 16) / 255, parseInt(six[2], 16) / 255, parseInt(six[3], 16) / 255];
   const three = /^#?([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(c);
-  if (three) return [parseInt(three[1] + three[1], 16) / 255, parseInt(three[2] + three[2], 16) / 255, parseInt(three[3] + three[3], 16) / 255];
+  if (three)
+    return [
+      parseInt(three[1] + three[1], 16) / 255,
+      parseInt(three[2] + three[2], 16) / 255,
+      parseInt(three[3] + three[3], 16) / 255
+    ];
   const rgb = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(c);
   if (rgb) return [+rgb[1] / 255, +rgb[2] / 255, +rgb[3] / 255];
   return [0, 0, 0];
@@ -121,21 +128,38 @@ export function hexToRgb(color: string): [number, number, number] {
 
 /**
  * Read live #burgLabels group <g> shells into LabelGroupStyle, reading the DOM directly
- * (like the burg-icon atlas reads #burgIcons > g). The `options` global is NOT on window,
- * so we derive group order from DOM order — createLabelGroups appends shells sorted by order.
+ * (like the burg-icon atlas reads #burgIcons > g).
+ *
+ * Collision priority and the on-screen ceiling come from the group's identity (groupRank /
+ * groupMaxPx), NOT from its DOM index: shells are appended in SVG paint order, least-important
+ * first, so DOM order is the inverse of priority.
  */
-function readGroupStyles(): Record<string, LabelGroupStyle> {
+export function readGroupStyles(): Record<string, LabelGroupStyle> {
   const MIN_ZOOM: Record<string, number> = {
-    capital: 1, "skyburg-capital": 2, skyburg: 4, "skyburg-mid": 6, "skyburg-small": 8,
-    city: 4, town: 6, fort: 7, monastery: 7, caravanserai: 7, trading_post: 7, village: 10, hamlet: 14
+    capital: 1,
+    "skyburg-capital": 2,
+    skyburg: 4,
+    "skyburg-mid": 6,
+    "skyburg-small": 8,
+    city: 4,
+    town: 6,
+    fort: 7,
+    monastery: 7,
+    caravanserai: 7,
+    trading_post: 7,
+    village: 10,
+    hamlet: 14
   };
   const out: Record<string, LabelGroupStyle> = {};
   const shells = Array.from(document.querySelectorAll<SVGGElement>("#burgLabels > g"));
-  shells.forEach((el, order) => {
+  shells.forEach(el => {
     const fontSize = parseFloat(getComputedStyle(el).fontSize) || 4;
     const stroke = el.getAttribute("stroke");
     out[el.id] = {
-      order,
+      // collision priority comes from the group's importance, NOT its DOM index: DOM order is
+      // SVG paint order (least-important first), which is the inverse of priority.
+      order: groupRank(el.id),
+      maxPx: groupMaxPx(el.id),
       fontSize,
       minZoom: MIN_ZOOM[el.id] ?? 0,
       fill: el.getAttribute("fill") || getComputedStyle(el).fill || "#3e3e4b",
@@ -352,7 +376,12 @@ registerLayer({
     const found = qt.find(mapX, mapY);
     if (!found) return null;
     // accept the hit when inside the label's box
-    if (mapX >= found.x - found.halfW && mapX <= found.x + found.halfW && mapY >= found.y - found.halfH && mapY <= found.y + found.halfH)
+    if (
+      mapX >= found.x - found.halfW &&
+      mapX <= found.x + found.halfW &&
+      mapY >= found.y - found.halfH &&
+      mapY <= found.y + found.halfH
+    )
       return found.id;
     return null;
   }
