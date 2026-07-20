@@ -1,43 +1,62 @@
-import { mean } from "d3";
+import { mean, select } from "d3";
 import { Controllers } from "@/controllers";
 import type { Route } from "@/generators/routes-generator";
-import { ensureEl, rn } from "../utils";
+import { destroyDialogIfExists, ensureEl, rn } from "../utils";
 
-const routesPage = {page: 1};
+const routesPage = { page: 1 };
 const ROUTES_SORT_ACCESSORS = {
   name: (route: Route) => route.name || "",
   group: (route: Route) => route.group || "",
   length: (route: Route) => route.length
 };
 
-const DIALOG_HTML = /* html */ `
-  <div id="routesHeader" class="header" style="grid-template-columns: 17em 8em 8em">
-    <div data-tip="Click to sort by route name" class="sortable alphabetically" data-sortby="name">Route&nbsp;</div>
-    <div data-tip="Click to sort by route group" class="sortable alphabetically" data-sortby="group">Group&nbsp;</div>
-    <div data-tip="Click to sort by route length" class="sortable icon-sort-number-down" data-sortby="length">Length&nbsp;</div>
-  </div>
-  <div id="routesBody" class="table"></div>
-  <div id="routesFooter" class="totalLine">
-    <div data-tip="Routes number" style="margin-left: 4px">Routes:&nbsp;<span id="routesFooterNumber">0</span></div>
-    <div data-tip="Average length" style="margin-left: 12px">Average length:&nbsp;<span id="routesFooterLength">0</span></div>
-  </div>
-  <div id="routesBottom">
-    <button id="routesOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
-    <button id="routesCreateNew" data-tip="Create a new route selecting route cells" class="icon-map-pin"></button>
-    <button id="routesExport" data-tip="Save routes-related data as a text file (.csv)" class="icon-download"></button>
-    <button id="routesLockAll" data-tip="Lock or unlock all routes" class="icon-lock"></button>
-    <button id="routesRemoveAll" data-tip="Remove all unlocked routes (locked routes are kept)" class="icon-trash"></button>
-    <label for="routesSearch" data-tip="Filter by name or group" style="margin-left: 0.2em">Search: <input id="routesSearch" type="search" /></label>
-  </div>`;
-
 function open(): void {
   if (customization) return;
   closeDialogs("#routesOverview, .stable");
   if (!layerIsOn("toggleRoutes")) toggleRoutes();
 
-  ensureEl("routesOverview").innerHTML = DIALOG_HTML;
+  renderDialog();
   routesPage.page = 1;
   routesOverviewAddLines();
+
+  $("#routesOverview").dialog({
+    title: "Routes Overview",
+    resizable: false,
+    width: fitContent(),
+    position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" },
+    close: closeRoutesOverview
+  });
+}
+
+function renderDialog(): void {
+  destroyDialogIfExists("routesOverview");
+
+  const html = /* html */ `<div id="routesOverview" class="dialog stable">
+    <div id="routesHeader" class="header" style="grid-template-columns: 17em 8em 8em">
+      <div data-tip="Click to sort by route name" class="sortable alphabetically" data-sortby="name">Route&nbsp;</div>
+      <div data-tip="Click to sort by route group" class="sortable alphabetically" data-sortby="group">Group&nbsp;</div>
+      <div data-tip="Click to sort by route length" class="sortable icon-sort-number-down" data-sortby="length">Length&nbsp;</div>
+    </div>
+    <div id="routesBody" class="table"></div>
+    <div id="routesFooter" class="totalLine">
+      <div data-tip="Routes number" style="margin-left: 4px">Routes:&nbsp;<span id="routesFooterNumber">0</span></div>
+      <div data-tip="Average length" style="margin-left: 12px">Average length:&nbsp;<span id="routesFooterLength">0</span></div>
+    </div>
+    <div id="routesBottom">
+      <button id="routesOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
+      <button id="routesCreateNew" data-tip="Create a new route selecting route cells" class="icon-map-pin"></button>
+      <button id="routesExport" data-tip="Save routes-related data as a text file (.csv)" class="icon-download"></button>
+      <button id="routesLockAll" data-tip="Lock or unlock all routes" class="icon-lock"></button>
+      <button id="routesRemoveAll" data-tip="Remove all unlocked routes (locked routes are kept)" class="icon-trash"></button>
+      <label for="routesSearch" data-tip="Filter by name or group" style="margin-left: 0.2em">Search: <input id="routesSearch" type="search" /></label>
+    </div>
+  </div>`;
+  ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
+  applySortingByHeader("routesHeader");
+  bindEditorSortReset(ensureEl("routesHeader"), () => {
+    routesPage.page = 1;
+    routesOverviewAddLines();
+  });
 
   // add listeners — dropped together with the dialog HTML on close
   ensureEl("routesOverviewRefresh").on("click", routesOverviewAddLines);
@@ -49,22 +68,10 @@ function open(): void {
     routesPage.page = 1;
     routesOverviewAddLines();
   });
-  bindEditorSortReset(ensureEl("routesHeader"), () => {
-    routesPage.page = 1;
-    routesOverviewAddLines();
-  });
-
-  $("#routesOverview").dialog({
-    title: "Routes Overview",
-    resizable: false,
-    width: fitContent(),
-    position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" },
-    close: closeRoutesOverview
-  });
 }
 
 function closeRoutesOverview(): void {
-  ensureEl("routesOverview").innerHTML = "";
+  destroyDialogIfExists("routesOverview");
 }
 
 function createNewRoute(): void {
@@ -145,17 +152,25 @@ function routesOverviewAddLines(): void {
 function routeHighlightOn(event: Event): void {
   if (!layerIsOn("toggleRoutes")) toggleRoutes();
   const routeId = +(event.target as HTMLElement).dataset.id!;
-  routes.select(`#route${routeId}`).attr("stroke", "red").attr("stroke-width", 2).attr("stroke-dasharray", "none");
+  select("#routes")
+    .select(`#route${routeId}`)
+    .attr("stroke", "red")
+    .attr("stroke-width", 2)
+    .attr("stroke-dasharray", "none");
 }
 
 function routeHighlightOff(e: Event): void {
   const routeId = +(e.target as HTMLElement).dataset.id!;
-  routes.select(`#route${routeId}`).attr("stroke", null).attr("stroke-width", null).attr("stroke-dasharray", null);
+  select("#routes")
+    .select(`#route${routeId}`)
+    .attr("stroke", null)
+    .attr("stroke-width", null)
+    .attr("stroke-dasharray", null);
 }
 
 function zoomToRoute(this: HTMLElement): void {
   const routeId = +(this.parentNode as HTMLElement).dataset.id!;
-  const route = routes.select(`#route${routeId}`).node() as Element;
+  const route = select("#routes").select(`#route${routeId}`).node() as Element;
   highlightElement(route, 3);
 }
 

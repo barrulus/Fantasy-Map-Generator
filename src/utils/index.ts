@@ -38,7 +38,7 @@ import {
   poissonDiscSampler,
   shouldRegenerateGrid
 } from "./graphUtils";
-import { ensureEl, findEl, getComposedPath, getNextId } from "./nodeUtils";
+import { destroyDialogIfExists, ensureEl, findEl, getComposedPath, getNextId, getPointer } from "./nodeUtils";
 import {
   connectVertices,
   findPath,
@@ -80,8 +80,7 @@ window.biased = biased;
 window.getNumberInRange = getNumberInRange;
 window.generateSeed = generateSeed;
 
-window.convertTemperature = (temp: number, scale: any = (window as any).temperatureScale.value || "°C") =>
-  convertTemperature(temp, scale);
+window.convertTemperature = convertTemperature;
 window.si = si;
 window.getInteger = getIntegerFromSI;
 window.getHeight = getHeight;
@@ -94,6 +93,7 @@ window.C_12 = C_12;
 
 window.ensureEl = ensureEl;
 window.findEl = findEl;
+window.destroyDialogIfExists = destroyDialogIfExists;
 window.getComposedPath = getComposedPath;
 window.getNextId = getNextId;
 
@@ -197,6 +197,7 @@ export {
   convertTemperature,
   createTypedArray,
   debounce,
+  destroyDialogIfExists,
   distanceSquared,
   drawCellsValue,
   drawHeights,
@@ -233,6 +234,7 @@ export {
   getNextId,
   getNumberInRange,
   getPackPolygon,
+  getPointer,
   getPolesOfInaccessibility,
   getRandomColor,
   getSegmentId,

@@ -1,41 +1,136 @@
-import { pack as packLayout, pointer, select, stratify } from "d3";
+import { pack as packLayout, select, stratify } from "d3";
 import { Controllers } from "@/controllers";
-import { convertTemperature, ensureEl, getTemperatureLikeness, rn, si } from "../utils";
+import { convertTemperature, ensureEl, getPointer, getTemperatureLikeness, rn, si } from "../utils";
 
-let isInitialized = false;
+type Filters = { stateId?: number | null; cultureId?: number | null };
 
 // Pagination: module-scoped so once-bound listeners stay in sync across dialog reopens.
 const BURGS_PAGE_SIZE = 200;
 let burgsCurrentPage = 1;
 
-function overviewBurgs(
-  settings: { stateId?: number | null; cultureId?: number | null } = { stateId: null, cultureId: null }
-): void {
+function open(filters: Filters = { stateId: null, cultureId: null }): void {
   if (customization) return;
   closeDialogs("#burgsOverview, .stable");
   if (!layerIsOn("toggleBurgIcons")) toggleBurgIcons();
   if (!layerIsOn("toggleLabels")) toggleLabels();
 
+  renderDialog();
   burgsCurrentPage = 1; // reset on each dialog open
-  updateFilter(settings);
+  updateFilter(filters);
   updateLockAllIcon();
   burgsOverviewAddLines();
-  $("#burgsOverview").dialog();
-
-  if (isInitialized) return;
-  isInitialized = true;
 
   $("#burgsOverview").dialog({
     title: "Burgs Overview",
     resizable: false,
-    width: fitContent(),
-    close: exitAddBurgMode,
+    close: closeBurgsOverview,
     position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" }
   });
+}
 
-  // add listeners
+function renderDialog(): void {
+  document.getElementById("burgsOverview")?.remove();
+  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable">
+      <div id="burgsHeader" class="header" style="grid-template-columns: 9em 7em 7.5em 7.2em 6.5em 8em 6.5em 6.5em 5.5em 6em">
+        <div data-tip="Click to sort by burg name" class="sortable alphabetically" data-sortby="name">Burg</div>
+        <div data-tip="Click to sort by province name" class="sortable alphabetically" data-sortby="province">
+          Province
+        </div>
+        <div data-tip="Click to sort by state name" class="sortable alphabetically" data-sortby="state">State</div>
+        <div data-tip="Click to sort by culture name" class="sortable alphabetically" data-sortby="culture">
+          Culture
+        </div>
+        <div data-tip="Click to sort by culture group" class="sortable alphabetically" data-sortby="group">Group</div>
+        <div
+          data-tip="Click to sort by burg population"
+          class="sortable icon-sort-number-down"
+          data-sortby="population"
+        >
+          Population
+        </div>
+        <div data-tip="Click to sort by burg product" class="sortable" data-sortby="grossproduct">
+          Product&nbsp;
+        </div>
+        <div data-tip="Click to sort by burg wealth (gross product per capita)" class="sortable" data-sortby="productpercapita">
+          Wealth&nbsp;
+        </div>
+        <div data-tip="Click to sort by burg treasury" class="sortable" data-sortby="treasury">
+          Treasury&nbsp;
+        </div>
+        <div data-tip="Click to sort by burg features" class="sortable alphabetically" data-sortby="features">
+          Features&nbsp;
+        </div>
+      </div>
+      <div id="burgsBody" class="table"></div>
+      <div
+        id="burgsFilters"
+        data-tip="Apply a filter"
+        style="padding-block: 0.1em; display: flex; gap: 0.5em; width: 100%"
+      >
+        <label for="burgsSearch" data-tip="Filter by name, province, state, culture, or group"
+          >Search: <input id="burgsSearch" type="search"
+        /></label>
+        <label for="burgsFilterState"
+          >State:
+          <select id="burgsFilterState"></select
+        ></label>
+        <label for="burgsFilterCulture"
+          >Culture:
+          <select id="burgsFilterCulture"></select
+        ></label>
+      </div>
+      <div id="burgsFooter" class="totalLine">
+        <div data-tip="Burgs displayed" style="margin-left: 5px">
+          Burgs:&nbsp;<span id="burgsFooterBurgs">0 of 0</span>
+        </div>
+        <div data-tip="Average population" style="margin-left: 12px">
+          Avg population:&nbsp;<span id="burgsFooterPopulation">0</span>
+        </div>
+        <div data-tip="Average gross product" style="margin-left: 12px">
+          Avg product:&nbsp;<span id="burgsFooterGrossProduct">0</span> 🟡
+        </div>
+        <div data-tip="Average wealth (product per capita)" style="margin-left: 12px">
+          Avg wealth:&nbsp;<span id="burgsFooterProductPerCapita">0</span> 🟡
+        </div>
+        <div data-tip="Average treasury" style="margin-left: 12px">
+          Avg treasury:&nbsp;<span id="burgsFooterTreasury">0</span> 🟡
+        </div>
+        <div id="burgsPagination" style="float: right; display: inline-flex; gap: 0.3em; align-items: center;">
+          <button id="burgsPagePrev" class="icon-left-open" data-tip="Previous page" style="padding: 0 4px;"></button>
+          <span>Page&nbsp;<input id="burgsPageInput" type="number" min="1" value="1" style="width: 3.5em" data-tip="Jump to page" />&nbsp;of&nbsp;<span id="burgsPageTotal">1</span></span>
+          <button id="burgsPageNext" class="icon-right-open" data-tip="Next page" style="padding: 0 4px;"></button>
+        </div>
+      </div>
+      <div id="burgsBottom">
+        <button id="burgsOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
+        <button id="burgsGroupsEditorButton" data-tip="Edit burg groups" class="icon-cog"></button>
+        <button id="burgsChart" data-tip="Show burgs bubble chart" class="icon-chart-area"></button>
+        <button
+          id="regenerateBurgNames"
+          data-tip="Regenerate burg names based on assigned culture"
+          class="icon-retweet"
+        ></button>
+        <button id="addNewBurg" data-tip="Add a new burg. Hold Shift to add multiple" class="icon-plus"></button>
+        <button id="addNewSkyBurg" data-tip="Add a flying sky-city. Can be placed over land or water. Hold Shift to add multiple" class="icon-cloud"></button>
+        <button
+          id="burgsExport"
+          data-tip="Save burgs-related data as a text file (.csv)"
+          class="icon-download"
+        ></button>
+        <button id="burgNamesImport" data-tip="Rename burgs in bulk" class="icon-upload"></button>
+        <button id="burgsLockAll" data-tip="Lock or unlock all burgs" class="icon-lock"></button>
+        <button
+          id="burgsRemoveAll"
+          data-tip="Remove all unlocked burgs except for capitals. To remove a capital remove its state first"
+          class="icon-trash"
+        ></button>
+      </div>
+    </div>`;
+  ensureEl("dialogs").insertAdjacentHTML("beforeend", HTML);
+  applySortingByHeader("burgsHeader");
+
   ensureEl("burgsOverviewRefresh").addEventListener("click", refreshBurgsEditor);
-  ensureEl("burgsGroupsEditorButton").addEventListener("click", editBurgGroups);
+  ensureEl("burgsGroupsEditorButton").addEventListener("click", () => Controllers.BurgGroupEditor.open());
   ensureEl("burgsChart").addEventListener("click", showBurgsChart);
   ensureEl("burgsFilterState").addEventListener("change", resetAndRefresh);
   ensureEl("burgsFilterCulture").addEventListener("change", resetAndRefresh);
@@ -59,12 +154,14 @@ function overviewBurgs(
   );
 
   // re-render on column sort so sorting applies across all pages, not just visible 200
-  ensureEl("burgsHeader").querySelectorAll<HTMLElement>(".sortable").forEach(el => {
-    el.addEventListener("click", () => {
-      burgsCurrentPage = 1;
-      burgsOverviewAddLines();
+  ensureEl("burgsHeader")
+    .querySelectorAll<HTMLElement>(".sortable")
+    .forEach(el => {
+      el.addEventListener("click", () => {
+        burgsCurrentPage = 1;
+        burgsOverviewAddLines();
+      });
     });
-  });
 }
 
 function resetAndRefresh(): void {
@@ -78,15 +175,21 @@ function gotoPage(page: number): void {
   burgsOverviewAddLines();
 }
 
+function closeBurgsOverview(): void {
+  exitAddBurgMode();
+  $("#burgsOverview").dialog("destroy");
+  ensureEl("burgsOverview").remove();
+}
+
 function refreshBurgsEditor(): void {
   updateFilter();
   burgsCurrentPage = 1;
   burgsOverviewAddLines();
 }
 
-function updateFilter(settings: { stateId?: number | null; cultureId?: number | null } = {}): void {
+function updateFilter(filters: { stateId?: number | null; cultureId?: number | null } = {}): void {
   const stateFilter = ensureEl<HTMLSelectElement>("burgsFilterState");
-  const selectedState = settings.stateId != null ? settings.stateId : +stateFilter.value || -1;
+  const selectedState = filters.stateId != null ? filters.stateId : +stateFilter.value || -1;
   stateFilter.options.length = 0; // remove all options
   stateFilter.options.add(new Option("all", "-1", false, selectedState === -1));
   stateFilter.options.add(new Option(pack.states[0].name, "0", false, selectedState === 0));
@@ -96,7 +199,7 @@ function updateFilter(settings: { stateId?: number | null; cultureId?: number | 
   );
 
   const cultureFilter = ensureEl<HTMLSelectElement>("burgsFilterCulture");
-  const selectedCulture = settings.cultureId != null ? settings.cultureId : +cultureFilter.value || -1;
+  const selectedCulture = filters.cultureId != null ? filters.cultureId : +cultureFilter.value || -1;
   cultureFilter.options.length = 0; // remove all options
   cultureFilter.options.add(new Option(`all`, "-1", false, selectedCulture === -1));
   cultureFilter.options.add(new Option(pack.cultures[0].name, "0", false, selectedCulture === 0));
@@ -264,17 +367,24 @@ function sortFilteredBurgs(filtered: any[]): void {
   const desc = sortHeader.className.includes("-down") ? -1 : 1;
   const valueOf = (b: any): any => {
     switch (sortby) {
-      case "name": return b.name || "";
-      case "state": return pack.states[b.state]?.name || "";
+      case "name":
+        return b.name || "";
+      case "state":
+        return pack.states[b.state]?.name || "";
       case "province": {
         const prov = pack.cells.province[b.cell];
         return prov ? pack.provinces[prov]?.name || "" : "";
       }
-      case "culture": return pack.cultures[b.culture]?.name || "";
-      case "group": return b.group || "";
-      case "population": return b.population * populationRate * urbanization;
-      case "features": return b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg";
-      default: return "";
+      case "culture":
+        return pack.cultures[b.culture]?.name || "";
+      case "group":
+        return b.group || "";
+      case "population":
+        return b.population * populationRate * urbanization;
+      case "features":
+        return b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg";
+      default:
+        return "";
     }
   };
   filtered.sort((a, b) => {
@@ -287,12 +397,12 @@ function sortFilteredBurgs(filtered: any[]): void {
 
 function burgHighlightOn(event: Event): void {
   const burg = +(event.target as HTMLElement).dataset.id!;
-  const label = burgLabels.select(`[data-id='${burg}']`);
+  const label = select("#burgLabels").select(`[data-id='${burg}']`);
   if (label.size()) label.classed("drag", true);
 }
 
 function burgHighlightOff(): void {
-  burgLabels.selectAll("text.drag").classed("drag", false);
+  select("#burgLabels").selectAll("text.drag").classed("drag", false);
 }
 
 function zoomIntoBurg(this: HTMLElement): void {
@@ -356,7 +466,7 @@ function regenerateNames(): void {
 
       el.querySelector<HTMLInputElement>(".burgName")!.value = name;
       pack.burgs[burg].name = el.dataset.name = name;
-      burgLabels.select(`[data-id='${burg}']`).text(name);
+      select("#burgLabels").select(`[data-id='${burg}']`).text(name);
       if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
     });
 }
@@ -373,7 +483,7 @@ function enterAddBurgMode(this: HTMLElement): void {
 }
 
 function addBurgOnClick(this: SVGGElement, event: any): void {
-  const point = pointer(event, this);
+  const point = getPointer(event, this);
   const cell = findCell(point[0], point[1])!;
 
   if (pack.cells.h[cell] < 20) {
@@ -405,7 +515,7 @@ function enterAddSkyBurgMode(this: HTMLElement): void {
 }
 
 function addSkyBurgOnClick(this: SVGGElement, event: any): void {
-  const point = pointer(event, this);
+  const point = getPointer(event, this);
   const cell = findCell(point[0], point[1])!;
 
   if (pack.cells.burg[cell]) {
@@ -413,7 +523,7 @@ function addSkyBurgOnClick(this: SVGGElement, event: any): void {
     return;
   }
 
-  Burgs.add(point as [number, number], {flying: true} as any);
+  Burgs.add(point as [number, number], { flying: true } as any);
 
   if (event.shiftKey === false) {
     exitAddBurgMode();
@@ -716,7 +826,7 @@ function importBurgNames(dataLoaded: string): void {
     for (let i = 0; i < change.length; i++) {
       const id = change[i].id;
       pack.burgs[id].name = change[i].name;
-      burgLabels.select(`[data-id='${id}']`).text(change[i].name);
+      select("#burgLabels").select(`[data-id='${id}']`).text(change[i].name);
       if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
     }
     burgsOverviewAddLines();
@@ -762,8 +872,4 @@ function updateLockAllIcon(): void {
   ensureEl("burgsLockAll").className = allLocked ? "icon-lock-open" : "icon-lock";
 }
 
-function editBurgGroups(): void {
-  Controllers.BurgGroupEditor.open();
-}
-
-export const BurgsOverview = { open: overviewBurgs };
+export const BurgsOverview = { open };

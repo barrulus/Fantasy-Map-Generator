@@ -1,5 +1,5 @@
 import Alea from "alea";
-import { curveBasis, curveCatmullRom, line, mean } from "d3";
+import { curveBasis, curveCatmullRom, line, mean, select } from "d3";
 import { each, rn, round, rw } from "../utils";
 import { meander, projectToNearestEdge } from "../utils/pathUtils";
 import type { Point } from "./voronoi";
@@ -504,7 +504,7 @@ class RiverModule {
     const cells = pack.cells;
     const riversToRemove = pack.rivers.filter(r => r.i === id || r.parent === id || r.basin === id).map(r => r.i);
     riversToRemove.forEach(r => {
-      rivers.select(`#river${r}`).remove();
+      select("#rivers").select(`#river${r}`).remove();
     });
     cells.r.forEach((r, i) => {
       if (!r || !riversToRemove.includes(r)) return;

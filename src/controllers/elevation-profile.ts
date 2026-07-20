@@ -9,7 +9,6 @@ import {
   curveMonotoneX,
   curveNatural,
   line,
-  pointer,
   type Selection,
   scaleLinear,
   select
@@ -18,10 +17,11 @@ import type { Burg } from "../generators/burgs-generator";
 import type { Feature } from "../generators/features";
 import type { Province } from "../generators/provinces-generator";
 import type { State } from "../generators/states-generator";
-import { ensureEl, rn } from "../utils";
+import { ensureEl, getPointer, rn } from "../utils";
 
 function open(cells: number[], routeLen: number, isRiver: boolean): void {
   closeDialogs("#elevationProfile, .stable");
+  renderDialog();
   ensureEl("epCurve").on("change", draw);
   ensureEl("epSave").on("click", downloadCSV);
   ensureEl("epSaveSVG").on("click", downloadSVG);
@@ -439,7 +439,7 @@ function open(cells: number[], routeLen: number, isRiver: boolean): void {
       .attr("fill", "transparent")
       .style("cursor", "crosshair")
       .on("mousemove", (event: MouseEvent) => {
-        const [mx] = pointer(event);
+        const [mx] = getPointer(event);
         const idx = Math.max(
           0,
           Math.min(cells.length - 1, Math.round(((mx - xOffset) / chartWidth) * (cells.length - 1)))
@@ -555,13 +555,38 @@ function open(cells: number[], routeLen: number, isRiver: boolean): void {
   }
 
   function closeElevationProfile(): void {
-    ensureEl("epCurve").off("change", draw);
-    ensureEl("epSave").off("click", downloadCSV);
-    ensureEl("epSaveSVG").off("click", downloadSVG);
-    ensureEl("epSavePNG").off("click", downloadPNG);
-    ensureEl("elevationGraph").innerHTML = "";
     modules.elevation = false;
+    $("#elevationProfile").dialog("destroy");
+    ensureEl("elevationProfile").remove();
   }
+}
+
+function renderDialog(): void {
+  document.getElementById("elevationProfile")?.remove();
+  const editorHtml = /* html */ `<div id="elevationProfile" class="dialog" width="100%">
+      <div id="elevationGraph" data-tip="Elevation profile"></div>
+      <div style="text-align: center">
+        <div id="epControls">
+          <span data-tip="Set curve profile"
+            >Curve:
+            <select id="epCurve">
+              <option>Linear</option>
+              <option>Bundle</option>
+              <option>Cubic Catmull-Rom</option>
+              <option selected>Monotone X</option>
+              <option>Natural</option>
+            </select>
+          </span>
+          <span
+            ><button id="epSave" data-tip="Download the chart data as a CSV file" class="icon-download"></button
+          ></span>
+          <span><button id="epSaveSVG" data-tip="Download the chart as an SVG image">SVG</button></span>
+          <span><button id="epSavePNG" data-tip="Download the chart as a PNG image">PNG</button></span>
+          <span id="epstats" style="margin-left: 1em; color: #555; font-size: 0.85em"></span>
+        </div>
+      </div>
+    </div>`;
+  ensureEl("dialogs").insertAdjacentHTML("beforeend", editorHtml);
 }
 
 export const ElevationProfile = { open };

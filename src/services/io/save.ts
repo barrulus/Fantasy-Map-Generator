@@ -61,25 +61,25 @@ function prepareMapData(): string {
     "", // previously used for barPosY.value
     populationRate,
     urbanization,
-    mapSizeOutput.value,
-    latitudeOutput.value,
+    "", // previously used for mapSizeOutput.value, part of options now
+    "", // previously used for latitudeOutput.value, part of options now
     "", // previously used for temperatureEquatorOutput.value
     "", // previously used for tempNorthOutput.value
-    precOutput.value,
+    "", // previously used for precOutput.value, part of options now
     JSON.stringify(options),
     mapName.value,
     +hideLabels.checked,
     stylePreset.value,
     +rescaleLabels.checked,
     urbanDensity,
-    longitudeOutput.value,
+    "", // previously used for longitudeOutput.value, part of options now
     ensureEl<HTMLInputElement>("growthRate").value
   ].join("|");
   const coords = JSON.stringify(mapCoordinates);
   const biomes = [biomesData.color, biomesData.habitability, biomesData.name].join("|");
   const notesData = JSON.stringify(notes);
   const rulersString = rulers.toString();
-  const fonts = JSON.stringify(getUsedFonts(svg.node()!));
+  const fonts = JSON.stringify(getUsedFonts(ensureEl("map") as Element as SVGSVGElement));
 
   // save svg
   const cloneEl = ensureEl("map").cloneNode(true) as SVGSVGElement;

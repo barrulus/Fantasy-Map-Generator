@@ -1,9 +1,9 @@
+import { select } from "d3";
 import { Controllers } from "@/controllers";
 import type { Burg } from "../generators/burgs-generator";
 import type { Market } from "../generators/markets-generator";
-import { ensureEl, formatPrice, rn } from "../utils";
+import { ensureEl, formatPrice, getPointer, rn } from "../utils";
 
-let isInitialized = false;
 let activeMarketId = 0;
 
 function open(marketId: number): void {
@@ -14,34 +14,70 @@ function open(marketId: number): void {
     tip("Invalid market. The selected market does not exist", true, "error", 5000);
     return;
   }
+  activeMarketId = marketId;
 
   closeDialogs("#marketOverview, .stable");
 
-  activeMarketId = marketId;
+  renderDialog();
   marketOverviewAddLines();
   refreshNameInput(market);
 
   $("#marketOverview").dialog({
     title: `Market Stock: ${Markets.getName(market)}`,
-    resizable: false,
     width: "auto",
     close: closeMarketOverview,
-    position: {
-      my: "right top",
-      at: "right-10 top+10",
-      of: "svg",
-      collision: "fit"
-    }
+    position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" }
   });
+}
 
-  if (!isInitialized) {
-    ensureEl("marketOverviewRefresh").on("click", marketOverviewAddLines);
-    ensureEl("marketOverviewExport").on("click", downloadStockCsv);
-    ensureEl("marketOverviewOpenDeals").on("click", () => Controllers.MarketDealsOverview.open(activeMarketId));
-    ensureEl("marketOverviewName").on("input", onRenameInput);
-    ensureEl("marketOverviewNameReset").on("click", resetMarketName);
-    isInitialized = true;
-  }
+function renderDialog(): void {
+  document.getElementById("marketOverview")?.remove();
+  const html = /* html */ `<div id="marketOverview" class="dialog stable">
+      <div id="marketOverviewNameLine" style="display: flex; align-items: center; margin-bottom: 0.4em">
+        <div class="label">Name:</div>
+        <input
+          id="marketOverviewName"
+          data-tip="Type to rename the market. Clear the field to reset to the default name"
+          autocorrect="off"
+          spellcheck="false"
+          style="width: 11em; margin-left: 0.3em;"
+        />
+        <span
+          id="marketOverviewNameReset"
+          data-tip="Reset to the default name (center burg name)"
+          class="icon-ccw pointer"
+          style="margin-left: 0.3em"
+        ></span>
+      </div>
+      <div id="marketOverviewHeader" class="header" style="grid-template-columns: 2.5em 9em 5.5em 3.2em;">
+        <div></div>
+        <div data-tip="Click to sort by good" class="sortable alphabetically" data-sortby="good" style="margin-left:0">Good&nbsp;</div>
+        <div data-tip="Click to sort by stock" class="sortable icon-sort-number-down" data-sortby="stock">Stock&nbsp;</div>
+        <div data-tip="Click to sort by price" class="sortable" data-sortby="price">Price&nbsp;</div>
+      </div>
+      <div id="marketOverviewGoodsBody" class="table" style="max-height:40em"></div>
+      <div id="marketOverviewSummary" class="totalLine"></div>
+      <div id="marketOverviewInfo" style="margin-bottom: 0.3em"></div>
+      <div id="marketOverviewBottom">
+        <button id="marketOverviewRefresh" data-tip="Refresh the Overview screen" class="icon-cw"></button>
+        <button id="marketOverviewOpenDeals" data-tip="View market deals" class="icon-list-bullet"></button>
+        <button
+          id="marketOverviewRelocate"
+          data-tip="Relocate market. Click on a burg on the map to move the market center"
+          class="icon-map-pin"
+        ></button>
+        <button id="marketOverviewExport" data-tip="Save market deals data as a text file (.csv)" class="icon-download"></button>
+      </div>
+    </div>`;
+  ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
+  applySortingByHeader("marketOverviewHeader");
+
+  ensureEl("marketOverviewRefresh").on("click", marketOverviewAddLines);
+  ensureEl("marketOverviewExport").on("click", downloadStockCsv);
+  ensureEl("marketOverviewOpenDeals").on("click", () => Controllers.MarketDealsOverview.open(activeMarketId));
+  ensureEl("marketOverviewRelocate").on("click", toggleRelocateMarket);
+  ensureEl("marketOverviewName").on("input", onRenameInput);
+  ensureEl("marketOverviewNameReset").on("click", resetMarketName);
 }
 
 // The input shows the custom name (empty when using the default); the placeholder shows the default.
@@ -120,6 +156,53 @@ function marketOverviewAddLines() {
   $("#marketOverview").dialog({ width: fitContent() });
 }
 
+function toggleRelocateMarket(): void {
+  const button = ensureEl("marketOverviewRelocate");
+  button.classList.toggle("pressed");
+  if (button.classList.contains("pressed")) {
+    select<SVGGElement, unknown>("#viewbox").style("cursor", "crosshair").on("click", relocateMarketOnClick);
+    tip("Click on a burg on the map to relocate the market center", true);
+  } else {
+    clearMainTip();
+    restoreDefaultEvents();
+  }
+}
+
+function relocateMarketOnClick(this: SVGGElement, event: MouseEvent): void {
+  const market = Markets.get(activeMarketId);
+  if (!market) return;
+
+  const [x, y] = getPointer(event, this);
+  const cellId = findCell(x, y);
+  if (cellId === undefined) return;
+
+  const burgId = pack.cells.burg[cellId];
+  const burg = pack.burgs[burgId] as Burg | undefined;
+  if (!burgId || !burg || burg.removed) {
+    tip("No valid burg in this cell. Click on a cell with a burg", false, "error");
+    return;
+  }
+
+  if (burgId === market.centerBurgId) {
+    tip("This burg is already the center of this market", false, "error");
+    return;
+  }
+
+  if (pack.markets.some(m => m.centerBurgId === burgId)) {
+    tip("This burg is already a center of another market", false, "error");
+    return;
+  }
+
+  if (!Markets.relocateMarket(activeMarketId, burgId)) return;
+
+  toggleRelocateMarket();
+  if (layerIsOn("toggleMarketsLayer")) drawMarketsLayer();
+
+  refreshNameInput(market);
+  $("#marketOverview").dialog("option", "title", `Market Stock: ${Markets.getName(market)}`);
+  marketOverviewAddLines();
+}
+
 function downloadStockCsv() {
   const market = Markets.get(activeMarketId);
   if (!market) return;
@@ -136,8 +219,9 @@ function downloadStockCsv() {
 }
 
 function closeMarketOverview() {
-  ensureEl("marketOverviewGoodsBody").innerHTML = "";
-  ensureEl("marketOverviewSummary").innerHTML = "";
+  if (ensureEl("marketOverviewRelocate").classList.contains("pressed")) toggleRelocateMarket();
+  $("#marketOverview").dialog("destroy");
+  ensureEl("marketOverview").remove();
 }
 
 export const MarketOverview = { open };

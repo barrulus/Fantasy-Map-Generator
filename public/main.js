@@ -137,7 +137,7 @@ fogging
   .attr("filter", "url(#splotch)");
 
 // assign events separately as not a viewbox child
-scaleBar.on("mousemove", () => tip("Click to open Units Editor")).on("click", () => editUnits());
+scaleBar.on("mousemove", () => tip("Click to open Units Editor")).on("click", () => window.Controllers.UnitsEditor.open());
 legend
   .on("mousemove", () => tip("Drag to change the position. Click to hide the legend"))
   .on("click", () => clearLegend());
@@ -161,6 +161,10 @@ let options = {
   temperatureEquator: 27,
   temperatureNorthPole: -30,
   temperatureSouthPole: -15,
+  mapSize: 100, // map size in % of the world
+  latitude: 50, // North-South map shift in %, 50 is centered on equator
+  longitude: 50, // West-East map shift in %, 50 is centered on prime meridian
+  prec: 100, // precipitation modifier in %
   stateLabelsMode: "auto",
   showBurgPreview: true,
   burgs: {
@@ -248,9 +252,9 @@ function zoomRaf() {
     }
 
     if (customization === 1) {
-      const canvas = ensureEl("canvas");
+      const canvas = findEl("canvas");
       if (canvas && canvas.style.opacity !== "0") {
-        const img = ensureEl("imageToConvert");
+        const img = findEl("imageToConvert");
         if (img) {
           const ctx = canvas.getContext("2d");
           ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1062,9 +1066,9 @@ function openNearSeaLakes() {
 function defineMapSize() {
   const [size, latitude, longitude] = getSizeAndLatitude();
   const randomize = new URL(window.location.href).searchParams.get("options") === "default"; // ignore stored options
-  if (randomize || !locked("mapSize")) mapSizeOutput.value = mapSizeInput.value = size;
-  if (randomize || !locked("latitude")) latitudeOutput.value = latitudeInput.value = latitude;
-  if (randomize || !locked("longitude")) longitudeOutput.value = longitudeInput.value = longitude;
+  if (randomize || !stored("mapSize")) options.mapSize = size;
+  if (randomize || !stored("latitude")) options.latitude = latitude;
+  if (randomize || !stored("longitude")) options.longitude = longitude;
 
   function getSizeAndLatitude() {
     const template = ensureEl("templateInput").value; // heightmap template
@@ -1080,7 +1084,7 @@ function defineMapSize() {
     if (template === "europe-accented") return [14, 22, 44.8];
     if (template === "europe-and-central-asia") return [25, 10, 39.5];
     if (template === "europe-central") return [11, 22, 46.4];
-    if (template === "north-sea-region") return [7, 18, 48.9];
+    if (template === "europe-north") return [7, 18, 48.9];
     if (template === "greenland") return [22, 7, 55.8];
     if (template === "hellenica") return [8, 27, 43.5];
     if (template === "iceland") return [2, 15, 55.3];
@@ -1119,9 +1123,9 @@ function defineMapSize() {
 
 // calculate map position on globe
 function calculateMapCoordinates() {
-  const sizeFraction = +ensureEl("mapSizeOutput").value / 100;
-  const latShift = +ensureEl("latitudeOutput").value / 100;
-  const lonShift = +ensureEl("longitudeOutput").value / 100;
+  const sizeFraction = options.mapSize / 100;
+  const latShift = options.latitude / 100;
+  const lonShift = options.longitude / 100;
 
   const latT = rn(sizeFraction * 180, 1);
   const latN = rn(90 - (180 - latT) * latShift, 1);
@@ -1191,7 +1195,7 @@ function generatePrecipitation() {
   cells.prec = new Uint8Array(cells.i.length); // precipitation array
 
   const cellsNumberModifier = (pointsInput.dataset.cells / 10000) ** 0.25;
-  const precInputModifier = precInput.value / 100;
+  const precInputModifier = options.prec / 100;
   const modifier = cellsNumberModifier * precInputModifier;
 
   const westerly = [];
@@ -1479,7 +1483,7 @@ function showStatistics() {
   const heightmap = ensureEl("templateInput").value;
   const isTemplate = heightmap in heightmapTemplates;
   const heightmapType = isTemplate ? "template" : "precreated";
-  const isRandomTemplate = isTemplate && !locked("template") ? "random " : "";
+  const isRandomTemplate = isTemplate && !stored("template") ? "random " : "";
 
   const stats = `  Seed: ${seed}
     Canvas size: ${graphWidth}x${graphHeight} px
@@ -1487,7 +1491,7 @@ function showStatistics() {
     Template: ${isRandomTemplate}${heightmapType}
     Points: ${grid.points.length}
     Cells: ${pack.cells.i.length}
-    Map size: ${mapSizeOutput.value}%
+    Map size: ${options.mapSize}%
     States: ${pack.states.length - 1}
     Provinces: ${pack.provinces.length - 1}
     Burgs: ${pack.burgs.length - 1}
@@ -1518,7 +1522,7 @@ const regenerateMap = debounce(async function (config) {
   await generate(config);
   drawLayers();
   if (options.threeD.isOn) window.Controllers.View3d.redraw();
-  if ($("#worldConfigurator").is(":visible")) editWorld();
+  if (findEl("worldConfigurator")?.offsetParent) window.Controllers.WorldConfigurator.open();
 
   fitMapToScreen();
   shouldShowLoading && hideLoading();

@@ -26,7 +26,9 @@ function bindTopLayerEvents() {
 window.bindTopLayerEvents = bindTopLayerEvents;
 
 // handle viewbox click
-function clicked() {
+// dual-compatible: d3 v7 selections pass the event as the first argument,
+// the legacy v5 selection passes the datum (undefined for viewbox) and sets d3.event
+function clicked(event) {
   // WebGL burgs have no per-burg DOM, so hit-test the click against the burg quadtree.
   if (window.LayerHost) {
     const [mx, my] = d3.mouse(ensureEl("viewbox"));
@@ -34,26 +36,27 @@ function clicked() {
     if (hit) return window.Controllers.BurgEditor.open(hit);
   }
 
-  const el = d3.event.target;
+  const el = (event || d3.event)?.target;
   const parent = el?.parentElement;
   const grand = parent?.parentElement;
   const great = grand?.parentElement;
   const ancestor = great?.parentElement;
   if (!ancestor) return;
 
-  if (grand.id === "emblems") editEmblem();
+  if (grand.id === "emblems") window.Controllers.EmblemsEditor.open(undefined, undefined, undefined, el);
   else if (parent.id === "rivers") window.Controllers.RiverEditor.open(el.id);
   else if (grand.id === "routes") window.Controllers.RouteEditor.open(el.id);
-  else if (ancestor.id === "labels" && el.tagName === "tspan") editLabel();
+  else if (ancestor.id === "labels" && el.tagName === "tspan") window.Controllers.LabelsEditor.open(el);
   else if (grand.id === "burgLabels" || grand.id === "burgIcons") window.Controllers.BurgEditor.open(el.dataset.id);
-  else if (parent.id === "ice") editIce(el);
-  else if (parent.id === "terrain") editReliefIcon();
-  else if (grand.id === "markers" || great.id === "markers") editMarker();
-  else if (grand.id === "markets" && el.tagName !== "path") window.Controllers.MarketOverview.open(Number(parent.dataset.id));
+  else if (parent.id === "ice") window.Controllers.IceEditor.open(el);
+  else if (parent.id === "terrain") window.Controllers.ReliefEditor.open(el);
+  else if (grand.id === "markers" || great.id === "markers") window.Controllers.MarkersEditor.open(undefined, el);
+  else if (grand.id === "markets" && el.tagName !== "path")
+    window.Controllers.MarketOverview.open(Number(parent.dataset.id));
   else if (grand.id === "goodsIcons" || parent.id === "goodsCells") window.Controllers.GoodsEditor.open();
   else if (grand.id === "goodsBurgs") window.Controllers.ProductionOverview.open(Number(parent.dataset.id));
-  else if (grand.id === "coastline") editCoastline();
-  else if (grand.id === "lakes") editLake();
+  else if (grand.id === "coastline") window.Controllers.CoastlineVertexEditor.open(el);
+  else if (grand.id === "lakes") window.Controllers.LakesEditor.open(el);
   else if (great.id === "armies") window.Controllers.RegimentEditor.open("#" + parent.id);
 }
 
@@ -102,12 +105,6 @@ function fitContent() {
 }
 
 // apply sorting behaviour for lines on Editor header click
-document.querySelectorAll(".sortable").forEach(function (event) {
-  event.on("click", function () {
-    sortLines(this);
-  });
-});
-
 function applySortingByHeader(headerContainer) {
   document
     .getElementById(headerContainer)
@@ -1088,39 +1085,13 @@ function listen(element, event, handler) {
 
 // Calls the refresh functionality on all editors currently open.
 function refreshAllEditors() {
-  if (document.getElementById("culturesEditorRefresh")?.offsetParent) culturesEditorRefresh.click();
-  if (document.getElementById("biomesEditorRefresh").offsetParent) biomesEditorRefresh.click();
-  if (document.getElementById("diplomacyEditorRefresh").offsetParent) diplomacyEditorRefresh.click();
-  if (document.getElementById("provincesEditorRefresh").offsetParent) provincesEditorRefresh.click();
-  if (document.getElementById("religionsEditorRefresh")?.offsetParent) religionsEditorRefresh.click();
-  if (document.getElementById("statesEditorRefresh")?.offsetParent) statesEditorRefresh.click();
-  if (ensureEl("zonesEditorRefresh").offsetParent) zonesEditorRefresh.click();
-  if (document.getElementById("goodsEditorRefresh")?.offsetParent) goodsEditorRefresh.click();
-  if (document.getElementById("marketsOverviewRefresh")?.offsetParent) marketsOverviewRefresh.click();
-  TIME && console.timeEnd("refreshAllEditors");
-}
-
-// dynamically loaded editors
-async function editStates() {
-  if (customization) return;
-  const Editor = await import("../dynamic/editors/states-editor.js?v=1.122.18");
-  Editor.open();
-}
-
-async function editCultures() {
-  if (customization) return;
-  const Editor = await import("../dynamic/editors/cultures-editor.js?v=1.122.12");
-  Editor.open();
-}
-
-async function editReligions() {
-  if (customization) return;
-  const Editor = await import("../dynamic/editors/religions-editor.js?v=1.122.12");
-  Editor.open();
-}
-
-// TS-migrated editors. TODO: import from module when editors.js is migrated to TS
-function editCoastlineSettings() {
-  if (customization) return;
-  window.CoastlineEditor.open();
+  findEl("culturesEditorRefresh")?.click();
+  findEl("biomesEditorRefresh")?.click();
+  findEl("diplomacyEditorRefresh")?.click();
+  findEl("provincesEditorRefresh")?.click();
+  findEl("religionsEditorRefresh")?.click();
+  findEl("statesEditorRefresh")?.click();
+  findEl("zonesEditorRefresh")?.click();
+  findEl("goodsEditorRefresh")?.click();
+  findEl("marketsOverviewRefresh")?.click();
 }

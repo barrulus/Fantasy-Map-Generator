@@ -1,4 +1,4 @@
-import { curveCatmullRom, line } from "d3";
+import { curveCatmullRom, line, select } from "d3";
 import Delaunator from "delaunator";
 import {
   distanceSquared,
@@ -1752,7 +1752,7 @@ class RoutesModule {
     }
 
     pack.routes = pack.routes.filter(r => r.i !== route.i);
-    viewbox.select(`#route${route.i}`).remove();
+    select("#viewbox").select(`#route${route.i}`).remove();
   }
 
   getConnectivityRate(cellId: number): number {
@@ -1878,7 +1878,7 @@ class RoutesModule {
     if (route && this.hasSeamCrossing(route.points)) {
       return this.getWrappedLength(route.points);
     }
-    const path = routes.select(`#route${routeId}`).node() as SVGPathElement;
+    const path = select("#routes").select(`#route${routeId}`).node() as SVGPathElement;
     return path.getTotalLength();
   }
 }

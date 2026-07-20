@@ -39,10 +39,6 @@ declare global {
   var distanceUnitInput: HTMLInputElement;
   var heightUnit: HTMLSelectElement;
   var areaUnit: HTMLInputElement;
-  var mapSizeOutput: HTMLInputElement;
-  var latitudeOutput: HTMLInputElement;
-  var longitudeOutput: HTMLInputElement;
-  var precOutput: HTMLInputElement;
   var hideLabels: HTMLInputElement;
   var stylePreset: HTMLSelectElement;
   var rescaleLabels: HTMLInputElement;
@@ -115,6 +111,11 @@ declare global {
     iconsDensity: number[];
     icons: string[][];
     cost: number[];
+    // statistics computed by the biomes editor
+    cells?: number[];
+    area?: number[];
+    rural?: number[];
+    urban?: number[];
   };
   var notes: any[];
   var style: {
@@ -158,6 +159,7 @@ declare global {
   var Ruler: any;
   var Opisometer: any;
   var Planimeter: any;
+  var RouteOpisometer: any;
   var mapHistory: { created: number; [key: string]: unknown }[];
   var customPresetPrefix: string;
 
@@ -179,7 +181,21 @@ declare global {
   var generateMapOnLoad: () => void;
   var addCustomColorScheme: (scheme: string) => void;
   var updateTextureSelectValue: (href: string) => void;
-  var editUnits: () => void;
+  var toggleRulers: () => void;
+  var toggleRelief: () => void;
+  var toggleZones: () => void;
+  var calculateFriendlyGridSize: () => void;
+  var recalculatePopulation: () => void;
+  var findAll: (x: number, y: number, radius: number) => number[];
+  // heightmap editor globals
+  var color: (value: number) => string;
+  var edits: any; // heightmap edit history: Uint8Array[] with an extra .n cursor
+  var undraw: () => void;
+  var rankCells: () => void;
+  var generatePrecipitation: () => void;
+  var changeViewMode: (event?: Event) => void;
+  var resetZoom: (duration?: number) => void;
+  var RgbQuant: any; // external RgbQuant image-quantization lib
 
   var drawTexture: () => void;
   var drawRoutes: () => void;
@@ -208,7 +224,7 @@ declare global {
     type?: "info" | "warn" | "error" | "success",
     timeout?: number
   ) => void;
-  var locked: (settingId: string) => boolean;
+  var stored: (key: string) => string | null;
   var unlock: (settingId: string) => void;
   var $: (selector: any) => any;
   var scale: number;
@@ -222,7 +238,14 @@ declare global {
   var createDefaultRuler: () => void;
   var showStatistics: () => void;
   var closeDialogs: (except?: string) => void;
-  var editWorld: () => void;
+  var drawLayers: () => void;
+  var drawPrecipitation: () => void;
+  var drawCoordinates: () => void;
+  var drawRivers: () => void;
+  var applyGraphSize: () => void;
+  var cellsDensityMap: Record<number, number>;
+  var changeCellsDensity: (value: string) => void;
+  var getCellsDensityColor: (cells: number) => string;
   var showExportPane: () => void;
   var getHeight: (h: number) => string;
   var getLatitude: (y: number, precision?: number) => number;
@@ -273,6 +296,7 @@ declare global {
   // Provinces, Burgs, COA, COArenderer) are used directly instead.
   var drawCultures: () => void;
   var drawReligions: () => void;
+  var drawBiomes: () => void;
   var drawStates: () => void;
   var drawBorders: () => void;
   var drawProvinces: () => void;
@@ -291,19 +315,31 @@ declare global {
   var toggleBurgIcons: (event?: MouseEvent) => void;
   var toggleRoutes: (event?: MouseEvent) => void;
   var toggleRivers: (event?: MouseEvent) => void;
+  var toggleIce: (event?: MouseEvent) => void;
   var toggleAddRiver: () => void;
+  var toggleMarkers: (event?: MouseEvent) => void;
+  var drawMarkers: () => void;
+  var regenerateMarkers: () => void;
+  var configMarkersGeneration: () => void;
 
   var clicked: () => void;
   var unselect: () => void;
   var selectIcon: (initial: string, callback: (value: string) => void) => void;
   var sortLines: (headerElement: HTMLElement) => void;
-  var editNotes: (id: string, name: string) => void;
+  var tinymce:
+    | {
+        _setBaseUrl: (url: string) => void;
+        init: (config: Record<string, unknown>) => void;
+        remove: () => void;
+        activeEditor?: { getContent: () => string; setContent: (content: string) => void };
+      }
+    | undefined;
 
   var highlightElement: (element: Element | null, duration?: number) => void;
   var applySortingByHeader: (headerId: string) => void;
   var fog: (id: string, path: string) => void;
   var unfog: (id?: string) => void;
-  var editEmblem: (type: string, id: string, el: any) => void;
+  var highlightEmblemElement: (type: string, el: any) => void;
   var l: (n: number) => string;
 
   var aleaPRNG: (seed: string | number) => () => number;
@@ -312,7 +348,6 @@ declare global {
   var lock: (option: string) => void;
   var applyOption: (select: HTMLElement, value: string, text?: string) => void;
   var regeneratePrompt: (options?: { seed?: string; graph?: any }) => void;
-  var editHeightmap: (options: { mode: string; tool: string }) => void;
 
   var cults: Selection<SVGGElement, unknown, null, undefined>;
   var relig: Selection<SVGGElement, unknown, null, undefined>;
@@ -346,6 +381,10 @@ type Options = {
   temperatureEquator: number;
   temperatureNorthPole: number;
   temperatureSouthPole: number;
+  mapSize: number; // map size in % of the world
+  latitude: number; // North-South map shift in %, 50 is centered on equator
+  longitude: number; // West-East map shift in %, 50 is centered on prime meridian
+  prec: number; // precipitation modifier in %
   stateLabelsMode: string;
   showBurgPreview: boolean;
   burgs: {

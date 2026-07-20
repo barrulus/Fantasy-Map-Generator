@@ -1,27 +1,18 @@
+import { select } from "d3";
 import type { Route } from "@/generators/routes-generator";
-import { ensureEl } from "../utils";
+import { destroyDialogIfExists, ensureEl } from "../utils";
 
 // custom legacy 3-arg prompt from commonUtils.initializePrompt (collides with lib.dom's var prompt)
 declare const prompt: (text: string, options: { default: string }, callback: (value: string) => void) => void;
 
 const DEFAULT_GROUPS = ["roads", "trails", "searoutes", "airroutes"];
 
-const DIALOG_HTML = /* html */ `
-  <div id="routeGroupsEditorBody" class="table" style="padding: 0.3em 0; width: 100%"></div>
-  <div id="routeGroupsEditorBottom">
-    <button id="routeGroupsEditorAdd" data-tip="Add route group" class="icon-plus"></button>
-  </div>`;
-
 function open(): void {
   if (customization) return;
   if (!layerIsOn("toggleRoutes")) toggleRoutes();
 
-  ensureEl("routeGroupsEditor").innerHTML = DIALOG_HTML;
+  renderDialog();
   addLines();
-
-  // add listeners — dropped together with the dialog HTML on close
-  ensureEl("routeGroupsEditorAdd").on("click", addGroup);
-  ensureEl("routeGroupsEditorBody").on("click", onBodyClick);
 
   $("#routeGroupsEditor").dialog({
     title: "Edit Route groups",
@@ -31,8 +22,24 @@ function open(): void {
   });
 }
 
+function renderDialog(): void {
+  destroyDialogIfExists("routeGroupsEditor");
+
+  const html = /* html */ `<div id="routeGroupsEditor" class="dialog">
+    <div id="routeGroupsEditorBody" class="table" style="padding: 0.3em 0; width: 100%"></div>
+    <div id="routeGroupsEditorBottom">
+      <button id="routeGroupsEditorAdd" data-tip="Add route group" class="icon-plus"></button>
+    </div>
+  </div>`;
+  ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
+
+  // add listeners — dropped together with the dialog HTML on close
+  ensureEl("routeGroupsEditorAdd").on("click", addGroup);
+  ensureEl("routeGroupsEditorBody").on("click", onBodyClick);
+}
+
 function closeRouteGroupsEditor(): void {
-  ensureEl("routeGroupsEditor").innerHTML = "";
+  destroyDialogIfExists("routeGroupsEditor");
 }
 
 function onBodyClick(ev: Event): void {
@@ -45,7 +52,7 @@ function onBodyClick(ev: Event): void {
 function addLines(): void {
   ensureEl("routeGroupsEditorBody").innerHTML = "";
 
-  const lines = routes
+  const lines = select("#routes")
     .selectAll<SVGGElement, unknown>("g")
     .nodes()
     .map(el => {
@@ -75,7 +82,7 @@ function addGroup(): void {
       return tip("Element with this name already exists. Provide a unique name", false, "error");
     if (Number.isFinite(+group.charAt(0))) return tip("Group name should start with a letter", false, "error");
 
-    routes
+    select("#routes")
       .append("g")
       .attr("id", group)
       .attr("stroke", "#000000")
@@ -97,7 +104,7 @@ function removeGroup(group: string): void {
     confirm: "Remove",
     onConfirm: () => {
       pack.routes.filter((r: Route) => r.group === group).forEach(Routes.remove);
-      if (!DEFAULT_GROUPS.includes(group)) routes.select(`#${group}`).remove();
+      if (!DEFAULT_GROUPS.includes(group)) select("#routes").select(`#${group}`).remove();
       addLines();
     }
   });

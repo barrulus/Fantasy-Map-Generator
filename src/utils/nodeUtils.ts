@@ -1,3 +1,5 @@
+import { pointer } from "d3";
+
 /**
  * @param id - The ID of the element to retrieve
  * @typeParam T - The type of the element to retrieve, extending HTMLElement
@@ -23,6 +25,17 @@ export const findEl = <T extends HTMLElement>(id: string): T | null => {
 };
 
 /**
+ * Remove an element, destroying its jQuery UI dialog widget first if it has one
+ * @param {string} id - The ID of the element to remove
+ */
+export const destroyDialogIfExists = (id: string): void => {
+  const el = findEl(id);
+  if (!el) return;
+  if (el.classList.contains("ui-dialog-content")) window.$(el).dialog("destroy");
+  el.remove();
+};
+
+/**
  * Get the composed path of a node (including shadow DOM and window)
  * @param {Node | Window} node - The starting node or window
  * @returns {Array<Node>} - The composed path as an array
@@ -34,6 +47,21 @@ export const getComposedPath = (node: any): Array<Node | Window> => {
   else if (node.defaultView) parent = node.defaultView;
   if (parent !== undefined) return [node].concat(getComposedPath(parent));
   return [node];
+};
+
+/**
+ * Get pointer coordinates relative to a node, supporting both mouse and touch events.
+ * d3 v7 pointer() unwraps to the source event and reads clientX from it, which TouchEvents lack.
+ * d3 v5 mouse() read changedTouches[0]; this helper restores that behavior.
+ * @param {any} event - A native event or d3 event wrapper (e.g. a drag event)
+ * @param {Element} node - The node to compute coordinates relative to
+ * @returns {[number, number]} - The [x, y] coordinates relative to the node
+ */
+export const getPointer = (event: any, node?: Element | null): [number, number] => {
+  let source = event;
+  while (source.sourceEvent) source = source.sourceEvent;
+  const touch = source.changedTouches?.[0] ?? source.touches?.[0];
+  return pointer(touch ?? source, node ?? source.currentTarget);
 };
 
 /**
@@ -53,5 +81,6 @@ declare global {
     getNextId: typeof getNextId;
     ensureEl: typeof ensureEl;
     findEl: typeof findEl;
+    destroyDialogIfExists: typeof destroyDialogIfExists;
   }
 }
