@@ -150,7 +150,8 @@ function showMapTooltip(point, e, i, g) {
       const burg = pack.burgs[burgId];
       const population = si(burg.population * populationRate * urbanization);
       tip(`${burg.name} ${burg.group}. Population: ${population}. Click to edit`);
-      if (burgsOverview?.offsetParent) highlightEditorLine(burgsOverview, burgId, 5000);
+      const burgsOverviewEl = findEl("burgsOverview");
+      if (burgsOverviewEl) highlightEditorLine(burgsOverviewEl, burgId, 5000);
       return;
     }
   }
