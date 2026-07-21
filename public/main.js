@@ -640,6 +640,20 @@ function resetZoom(d = 1000) {
 
 // active zooming feature
 function invokeActiveZooming() {
+  // Resync the cached transform vars with d3's zoom state before using `scale` below. On map load
+  // the SVG is rebuilt and d3's zoom transform resets, but these module vars (exposed via
+  // getMapTransform and consumed by the WebGL burg/label layers) are only updated by the zoom
+  // handler (zoomRaf). Without this they stay stale after a load, so the GPU layers render offset
+  // from the SVG until the first pan/zoom re-syncs them. See docs .../2026-07-21-bug-capital-label-never-visible.md
+  const zt = d3.zoomTransform(svg.node());
+  if (scale !== zt.k || viewX !== zt.x || viewY !== zt.y) {
+    scale = zt.k;
+    viewX = zt.x;
+    viewY = zt.y;
+    viewbox.attr("transform", `translate(${viewX} ${viewY}) scale(${scale})`);
+    if (window.LayerHost) window.LayerHost.onFrame();
+  }
+
   const isOptimized = shapeRendering.value === "optimizeSpeed";
 
   if (coastline.select("#sea_island").size() && +coastline.select("#sea_island").attr("auto-filter")) {
