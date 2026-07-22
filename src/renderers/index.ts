@@ -12,6 +12,7 @@ import "./draw-relief-icons";
 import "./draw-scalebar";
 import "./draw-state-labels";
 import "./draw-temperature";
+import "./labeling/label-collision";
 import "./webgl-burg-icons";
 import "./webgl-burg-labels";
 import "./layer-host";

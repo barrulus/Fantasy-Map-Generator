@@ -50,6 +50,16 @@ declare global {
     groupRank: (group: string) => number;
     groupMinZoom: (group: string) => number;
   };
+  var selectNonOverlapping: (
+    boxes: {
+      id: string;
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+      weight: number;
+    }[]
+  ) => Set<string>;
 
   // Global variables defined in main.js / versioning.js
   var viewX: number;

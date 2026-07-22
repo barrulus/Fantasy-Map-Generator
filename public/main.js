@@ -711,6 +711,53 @@ function invokeActiveZooming() {
         const hidden = hideLabels.checked && (scale < minZoom || scale > maxZoom);
         if (hidden) this.classList.add("hidden");
         else this.classList.remove("hidden");
+
+        // Collision pass: packed small states pile their names on top of each other. Recomputed
+        // from scratch every settle (not just once) so a label hidden at one zoom reappears once
+        // zooming in gives it room again. Skipped entirely when the whole group is gated off by
+        // min/max zoom above (nothing visible to collide), and guarded on the TS global the same
+        // way the sizing code above guards on `tiers`/`groupRestPx`.
+        if (!hidden && window.selectNonOverlapping) {
+          const stateLabelEls = Array.from(this.children).filter(el => el.tagName === "text");
+
+          // Clear any prior collision result before measuring: a label hidden by a previous pass
+          // reports a zero-size rect via getBoundingClientRect, which would wrongly exclude it.
+          for (const el of stateLabelEls) el.classList.remove("hidden");
+
+          // Read ALL rectangles first, then decide, then write classes — interleaving reads and
+          // writes here would force a layout reflow per label.
+          const boxes = [];
+          for (const el of stateLabelEls) {
+            const rect = el.getBoundingClientRect();
+            if (!rect.width || !rect.height) continue;
+
+            const stateId = +el.id.slice("stateLabel".length);
+            const state = pack.states && pack.states[stateId];
+            // Bigger states win contested spots. Fall back to the rendered rect's area (a proxy
+            // for name length/font size) when cell count isn't available (e.g. zero-territory
+            // sky states).
+            const weight = state && Number.isFinite(state.cells) ? state.cells : rect.width * rect.height;
+
+            boxes.push({
+              id: el.id,
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+              weight
+            });
+          }
+
+          // getBoundingClientRect() approximates curved textPath labels with their axis-aligned
+          // bounding box — not pixel-perfect for a rotated/curved name, but good enough to catch
+          // the overlapping-neighbour case this pass exists for.
+          const keep = window.selectNonOverlapping(boxes);
+          for (const el of stateLabelEls) {
+            if (keep.has(el.id)) el.classList.remove("hidden");
+            else el.classList.add("hidden");
+          }
+        }
+
         return;
       }
       // labels.selectAll("g") matches ALL descendant <g> elements, not just direct children of
