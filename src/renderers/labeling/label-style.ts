@@ -1,13 +1,13 @@
-import { entryPxExceedsCeiling } from "./label-sizing";
-import { groupCeilPx, groupFloorPx, groupMinZoom, groupRank } from "./tier-table";
+import { authoredSizeFactor } from "./label-sizing";
+import { groupMinZoom, groupRank, groupRestPx, groupStartPx } from "./tier-table";
 
 export interface GroupStyle {
   group: string;
   rank: number; // collision priority, lower wins
   fontSize: number; // d — authored map units per em
   minZoom: number; // tier gate, incl. any data-min-zoom override
-  floorPx: number;
-  ceilPx: number;
+  startPx: number; // screen px at scale 1, already multiplied by the authored-size factor
+  restPx: number; // asymptotic resting screen px, already multiplied by the authored-size factor
   fill: string;
   halo: string;
   haloWidth: number;
@@ -15,23 +15,6 @@ export interface GroupStyle {
 }
 
 const DEFAULT_FONT_SIZE = 4;
-
-// Dev-mode invariant check: a tier is "born clamped" (never actually scales) if its ceiling sits
-// below its natural size at its own min-zoom. Warn once per group per distinct authored size so a
-// preset author notices without spamming the console on every label rebuild.
-const warnedEntryPxExceedsCeiling = new Set<string>();
-
-function warnIfEntryPxExceedsCeiling(group: string, d: number): void {
-  if (!entryPxExceedsCeiling(group, d)) return;
-  const key = `${group}|${d}`;
-  if (warnedEntryPxExceedsCeiling.has(key)) return;
-  warnedEntryPxExceedsCeiling.add(key);
-  console.warn(
-    `[labels] group "${group}" is born already clamped: authored size ${d} at min-zoom ${groupMinZoom(
-      group
-    )} exceeds its ceiling ${groupCeilPx(group)}px. It will never scale from its floor.`
-  );
-}
 
 /**
  * Read the authored per-group size.
@@ -60,14 +43,14 @@ export function readBurgLabelStyles(root: ParentNode = document): Record<string,
     const stroke = el.getAttribute("stroke");
     const override = parseFloat(el.getAttribute("data-min-zoom") || "");
     const fontSize = readAuthoredSize(el);
-    warnIfEntryPxExceedsCeiling(el.id, fontSize);
+    const factor = authoredSizeFactor(el.id, fontSize);
     out[el.id] = {
       group: el.id,
       rank: groupRank(el.id),
       fontSize,
       minZoom: Number.isFinite(override) ? override : groupMinZoom(el.id),
-      floorPx: groupFloorPx(el.id),
-      ceilPx: groupCeilPx(el.id),
+      startPx: groupStartPx(el.id) * factor,
+      restPx: groupRestPx(el.id) * factor,
       fill: el.getAttribute("fill") || "#3e3e4b",
       halo: stroke || "#ffffff",
       // only halo when the group actually has a stroke; 0 width disables the halo ring in the shader

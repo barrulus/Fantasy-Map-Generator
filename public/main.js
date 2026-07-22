@@ -674,12 +674,12 @@ function invokeActiveZooming() {
           // Size is clamped per tier for legibility and never culls. Only min-zoom hides a tier,
           // so a capital with a small preset font shows from its min-zoom like the tier promises.
           if (rescaleLabels.checked) {
-            const px = window.effectiveLabelPx(d, scale, tiers.groupFloorPx(sub.id), tiers.groupCeilPx(sub.id));
+            const px = window.labelPxForGroup(sub.id, d, scale);
             const next = String(rn(window.svgLabelFontSize(px, scale), 2));
             if (sub.getAttribute("font-size") !== next) sub.setAttribute("font-size", next);
           } else if (Number.isFinite(d)) {
-            // Unclamped: raw d*scale. Guard NaN authored sizes here — the clamped branch above is
-            // already safe because effectiveLabelPx() catches NaN and returns the floor.
+            // Unclamped: raw d*scale. Guard NaN authored sizes here — the curved branch above is
+            // already safe because labelPxForGroup() catches NaN and returns the tier's startPx.
             const px = d * scale;
             const next = String(rn(window.svgLabelFontSize(px, scale), 2));
             if (sub.getAttribute("font-size") !== next) sub.setAttribute("font-size", next);

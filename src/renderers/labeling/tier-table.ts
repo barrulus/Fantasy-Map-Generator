@@ -65,57 +65,82 @@ export function groupMinZoom(group: string): number {
   return MIN_ZOOM[group] ?? UNKNOWN_MIN_ZOOM;
 }
 
-const DEFAULT_FLOOR_PX = 6;
-const DEFAULT_CEIL_PX = 56;
+const DEFAULT_START_PX = 12;
+const DEFAULT_REST_PX = 8.5;
+const DEFAULT_REFERENCE_D = 3.32;
 
 /**
- * Legibility floor: a label of this tier is never drawn smaller than this on screen.
- *
- * In practice this only bites for capitals, the one tier whose min-zoom is 1 and which therefore
- * enters at its natural size rather than several times it. That narrow blast radius is deliberate.
+ * On-screen size (CSS px) at scale 1, before the curve decays toward REST_PX. Bigger tiers start
+ * bigger so that when zoomed all the way out — where a capital may be the only label on screen —
+ * it dominates instead of sitting at a tiny floor.
  */
-export const FLOOR_PX: Record<string, number> = {
-  capital: 11,
-  "skyburg-capital": 11,
-  city: 10,
-  skyburg: 10,
-  town: 9,
-  "skyburg-mid": 9,
-  fort: 8,
-  monastery: 8,
-  caravanserai: 8,
-  trading_post: 8,
-  "skyburg-small": 8,
-  village: 7,
-  hamlet: 6
+export const START_PX: Record<string, number> = {
+  capital: 32,
+  "skyburg-capital": 32,
+  city: 22,
+  skyburg: 22,
+  town: 18,
+  "skyburg-mid": 18,
+  fort: 15,
+  monastery: 15,
+  caravanserai: 15,
+  trading_post: 15,
+  "skyburg-small": 15,
+  village: 14,
+  hamlet: 12
 };
 
-export function groupFloorPx(group: string): number {
-  return FLOOR_PX[group] ?? DEFAULT_FLOOR_PX;
+export function groupStartPx(group: string): number {
+  return START_PX[group] ?? DEFAULT_START_PX;
 }
 
 /**
- * Growth ceiling: a label stops growing here rather than being culled. The old GROUP_MAX_PX
- * values (capital 240) were cull thresholds with headroom, not real ceilings, so they are retuned.
- * Each must stay above the tier's natural size at its own min-zoom or the tier is born clamped —
- * see entryPxExceedsCeiling in label-sizing.ts.
+ * Asymptotic resting size (CSS px) the label decays toward as scale grows. Labels shrink toward
+ * this rather than growing without bound as you zoom in, so deep zoom doesn't balloon labels just
+ * as more of them enter the screen.
  */
-export const CEIL_PX: Record<string, number> = {
-  capital: 96,
-  "skyburg-capital": 96,
-  city: 80,
-  skyburg: 80,
-  town: 72,
-  "skyburg-mid": 72,
-  fort: 64,
-  monastery: 64,
-  caravanserai: 64,
-  trading_post: 64,
-  "skyburg-small": 64,
-  village: 64,
-  hamlet: 56
+export const REST_PX: Record<string, number> = {
+  capital: 15,
+  "skyburg-capital": 15,
+  city: 12,
+  skyburg: 12,
+  town: 11,
+  "skyburg-mid": 11,
+  fort: 10,
+  monastery: 10,
+  caravanserai: 10,
+  trading_post: 10,
+  "skyburg-small": 10,
+  village: 9.5,
+  hamlet: 8.5
 };
 
-export function groupCeilPx(group: string): number {
-  return CEIL_PX[group] ?? DEFAULT_CEIL_PX;
+export function groupRestPx(group: string): number {
+  return REST_PX[group] ?? DEFAULT_REST_PX;
+}
+
+/**
+ * Reference authored size (map units per em) each tier's START_PX/REST_PX were tuned against.
+ * `authoredSizeFactor` in label-sizing.ts divides the live authored `data-size` by this to derive
+ * a multiplier, so a preset's size control still does something without needing to know about the
+ * screen-space curve.
+ */
+export const REFERENCE_D: Record<string, number> = {
+  capital: 4.98,
+  "skyburg-capital": 4.98,
+  city: 4.15,
+  skyburg: 4.15,
+  town: 3.32,
+  "skyburg-mid": 3.32,
+  fort: 3.32,
+  monastery: 3.32,
+  caravanserai: 3.32,
+  trading_post: 3.32,
+  "skyburg-small": 2.49,
+  village: 2.49,
+  hamlet: 1.66
+};
+
+export function groupReferenceD(group: string): number {
+  return REFERENCE_D[group] ?? DEFAULT_REFERENCE_D;
 }

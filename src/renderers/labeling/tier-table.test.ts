@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupCeilPx, groupFloorPx, groupMinZoom, groupRank } from "./tier-table";
+import { groupMinZoom, groupRank, groupReferenceD, groupRestPx, groupStartPx } from "./tier-table";
 
 describe("groupRank", () => {
   it("ranks settlement tiers by importance (lower rank = higher priority)", () => {
@@ -30,25 +30,52 @@ describe("groupMinZoom", () => {
   });
 });
 
-describe("size floors and ceilings", () => {
-  it("gives more important tiers a higher legibility floor", () => {
-    expect(groupFloorPx("capital")).toBeGreaterThan(groupFloorPx("city"));
-    expect(groupFloorPx("city")).toBeGreaterThan(groupFloorPx("town"));
-    expect(groupFloorPx("village")).toBeGreaterThan(groupFloorPx("hamlet"));
+describe("size start/rest px", () => {
+  it("gives more important tiers a higher start size", () => {
+    expect(groupStartPx("capital")).toBeGreaterThan(groupStartPx("city"));
+    expect(groupStartPx("city")).toBeGreaterThan(groupStartPx("town"));
+    expect(groupStartPx("village")).toBeGreaterThan(groupStartPx("hamlet"));
   });
 
-  it("gives more important tiers a higher ceiling", () => {
-    expect(groupCeilPx("capital")).toBeGreaterThan(groupCeilPx("city"));
-    expect(groupCeilPx("city")).toBeGreaterThan(groupCeilPx("hamlet"));
+  it("gives more important tiers a higher resting size", () => {
+    expect(groupRestPx("capital")).toBeGreaterThan(groupRestPx("city"));
+    expect(groupRestPx("city")).toBeGreaterThan(groupRestPx("hamlet"));
   });
 
-  it("always leaves room to grow between floor and ceiling", () => {
-    for (const g of ["capital", "city", "town", "village", "hamlet", "fort", "nonsense"])
-      expect(groupCeilPx(g)).toBeGreaterThan(groupFloorPx(g));
+  it("always starts above its resting size, for every tier", () => {
+    for (const g of [
+      "capital",
+      "skyburg-capital",
+      "city",
+      "skyburg",
+      "town",
+      "skyburg-mid",
+      "fort",
+      "monastery",
+      "caravanserai",
+      "trading_post",
+      "skyburg-small",
+      "village",
+      "hamlet",
+      "nonsense"
+    ])
+      expect(groupStartPx(g)).toBeGreaterThan(groupRestPx(g));
   });
 
   it("falls back to the smallest tier's bounds for unknown groups", () => {
-    expect(groupFloorPx("nonsense")).toBe(6);
-    expect(groupCeilPx("nonsense")).toBe(56);
+    expect(groupStartPx("nonsense")).toBe(12);
+    expect(groupRestPx("nonsense")).toBe(8.5);
+  });
+});
+
+describe("groupReferenceD", () => {
+  it("gives more important tiers a higher reference size", () => {
+    expect(groupReferenceD("capital")).toBeGreaterThan(groupReferenceD("city"));
+    expect(groupReferenceD("city")).toBeGreaterThan(groupReferenceD("town"));
+    expect(groupReferenceD("village")).toBeGreaterThan(groupReferenceD("hamlet"));
+  });
+
+  it("falls back to the town/city-tier reference for unknown groups", () => {
+    expect(groupReferenceD("nonsense")).toBe(3.32);
   });
 });

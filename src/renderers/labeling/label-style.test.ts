@@ -29,17 +29,28 @@ describe("readBurgLabelStyles", () => {
   });
 
   it("takes rank, min-zoom and size bounds from the tier table", () => {
-    mount(shell("capital", { "data-size": "4" }) + shell("hamlet", { "data-size": "1" }));
+    // 4.98 is capital's reference d (factor 1); 1 is far below hamlet's reference (1.66), clamped
+    // to the 0.75 factor floor, but capital's startPx is still far larger in absolute terms.
+    mount(shell("capital", { "data-size": "4.98" }) + shell("hamlet", { "data-size": "1" }));
     const s = readBurgLabelStyles();
     expect(s.capital.rank).toBeLessThan(s.hamlet.rank);
     expect(s.capital.minZoom).toBe(1);
     expect(s.hamlet.minZoom).toBe(14);
-    expect(s.capital.floorPx).toBeGreaterThan(s.hamlet.floorPx);
+    expect(s.capital.startPx).toBeGreaterThan(s.hamlet.startPx);
+    expect(s.capital.restPx).toBeGreaterThan(s.hamlet.restPx);
   });
 
   it("honours a data-min-zoom override", () => {
     mount(shell("capital", { "data-size": "4", "data-min-zoom": "7" }));
     expect(readBurgLabelStyles().capital.minZoom).toBe(7);
+  });
+
+  it("multiplies startPx/restPx by the authored-size factor, clamped", () => {
+    // huge authored size clamps the factor at 1.5
+    mount(shell("capital", { "data-size": "1000" }));
+    const s = readBurgLabelStyles();
+    expect(s.capital.startPx).toBeCloseTo(32 * 1.5, 10);
+    expect(s.capital.restPx).toBeCloseTo(15 * 1.5, 10);
   });
 
   it("reads fill and halo, and disables the halo when no stroke is set", () => {

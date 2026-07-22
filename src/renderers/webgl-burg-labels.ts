@@ -37,8 +37,8 @@ export function buildLabelBoxes(
       halfHEm: geom.cellEm / 2,
       d: s.fontSize,
       minZoom: s.minZoom,
-      floorPx: s.floorPx,
-      ceilPx: s.ceilPx,
+      startPx: s.startPx,
+      restPx: s.restPx,
       name: b.name,
       group: b.group as string
     });
@@ -335,9 +335,9 @@ export function getLabelQuadtree() {
 export function labelHitExtents(box: LabelBox, scale: number): { hw: number; hh: number } {
   if (scale <= 0) {
     // Guard: scale is always positive in practice (d3 zoom scale is always positive)
-    return { hw: box.halfWEm * box.d, hh: box.halfHEm * box.d };
+    return { hw: box.halfWEm * box.startPx, hh: box.halfHEm * box.startPx };
   }
-  const px = effectiveLabelPx(box.d, scale, box.floorPx, box.ceilPx);
+  const px = effectiveLabelPx(scale, box.startPx, box.restPx);
   return { hw: (box.halfWEm * px) / scale, hh: (box.halfHEm * px) / scale };
 }
 

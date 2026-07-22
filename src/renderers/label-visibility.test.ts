@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";
-import { groupCeilPx, groupFloorPx, groupMinZoom, groupRank } from "./labeling/tier-table";
+import { groupMinZoom, groupRank, groupRestPx, groupStartPx } from "./labeling/tier-table";
 
 const VP: MapViewport = { x0: 0, y0: 0, x1: 1000, y1: 1000 };
 
@@ -14,8 +14,8 @@ function box(p: Partial<LabelBox> & { id: number }): LabelBox {
     halfHEm: 0.5,
     d: 4,
     minZoom: 0,
-    floorPx: 6,
-    ceilPx: 60,
+    startPx: 32,
+    restPx: 15,
     ...p
   };
 }
@@ -37,52 +37,62 @@ describe("selectVisibleLabels — tier gating", () => {
 });
 
 describe("selectVisibleLabels — size never culls", () => {
-  // Regression: this is the whole point of the phase. A tiny label is clamped up, not dropped.
-  it("keeps a label that is smaller than the floor and reports the floor size", () => {
-    const out = selectVisibleLabels([box({ id: 1, d: 1 })], 1, VP, { hideLabels: true });
+  it("reports startPx at scale 1", () => {
+    const out = selectVisibleLabels([box({ id: 1, startPx: 32, restPx: 15 })], 1, VP, { hideLabels: true });
     expect(ids(out)).toEqual([1]);
-    expect(out[0].px).toBe(6);
+    expect(out[0].px).toBe(32);
   });
 
-  it("keeps a label that is larger than the ceiling and reports the ceiling size", () => {
-    const out = selectVisibleLabels([box({ id: 1 })], 1000, VP, { hideLabels: true });
+  it("reports a size decayed toward restPx at a high scale", () => {
+    const out = selectVisibleLabels([box({ id: 1, startPx: 32, restPx: 15 })], 1000, VP, { hideLabels: true });
     expect(ids(out)).toEqual([1]);
-    expect(out[0].px).toBe(60);
+    expect(out[0].px).toBeCloseTo(15 + 17 / 1000, 5);
   });
 
-  it("reports natural size inside the band", () => {
-    expect(selectVisibleLabels([box({ id: 1 })], 5, VP, { hideLabels: true })[0].px).toBe(20);
+  it("reports the curve value at an intermediate scale", () => {
+    expect(
+      selectVisibleLabels([box({ id: 1, startPx: 32, restPx: 15 })], 5, VP, { hideLabels: true })[0].px
+    ).toBeCloseTo(15 + 17 / 5, 10);
   });
 
-  // Regression: Nomia's capital (d=2.49, minZoom 1) was invisible below scale 2.41.
-  it("shows a small-font capital at scale 1", () => {
+  // Regression: Nomia's capital (small preset font) was invisible below scale 2.41 under the old
+  // floor/ceiling model. Under the new model there is no floor to fall below.
+  it("shows a small-font capital at scale 1 with its full startPx", () => {
     const capital = box({
       id: 1,
-      d: 2.49,
       minZoom: groupMinZoom("capital"),
       order: groupRank("capital"),
-      floorPx: groupFloorPx("capital"),
-      ceilPx: groupCeilPx("capital")
+      startPx: groupStartPx("capital"),
+      restPx: groupRestPx("capital")
     });
     const out = selectVisibleLabels([capital], 1, VP, { hideLabels: true });
     expect(ids(out)).toEqual([1]);
-    expect(out[0].px).toBe(11);
+    expect(out[0].px).toBe(groupStartPx("capital"));
   });
 });
 
 describe("selectVisibleLabels — rescale option", () => {
   // Regression: rescaleLabels.checked=false was honoured by the SVG path only. The size shown
   // must feed the same option through to the GPU path.
-  it("reports the raw unclamped size when rescale is false, even below the floor", () => {
-    const out = selectVisibleLabels([box({ id: 1, d: 1 })], 1, VP, { hideLabels: true, rescale: false });
+  it("reports the constant resting size when rescale is false, regardless of scale", () => {
+    const out = selectVisibleLabels([box({ id: 1, startPx: 32, restPx: 15 })], 1, VP, {
+      hideLabels: true,
+      rescale: false
+    });
     expect(ids(out)).toEqual([1]);
-    expect(out[0].px).toBe(1); // raw d * scale, not clamped up to the floor (6)
+    expect(out[0].px).toBe(15);
+
+    const out2 = selectVisibleLabels([box({ id: 1, startPx: 32, restPx: 15 })], 50, VP, {
+      hideLabels: true,
+      rescale: false
+    });
+    expect(out2[0].px).toBe(15);
   });
 
-  it("still clamps to the floor/ceiling when rescale is omitted (defaults true)", () => {
-    const out = selectVisibleLabels([box({ id: 1, d: 1 })], 1, VP, { hideLabels: true });
+  it("still applies the curve when rescale is omitted (defaults true)", () => {
+    const out = selectVisibleLabels([box({ id: 1, startPx: 32, restPx: 15 })], 1, VP, { hideLabels: true });
     expect(ids(out)).toEqual([1]);
-    expect(out[0].px).toBe(6);
+    expect(out[0].px).toBe(32);
   });
 });
 
@@ -111,12 +121,11 @@ describe("selectVisibleLabels — collision", () => {
     expect(ids(selectVisibleLabels([hamlet, capital], 4, VP, { hideLabels: true }))).toEqual([1]);
   });
 
-  // Collision must use the size actually drawn: a clamped-up label occupies more room than its
-  // natural extents, so two labels that look separate at natural size can genuinely overlap.
-  it("collides using the clamped size, not the natural size", () => {
-    // d=1 at scale 1 is clamped 6x up to the 6px floor, so these two now overlap
-    const a = box({ id: 1, d: 1, order: 0, x: 100, y: 100 });
-    const b = box({ id: 2, d: 1, order: 5, x: 103, y: 100 });
+  // Collision must use the size actually drawn: at scale 1 a label sits at its full startPx, so
+  // two labels that look separate at their resting size can genuinely overlap here.
+  it("collides using the drawn size, not some other size", () => {
+    const a = box({ id: 1, startPx: 32, restPx: 15, order: 0, x: 100, y: 100 });
+    const b = box({ id: 2, startPx: 32, restPx: 15, order: 5, x: 103, y: 100 });
     expect(ids(selectVisibleLabels([a, b], 1, VP, { hideLabels: true }))).toEqual([1]);
   });
 });

@@ -10,8 +10,8 @@ export interface LabelBox {
   halfHEm: number; // half-extents in em, so they track the size actually drawn
   d: number; // authored map units per em
   minZoom: number;
-  floorPx: number;
-  ceilPx: number;
+  startPx: number; // screen px at scale 1
+  restPx: number; // asymptotic resting screen px as scale grows
 }
 
 export interface MapViewport {
@@ -28,7 +28,7 @@ export interface VisibleLabel {
 
 export interface VisibilityOptions {
   hideLabels?: boolean; // apply min-zoom tier gating (the hideLabels checkbox)
-  rescale?: boolean; // clamp size per tier (the rescaleLabels checkbox); default true
+  rescale?: boolean; // screen-space size curve per tier (the rescaleLabels checkbox); default true
 }
 
 const GRID_PX = 64; // collision spatial-hash cell, screen px
@@ -54,7 +54,10 @@ export function selectVisibleLabels(
   const candidates: { b: LabelBox; px: number; hwMap: number; hhMap: number }[] = [];
   for (const b of boxes) {
     if (gate && scale < b.minZoom) continue;
-    const px = rescale ? effectiveLabelPx(b.d, scale, b.floorPx, b.ceilPx) : b.d * scale;
+    // rescale off means constant screen size at the tier's resting size: the label simply stops
+    // responding to zoom, which is the sensible reading of "don't rescale" under a screen-space
+    // sizing model (the old model's fallback, raw d*scale, was a map-space artifact).
+    const px = rescale ? effectiveLabelPx(scale, b.startPx, b.restPx) : b.restPx;
     // extents follow the drawn size, converted back to map units for the viewport test
     const hwMap = (b.halfWEm * px) / scale;
     const hhMap = (b.halfHEm * px) / scale;

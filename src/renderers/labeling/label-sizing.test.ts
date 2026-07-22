@@ -1,39 +1,83 @@
 import { describe, expect, it } from "vitest";
-import { effectiveLabelPx, effectiveLabelPxForGroup, entryPxExceedsCeiling, svgLabelFontSize } from "./label-sizing";
-import { CEIL_PX, MIN_ZOOM } from "./tier-table";
+import { authoredSizeFactor, effectiveLabelPx, labelPxForGroup, svgLabelFontSize } from "./label-sizing";
+import { groupRestPx, groupStartPx } from "./tier-table";
 
 describe("effectiveLabelPx", () => {
-  it("grows with the map between the floor and the ceiling", () => {
-    expect(effectiveLabelPx(4, 5, 6, 60)).toBe(20);
+  it("equals startPx at scale 1", () => {
+    expect(effectiveLabelPx(1, 32, 15)).toBe(32);
   });
 
-  it("raises a label to the floor instead of dropping it", () => {
-    expect(effectiveLabelPx(4, 1, 6, 60)).toBe(6);
+  it("approaches restPx as scale grows", () => {
+    // capital: startPx=32, restPx=15
+    expect(effectiveLabelPx(1, 32, 15)).toBe(32);
+    expect(effectiveLabelPx(2, 32, 15)).toBeCloseTo(15 + 17 / 2, 10); // 23.5
+    expect(effectiveLabelPx(5, 32, 15)).toBeCloseTo(15 + 17 / 5, 10); // 18.4
+    expect(effectiveLabelPx(20, 32, 15)).toBeCloseTo(15 + 17 / 20, 10); // 15.85
   });
 
-  it("stops growing at the ceiling instead of dropping it", () => {
-    expect(effectiveLabelPx(4, 100, 6, 60)).toBe(60);
+  it("decreases strictly as scale increases", () => {
+    const scales = [1, 2, 5, 10, 20, 50];
+    const sizes = scales.map(s => effectiveLabelPx(s, 32, 15));
+    for (let i = 1; i < sizes.length; i++) expect(sizes[i]).toBeLessThan(sizes[i - 1]);
   });
 
   it("never returns a size that signals a cull", () => {
-    for (const scale of [0.1, 1, 10, 1000]) expect(effectiveLabelPx(2.49, scale, 11, 96)).toBeGreaterThan(0);
+    for (const scale of [0.1, 1, 10, 1000]) expect(effectiveLabelPx(scale, 32, 15)).toBeGreaterThan(0);
+  });
+
+  it("returns startPx for a zero or negative scale", () => {
+    expect(effectiveLabelPx(0, 32, 15)).toBe(32);
+    expect(effectiveLabelPx(-1, 32, 15)).toBe(32);
+  });
+
+  it("returns startPx for a non-finite scale", () => {
+    expect(effectiveLabelPx(Number.NaN, 32, 15)).toBe(32);
+    expect(effectiveLabelPx(Number.POSITIVE_INFINITY, 32, 15)).toBe(32);
   });
 });
 
-describe("effectiveLabelPxForGroup", () => {
-  // Regression: Nomia's preset sets the capital font to 2.49 map units. Under the old
-  // `px = d*scale < 6 -> cull` rule capitals were invisible below scale 2.41 even though
-  // MIN_ZOOM.capital is 1. See the brief section 7.
-  it("keeps a small-font capital legible at scale 1", () => {
-    expect(effectiveLabelPxForGroup("capital", 2.49, 1)).toBe(11);
+describe("capitals vs hamlets", () => {
+  it("stays larger than a hamlet at every tested scale", () => {
+    const capStart = groupStartPx("capital");
+    const capRest = groupRestPx("capital");
+    const hamStart = groupStartPx("hamlet");
+    const hamRest = groupRestPx("hamlet");
+    for (const scale of [1, 2, 5, 10, 20]) {
+      expect(effectiveLabelPx(scale, capStart, capRest)).toBeGreaterThan(effectiveLabelPx(scale, hamStart, hamRest));
+    }
+  });
+});
+
+describe("authoredSizeFactor", () => {
+  it("is 1 when d is absent (NaN)", () => {
+    expect(authoredSizeFactor("capital", Number.NaN)).toBe(1);
   });
 
-  it("hands back to natural growth once the capital outgrows its floor", () => {
-    expect(effectiveLabelPxForGroup("capital", 2.49, 10)).toBeCloseTo(24.9, 5);
+  it("is 1 at the tier's reference size", () => {
+    expect(authoredSizeFactor("capital", 4.98)).toBeCloseTo(1, 10);
   });
 
-  it("leaves the default preset's capital unclamped once zoomed in", () => {
-    expect(effectiveLabelPxForGroup("capital", 4.98, 5)).toBeCloseTo(24.9, 5);
+  it("clamps to 0.75 for a tiny authored size", () => {
+    expect(authoredSizeFactor("capital", 0.01)).toBe(0.75);
+  });
+
+  it("clamps to 1.5 for a huge authored size", () => {
+    expect(authoredSizeFactor("capital", 1000)).toBe(1.5);
+  });
+});
+
+describe("labelPxForGroup", () => {
+  it("scales the curve by the authored-size factor", () => {
+    // hamlet reference is 1.66; doubling it should clamp at the 1.5x factor ceiling
+    const px = labelPxForGroup("hamlet", 1.66 * 10, 1);
+    expect(px).toBeCloseTo(groupStartPx("hamlet") * 1.5, 10);
+  });
+
+  it("matches the plain curve when d is absent", () => {
+    expect(labelPxForGroup("capital", Number.NaN, 5)).toBeCloseTo(
+      effectiveLabelPx(5, groupStartPx("capital"), groupRestPx("capital")),
+      10
+    );
   });
 });
 
@@ -45,35 +89,11 @@ describe("svgLabelFontSize", () => {
     expect(svgLabelFontSize(px, scale) * scale).toBeCloseTo(px, 10);
   });
 
-  it("is the authored size when the label is inside its band", () => {
-    const d = 4;
-    const scale = 5;
-    expect(svgLabelFontSize(effectiveLabelPx(d, scale, 6, 60), scale)).toBeCloseTo(d, 10);
+  it("is the authored size when the label sits exactly at startPx (scale 1)", () => {
+    expect(svgLabelFontSize(effectiveLabelPx(1, 32, 15), 1)).toBeCloseTo(32, 10);
   });
 
   it("survives a zero scale without dividing by zero", () => {
     expect(Number.isFinite(svgLabelFontSize(12, 0))).toBe(true);
-  });
-});
-
-describe("entryPxExceedsCeiling", () => {
-  it("flags a tier whose ceiling is below its own entry size", () => {
-    // hamlet enters at scale 14; a 5 map-unit font enters at 70px, above the 56px ceiling
-    expect(entryPxExceedsCeiling("hamlet", 5)).toBe(true);
-  });
-
-  // Spec invariant: ceil(tier) > d * minZoom(tier), else the tier is born clamped and never scales.
-  it("holds for every tier on the default preset's font sizes", () => {
-    const defaultPreset: Record<string, number> = {
-      capital: 4.98,
-      city: 4.15,
-      town: 3.32,
-      village: 2.49,
-      hamlet: 1.66
-    };
-    for (const [group, d] of Object.entries(defaultPreset)) {
-      expect(entryPxExceedsCeiling(group, d)).toBe(false);
-      expect(CEIL_PX[group]).toBeGreaterThan(d * MIN_ZOOM[group]);
-    }
   });
 });
