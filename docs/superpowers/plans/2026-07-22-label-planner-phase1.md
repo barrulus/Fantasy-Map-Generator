@@ -1125,30 +1125,12 @@ git commit --no-verify -m "refactor(webgl): consume shared label style, tier and
 - Consumes: `groupMinZoom` from `./labeling/tier-table`.
 - Produces: no signature change — `groupRenders()` keeps returning `Record<string, GroupRender>`.
 
-- [ ] **Step 1: Write the failing test**
+This task adds no test. It is a pure deletion: the behaviour it preserves is already covered by
+`tier-table.test.ts` (Task 1), and the thing it must guarantee — that no second copy of the table
+survives — is proved by the grep and typecheck in step 2. A unit test asserting
+`MIN_ZOOM[g] === groupMinZoom(g)` would assert only that an accessor is still a record lookup.
 
-Add to `src/renderers/burg-instances.test.ts`:
-
-```ts
-import { describe, expect, it } from "vitest";
-import { groupMinZoom, MIN_ZOOM } from "./labeling/tier-table";
-
-describe("icon min-zoom source", () => {
-  // Regression: this table used to be copy-pasted into webgl-burg-icons.ts, webgl-burg-labels.ts
-  // and public/main.js, and had to be hand-synced. There is exactly one copy now.
-  it("covers every tier the icon renderer needs", () => {
-    for (const g of ["capital", "city", "town", "village", "hamlet", "skyburg", "fort"])
-      expect(MIN_ZOOM[g]).toBe(groupMinZoom(g));
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it passes trivially, then make the source change**
-
-Run: `npx vitest run src/renderers/burg-instances.test.ts`
-Expected: PASS (the test guards the shared table; the real change is deleting the duplicate below).
-
-- [ ] **Step 3: Delete the duplicate**
+- [ ] **Step 1: Delete the duplicate**
 
 In `src/renderers/webgl-burg-icons.ts`, delete lines 75–90 (the comment `// BURG_MIN_ZOOM lives in public/main.js as a literal; mirror the needed keys here.` and the whole local `MIN_ZOOM` record), add the import at the top of the file:
 
@@ -1169,7 +1151,7 @@ function groupRenders(): Record<string, GroupRender> {
 }
 ```
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 2: Verify**
 
 Run: `npx tsc --noEmit`
 Expected: no output.
@@ -1177,11 +1159,14 @@ Expected: no output.
 Run: `grep -n "MIN_ZOOM" src/renderers/webgl-burg-icons.ts src/renderers/webgl-burg-labels.ts`
 Expected: no matches.
 
-- [ ] **Step 5: Commit**
+Run: `npx vitest run src/renderers/`
+Expected: PASS — no regression from the deletion.
+
+- [ ] **Step 3: Commit**
 
 ```bash
-npx biome check --write src/renderers/webgl-burg-icons.ts src/renderers/burg-instances.test.ts
-git add src/renderers/webgl-burg-icons.ts src/renderers/burg-instances.test.ts
+npx biome check --write src/renderers/webgl-burg-icons.ts
+git add src/renderers/webgl-burg-icons.ts
 git commit --no-verify -m "refactor(webgl): read icon min-zoom from the shared tier table"
 ```
 
