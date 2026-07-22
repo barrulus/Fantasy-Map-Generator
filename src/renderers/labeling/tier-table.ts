@@ -65,29 +65,34 @@ export function groupMinZoom(group: string): number {
   return MIN_ZOOM[group] ?? UNKNOWN_MIN_ZOOM;
 }
 
-const DEFAULT_START_PX = 12;
-const DEFAULT_REST_PX = 8.5;
+const DEFAULT_START_PX = 17;
+const DEFAULT_REST_PX = 11;
 const DEFAULT_REFERENCE_D = 3.32;
 
 /**
  * On-screen size (CSS px) at scale 1, before the curve decays toward REST_PX. Bigger tiers start
  * bigger so that when zoomed all the way out — where a capital may be the only label on screen —
  * it dominates instead of sitting at a tiny floor.
+ *
+ * `states` is on this same screen-space curve: it is the base font-size for the `#labels > g#states`
+ * group, against which each individual state label's authored `${ratio}%` (50-130%, see
+ * draw-state-labels.ts) resolves.
  */
 export const START_PX: Record<string, number> = {
-  capital: 32,
-  "skyburg-capital": 32,
-  city: 22,
-  skyburg: 22,
-  town: 18,
-  "skyburg-mid": 18,
-  fort: 15,
-  monastery: 15,
-  caravanserai: 15,
-  trading_post: 15,
-  "skyburg-small": 15,
-  village: 14,
-  hamlet: 12
+  states: 64,
+  capital: 34,
+  "skyburg-capital": 34,
+  city: 27,
+  skyburg: 27,
+  town: 23,
+  "skyburg-mid": 23,
+  fort: 20,
+  monastery: 20,
+  caravanserai: 20,
+  trading_post: 20,
+  "skyburg-small": 20,
+  village: 19,
+  hamlet: 17
 };
 
 export function groupStartPx(group: string): number {
@@ -100,19 +105,20 @@ export function groupStartPx(group: string): number {
  * as more of them enter the screen.
  */
 export const REST_PX: Record<string, number> = {
-  capital: 15,
-  "skyburg-capital": 15,
-  city: 12,
-  skyburg: 12,
-  town: 11,
-  "skyburg-mid": 11,
-  fort: 10,
-  monastery: 10,
-  caravanserai: 10,
-  trading_post: 10,
-  "skyburg-small": 10,
-  village: 9.5,
-  hamlet: 8.5
+  states: 30,
+  capital: 18,
+  "skyburg-capital": 18,
+  city: 15.5,
+  skyburg: 15.5,
+  town: 14,
+  "skyburg-mid": 14,
+  fort: 12.5,
+  monastery: 12.5,
+  caravanserai: 12.5,
+  trading_post: 12.5,
+  "skyburg-small": 12.5,
+  village: 12,
+  hamlet: 11
 };
 
 export function groupRestPx(group: string): number {
@@ -126,6 +132,7 @@ export function groupRestPx(group: string): number {
  * screen-space curve.
  */
 export const REFERENCE_D: Record<string, number> = {
+  states: 22,
   capital: 4.98,
   "skyburg-capital": 4.98,
   city: 4.15,

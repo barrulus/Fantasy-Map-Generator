@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { groupMinZoom, groupRank, groupReferenceD, groupRestPx, groupStartPx } from "./tier-table";
+import { effectiveLabelPx } from "./label-sizing";
+import { groupMinZoom, groupRank, groupReferenceD, groupRestPx, groupStartPx, REST_PX } from "./tier-table";
 
 describe("groupRank", () => {
   it("ranks settlement tiers by importance (lower rank = higher priority)", () => {
@@ -44,6 +45,7 @@ describe("size start/rest px", () => {
 
   it("always starts above its resting size, for every tier", () => {
     for (const g of [
+      "states",
       "capital",
       "skyburg-capital",
       "city",
@@ -63,8 +65,8 @@ describe("size start/rest px", () => {
   });
 
   it("falls back to the smallest tier's bounds for unknown groups", () => {
-    expect(groupStartPx("nonsense")).toBe(12);
-    expect(groupRestPx("nonsense")).toBe(8.5);
+    expect(groupStartPx("nonsense")).toBe(17);
+    expect(groupRestPx("nonsense")).toBe(11);
   });
 });
 
@@ -77,5 +79,26 @@ describe("groupReferenceD", () => {
 
   it("falls back to the town/city-tier reference for unknown groups", () => {
     expect(groupReferenceD("nonsense")).toBe(3.32);
+  });
+});
+
+describe("hierarchy: states > capital > city > town > village > hamlet", () => {
+  const tiers = ["states", "capital", "city", "town", "village", "hamlet"];
+
+  it("holds at every tested scale, not just at rest", () => {
+    for (const scale of [1, 2, 5, 10, 20]) {
+      const sizes = tiers.map(t => effectiveLabelPx(scale, groupStartPx(t), groupRestPx(t)));
+      for (let i = 1; i < sizes.length; i++) {
+        expect(sizes[i]).toBeLessThan(sizes[i - 1]);
+      }
+    }
+  });
+
+  it("every resting size is legible (>= 11px)", () => {
+    for (const px of Object.values(REST_PX)) expect(px).toBeGreaterThanOrEqual(11);
+  });
+
+  it("every tier's start size exceeds its resting size, including states", () => {
+    for (const t of tiers) expect(groupStartPx(t)).toBeGreaterThan(groupRestPx(t));
   });
 });

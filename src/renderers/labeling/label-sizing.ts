@@ -1,5 +1,7 @@
 import { groupMinZoom, groupRank, groupReferenceD, groupRestPx, groupStartPx } from "./tier-table";
 
+export { groupRestPx } from "./tier-table";
+
 const FACTOR_MIN = 0.75;
 const FACTOR_MAX = 1.5;
 
@@ -54,6 +56,7 @@ if (typeof window !== "undefined") {
     effectiveLabelPx,
     labelPxForGroup,
     svgLabelFontSize,
+    groupRestPx,
     labelTiers: { groupRank, groupMinZoom }
   });
 }

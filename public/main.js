@@ -690,6 +690,25 @@ function invokeActiveZooming() {
         }
         return;
       }
+      if (this.id === "states") {
+        if (!tiers || !window.groupRestPx) return; // TS bundle not loaded yet; leave the group alone
+        const d = +this.dataset.size;
+        if (Number.isFinite(d)) {
+          // Same on/off split as the #burgLabels branch above: rescaled follows the screen-space
+          // curve, unrescaled sits at a constant screen size (the tier's resting px) rather than
+          // growing unbounded with scale.
+          const px = rescaleLabels.checked ? window.labelPxForGroup("states", d, scale) : window.groupRestPx("states");
+          const next = String(rn(window.svgLabelFontSize(px, scale), 2));
+          if (this.getAttribute("font-size") !== next) this.setAttribute("font-size", next);
+        }
+
+        // Size never culls (see label-sizing.ts) — min-zoom is the only gate, same as burg tiers.
+        const minZoom = +this.dataset.minZoom || 0;
+        const hidden = hideLabels.checked && scale < minZoom;
+        if (hidden) this.classList.add("hidden");
+        else this.classList.remove("hidden");
+        return;
+      }
       // labels.selectAll("g") matches ALL descendant <g> elements, not just direct children of
       // #labels. Burg tier shells (#burgLabels > g#capital, g#city, ...) are already handled
       // above by the burgLabels branch (per-tier clamp, no size-based cull). Without this guard

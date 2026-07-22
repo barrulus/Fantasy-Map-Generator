@@ -49,8 +49,8 @@ describe("readBurgLabelStyles", () => {
     // huge authored size clamps the factor at 1.5
     mount(shell("capital", { "data-size": "1000" }));
     const s = readBurgLabelStyles();
-    expect(s.capital.startPx).toBeCloseTo(32 * 1.5, 10);
-    expect(s.capital.restPx).toBeCloseTo(15 * 1.5, 10);
+    expect(s.capital.startPx).toBeCloseTo(34 * 1.5, 10);
+    expect(s.capital.restPx).toBeCloseTo(18 * 1.5, 10);
   });
 
   it("reads fill and halo, and disables the halo when no stroke is set", () => {
