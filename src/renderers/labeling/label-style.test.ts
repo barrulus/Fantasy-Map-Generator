@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { readBurgLabelStyles } from "./label-style";
+import { REST_PX, START_PX } from "./tier-table";
 
 function shell(id: string, attrs: Record<string, string>): string {
   const a = Object.entries(attrs)
@@ -46,11 +47,13 @@ describe("readBurgLabelStyles", () => {
   });
 
   it("multiplies startPx/restPx by the authored-size factor, clamped", () => {
-    // huge authored size clamps the factor at 1.5
+    // huge authored size clamps the factor at 1.5. Derived from the tier table rather than
+    // hardcoded so that tuning START_PX/REST_PX doesn't fail this test for the wrong reason —
+    // what is under test is the clamped multiplication, not the constants themselves.
     mount(shell("capital", { "data-size": "1000" }));
     const s = readBurgLabelStyles();
-    expect(s.capital.startPx).toBeCloseTo(34 * 1.5, 10);
-    expect(s.capital.restPx).toBeCloseTo(18 * 1.5, 10);
+    expect(s.capital.startPx).toBeCloseTo(START_PX.capital * 1.5, 10);
+    expect(s.capital.restPx).toBeCloseTo(REST_PX.capital * 1.5, 10);
   });
 
   it("reads fill and halo, and disables the halo when no stroke is set", () => {

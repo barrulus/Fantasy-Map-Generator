@@ -79,20 +79,20 @@ const DEFAULT_REFERENCE_D = 3.32;
  * draw-state-labels.ts) resolves.
  */
 export const START_PX: Record<string, number> = {
-  states: 64,
-  capital: 34,
-  "skyburg-capital": 34,
-  city: 27,
-  skyburg: 27,
-  town: 23,
-  "skyburg-mid": 23,
-  fort: 20,
-  monastery: 20,
-  caravanserai: 20,
-  trading_post: 20,
-  "skyburg-small": 20,
-  village: 19,
-  hamlet: 17
+  states: 28,
+  capital: 18,
+  "skyburg-capital": 18,
+  city: 16,
+  skyburg: 16,
+  town: 15,
+  "skyburg-mid": 15,
+  fort: 14,
+  monastery: 14,
+  caravanserai: 14,
+  trading_post: 14,
+  "skyburg-small": 14,
+  village: 13.5,
+  hamlet: 13
 };
 
 export function groupStartPx(group: string): number {
@@ -105,19 +105,19 @@ export function groupStartPx(group: string): number {
  * as more of them enter the screen.
  */
 export const REST_PX: Record<string, number> = {
-  states: 30,
-  capital: 18,
-  "skyburg-capital": 18,
-  city: 15.5,
-  skyburg: 15.5,
-  town: 14,
-  "skyburg-mid": 14,
-  fort: 12.5,
-  monastery: 12.5,
-  caravanserai: 12.5,
-  trading_post: 12.5,
-  "skyburg-small": 12.5,
-  village: 12,
+  states: 21,
+  capital: 13,
+  "skyburg-capital": 13,
+  city: 12.4,
+  skyburg: 12.4,
+  town: 11.9,
+  "skyburg-mid": 11.9,
+  fort: 11.5,
+  monastery: 11.5,
+  caravanserai: 11.5,
+  trading_post: 11.5,
+  "skyburg-small": 11.5,
+  village: 11.2,
   hamlet: 11
 };
 
