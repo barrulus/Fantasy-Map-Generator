@@ -3,6 +3,7 @@ import type { Burg } from "../generators/burgs-generator";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
 import { type FontGeometry, type GlyphMetric, layoutLabel } from "./label-layout";
 import { type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";
+import { effectiveLabelPx } from "./labeling/label-sizing";
 import { type GroupStyle, readBurgLabelStyles } from "./labeling/label-style";
 import { registerLayer } from "./layer-host";
 import { buildGlyphAtlas, collectGlyphs, type GlyphAtlas } from "./sdf-glyph-atlas";
@@ -287,7 +288,6 @@ function buildGroupRanges(visible: Map<number, number>, scale: number): { group:
   for (const b of boxes) {
     const px = visible.get(b.id);
     if (px === undefined) continue;
-    if (styles[b.group]?.hidden) continue;
     const mapUnits = scale > 0 ? px / scale : b.d;
     const laid = layoutLabel(b.name, atlas.metrics, atlas.geom, mapUnits, b.x, b.y);
     const packed = packGlyphQuads(laid.quads);
@@ -324,6 +324,17 @@ export function getLabelQuadtree() {
   return labelQuadtree;
 }
 
+/**
+ * Half-extents (map units) for hit-testing, matching the clamped size the label is actually
+ * drawn at rather than its authored size. Pure so the clamp math is unit-testable without WebGL
+ * or window state.
+ */
+export function labelHitExtents(box: LabelBox, scale: number): { hw: number; hh: number } {
+  const px = effectiveLabelPx(box.d, scale, box.floorPx, box.ceilPx);
+  const s = scale > 0 ? scale : 1;
+  return { hw: (box.halfWEm * px) / s, hh: (box.halfHEm * px) / s };
+}
+
 registerLayer({
   id: "toggleLabels",
   renderer: "webgl",
@@ -335,9 +346,8 @@ registerLayer({
     if (!qt) return null;
     const found = qt.find(mapX, mapY);
     if (!found) return null;
-    // accept the hit when inside the label's box
-    const hw = found.halfWEm * found.d;
-    const hh = found.halfHEm * found.d;
+    const t = (window as any).getMapTransform?.() || { scale: 1 };
+    const { hw, hh } = labelHitExtents(found, t.scale);
     if (mapX >= found.x - hw && mapX <= found.x + hw && mapY >= found.y - hh && mapY <= found.y + hh) return found.id;
     return null;
   }

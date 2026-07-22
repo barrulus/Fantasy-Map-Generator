@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { FontGeometry, GlyphMetric } from "./label-layout";
+import type { LabelBox } from "./label-visibility";
 import type { GroupStyle } from "./labeling/label-style";
-import { buildLabelBoxes, hexToRgb } from "./webgl-burg-labels";
+import { buildLabelBoxes, hexToRgb, labelHitExtents } from "./webgl-burg-labels";
 
 const GEOM: FontGeometry = { cellEm: 1.333, originXEm: 0.167, baselineYEm: 0.967 };
 const METRICS: Record<string, GlyphMetric> = {
@@ -73,5 +74,65 @@ describe("buildLabelBoxes", () => {
 
   it("skips burgs whose group has no style shell", () => {
     expect(buildLabelBoxes(burgs, { hamlet: style({ group: "hamlet" }) }, METRICS, GEOM)).toEqual([]);
+  });
+
+  it("skips removed burgs", () => {
+    const removed = [{}, { i: 1, name: "Ab", group: "capital", x: 100, y: 200, population: 5, removed: true }] as any;
+    expect(buildLabelBoxes(removed, { capital: style() }, METRICS, GEOM)).toEqual([]);
+  });
+
+  it("sets box.id to the burg's i", () => {
+    const b = buildLabelBoxes(burgs, { capital: style() }, METRICS, GEOM)[0];
+    expect(b.id).toBe(1);
+  });
+
+  it("carries population through, defaulting to 0 when absent", () => {
+    const b = buildLabelBoxes(burgs, { capital: style() }, METRICS, GEOM)[0];
+    expect(b.population).toBe(5);
+
+    const noPop = [{}, { i: 1, name: "Ab", group: "capital", x: 100, y: 200 }] as any;
+    const b2 = buildLabelBoxes(noPop, { capital: style() }, METRICS, GEOM)[0];
+    expect(b2.population).toBe(0);
+  });
+});
+
+describe("labelHitExtents", () => {
+  function box(overrides: Partial<LabelBox> = {}): LabelBox {
+    return {
+      id: 1,
+      x: 0,
+      y: 0,
+      order: 0,
+      population: 0,
+      halfWEm: 2,
+      halfHEm: 1,
+      d: 4,
+      minZoom: 1,
+      floorPx: 11,
+      ceilPx: 96,
+      ...overrides
+    };
+  }
+
+  it("matches the old halfWEm * d behaviour when the natural size sits inside the band", () => {
+    // natural = d * scale = 20, within [floorPx=11, ceilPx=96] -> effective px == natural map size
+    const b = box({ d: 20, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 1);
+    expect(hw).toBeCloseTo(b.halfWEm * b.d, 10);
+    expect(hh).toBeCloseTo(b.halfHEm * b.d, 10);
+  });
+
+  it("grows the extents to match the clamped drawn size when below the floor", () => {
+    const b = box({ d: 4, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 1);
+    expect(hw).toBeCloseTo(b.halfWEm * 11, 10);
+    expect(hh).toBeCloseTo(b.halfHEm * 11, 10);
+  });
+
+  it("does not produce Infinity or NaN for a zero scale", () => {
+    const b = box({ d: 4, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 0);
+    expect(Number.isFinite(hw)).toBe(true);
+    expect(Number.isFinite(hh)).toBe(true);
   });
 });
