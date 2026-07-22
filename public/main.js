@@ -673,10 +673,17 @@ function invokeActiveZooming() {
           const d = +sub.dataset.size;
           // Size is clamped per tier for legibility and never culls. Only min-zoom hides a tier,
           // so a capital with a small preset font shows from its min-zoom like the tier promises.
-          const px = rescaleLabels.checked
-            ? window.effectiveLabelPx(d, scale, tiers.groupFloorPx(sub.id), tiers.groupCeilPx(sub.id))
-            : d * scale;
-          sub.setAttribute("font-size", rn(window.svgLabelFontSize(px, scale), 2));
+          if (rescaleLabels.checked) {
+            const px = window.effectiveLabelPx(d, scale, tiers.groupFloorPx(sub.id), tiers.groupCeilPx(sub.id));
+            const next = String(rn(window.svgLabelFontSize(px, scale), 2));
+            if (sub.getAttribute("font-size") !== next) sub.setAttribute("font-size", next);
+          } else if (Number.isFinite(d)) {
+            // Unclamped: raw d*scale. Guard NaN authored sizes here — the clamped branch above is
+            // already safe because effectiveLabelPx() catches NaN and returns the floor.
+            const px = d * scale;
+            const next = String(rn(window.svgLabelFontSize(px, scale), 2));
+            if (sub.getAttribute("font-size") !== next) sub.setAttribute("font-size", next);
+          }
           const minZoomSub = +sub.dataset.minZoom || tiers.groupMinZoom(sub.id);
           if (hideLabels.checked && scale < minZoomSub) sub.classList.add("hidden");
           else sub.classList.remove("hidden");

@@ -4,7 +4,7 @@ import type { Burg } from "../generators/burgs-generator";
 export interface GroupRender {
   tileIndex: number; // atlas tile for this group's baked symbol
   size: number; // rendered icon diameter in map units (group font-size)
-  minZoom: number; // BURG_MIN_ZOOM for this group (GPU cull threshold)
+  minZoom: number; // groupMinZoom() from the shared tier table (src/renderers/labeling/tier-table.ts) — GPU cull threshold
 }
 
 export const INSTANCE_STRIDE = 5; // x, y, size, tileIndex, minZoom

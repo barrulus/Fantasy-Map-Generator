@@ -23,8 +23,10 @@ describe("groupMinZoom", () => {
     expect(groupMinZoom("hamlet")).toBe(14);
   });
 
-  it("lets unknown groups show at any zoom", () => {
-    expect(groupMinZoom("nonsense")).toBe(0);
+  it("gates unknown/legacy groups at the city tier rather than showing at every zoom", () => {
+    // Size no longer culls, so a 0 fallback would render legacy `cities`/`towns` shells (and any
+    // custom Burg Groups editor group) at every zoom level. city (4) is the intentional fallback.
+    expect(groupMinZoom("nonsense")).toBe(4);
   });
 });
 

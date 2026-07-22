@@ -53,8 +53,16 @@ export const MIN_ZOOM: Record<string, number> = {
   hamlet: 14
 };
 
+// Fallback min-zoom for unknown/legacy groups (e.g. pre-v1.109 maps still carrying `cities`/
+// `towns` shells, or a custom group made in the Burg Groups editor). Not 0: with size no longer
+// culling, a 0 min-zoom would render these at every zoom level, which is how this bug was found.
+// Not the hamlet value either — hamlet (14) assumes a modern, fully-tiered map where the tiniest
+// settlements are meant to stay hidden until deep zoom; an unknown group carries no such intent.
+// `city` (4) is the closest match to how these groups actually behaved before this branch.
+const UNKNOWN_MIN_ZOOM = 4;
+
 export function groupMinZoom(group: string): number {
-  return MIN_ZOOM[group] ?? 0;
+  return MIN_ZOOM[group] ?? UNKNOWN_MIN_ZOOM;
 }
 
 const DEFAULT_FLOOR_PX = 6;

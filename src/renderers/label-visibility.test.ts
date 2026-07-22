@@ -70,6 +70,22 @@ describe("selectVisibleLabels — size never culls", () => {
   });
 });
 
+describe("selectVisibleLabels — rescale option", () => {
+  // Regression: rescaleLabels.checked=false was honoured by the SVG path only. The size shown
+  // must feed the same option through to the GPU path.
+  it("reports the raw unclamped size when rescale is false, even below the floor", () => {
+    const out = selectVisibleLabels([box({ id: 1, d: 1 })], 1, VP, { hideLabels: true, rescale: false });
+    expect(ids(out)).toEqual([1]);
+    expect(out[0].px).toBe(1); // raw d * scale, not clamped up to the floor (6)
+  });
+
+  it("still clamps to the floor/ceiling when rescale is omitted (defaults true)", () => {
+    const out = selectVisibleLabels([box({ id: 1, d: 1 })], 1, VP, { hideLabels: true });
+    expect(ids(out)).toEqual([1]);
+    expect(out[0].px).toBe(6);
+  });
+});
+
 describe("selectVisibleLabels — collision", () => {
   it("drops a lower-priority label that overlaps a higher-priority one", () => {
     const a = box({ id: 1, order: 0, x: 100, y: 100 });

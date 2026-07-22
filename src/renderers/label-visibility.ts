@@ -28,6 +28,7 @@ export interface VisibleLabel {
 
 export interface VisibilityOptions {
   hideLabels?: boolean; // apply min-zoom tier gating (the hideLabels checkbox)
+  rescale?: boolean; // clamp size per tier (the rescaleLabels checkbox); default true
 }
 
 const GRID_PX = 64; // collision spatial-hash cell, screen px
@@ -47,12 +48,13 @@ export function selectVisibleLabels(
   opts: VisibilityOptions = {}
 ): VisibleLabel[] {
   const gate = opts.hideLabels !== false;
+  const rescale = opts.rescale !== false;
 
   // 1. gate + size + viewport cull
   const candidates: { b: LabelBox; px: number; hwMap: number; hhMap: number }[] = [];
   for (const b of boxes) {
     if (gate && scale < b.minZoom) continue;
-    const px = effectiveLabelPx(b.d, scale, b.floorPx, b.ceilPx);
+    const px = rescale ? effectiveLabelPx(b.d, scale, b.floorPx, b.ceilPx) : b.d * scale;
     // extents follow the drawn size, converted back to map units for the viewport test
     const hwMap = (b.halfWEm * px) / scale;
     const hhMap = (b.halfHEm * px) / scale;

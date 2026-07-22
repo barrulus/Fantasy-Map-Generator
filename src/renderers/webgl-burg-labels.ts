@@ -212,7 +212,9 @@ export function drawBurgLabelGL(): void {
   const t = (window as any).getMapTransform?.() || { scale: 1, viewX: 0, viewY: 0 };
   const canvas = gl.canvas as HTMLCanvasElement;
   const vp = currentViewport(canvas, t.scale, t.viewX, t.viewY);
-  const key = `${t.scale.toFixed(4)}|${vp.x0.toFixed(1)}|${vp.y0.toFixed(1)}`;
+  const hideGate = (window as any).hideLabels?.checked !== false;
+  const rescaleGate = (window as any).rescaleLabels?.checked !== false;
+  const key = `${t.scale.toFixed(4)}|${vp.x0.toFixed(1)}|${vp.y0.toFixed(1)}|${hideGate}|${rescaleGate}`;
 
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clearColor(0, 0, 0, 0);
@@ -224,7 +226,8 @@ export function drawBurgLabelGL(): void {
   if (key !== lastKey) {
     lastKey = key;
     const visible = selectVisibleLabels(boxes, t.scale, vp, {
-      hideLabels: (window as any).hideLabels?.checked !== false
+      hideLabels: hideGate,
+      rescale: rescaleGate
     });
     (drawBurgLabelGL as any)._ranges = buildGroupRanges(new Map(visible.map(v => [v.id, v.px])), t.scale);
   }
@@ -263,7 +266,7 @@ export function drawBurgLabelGL(): void {
     const s = styles[o.group];
     gl.uniform3fv(uniforms.uFill!, hexToRgb(s?.fill || "#3e3e4b"));
     gl.uniform3fv(uniforms.uHalo!, hexToRgb(s?.halo || "#ffffff"));
-    gl.uniform1f(uniforms.uHaloEdge!, 0.5 - Math.min(0.45, (s?.haloWidth || 0.5) / 8));
+    gl.uniform1f(uniforms.uHaloEdge!, 0.5 - Math.min(0.45, (s?.haloWidth ?? 0.5) / 8));
     gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
     // aQuad (loc1) + aUV (loc2), divisor 1, byte offset into the group's slice
     gl.enableVertexAttribArray(1);

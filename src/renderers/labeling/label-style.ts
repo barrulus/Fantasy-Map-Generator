@@ -1,3 +1,4 @@
+import { entryPxExceedsCeiling } from "./label-sizing";
 import { groupCeilPx, groupFloorPx, groupMinZoom, groupRank } from "./tier-table";
 
 export interface GroupStyle {
@@ -14,6 +15,23 @@ export interface GroupStyle {
 }
 
 const DEFAULT_FONT_SIZE = 4;
+
+// Dev-mode invariant check: a tier is "born clamped" (never actually scales) if its ceiling sits
+// below its natural size at its own min-zoom. Warn once per group per distinct authored size so a
+// preset author notices without spamming the console on every label rebuild.
+const warnedEntryPxExceedsCeiling = new Set<string>();
+
+function warnIfEntryPxExceedsCeiling(group: string, d: number): void {
+  if (!entryPxExceedsCeiling(group, d)) return;
+  const key = `${group}|${d}`;
+  if (warnedEntryPxExceedsCeiling.has(key)) return;
+  warnedEntryPxExceedsCeiling.add(key);
+  console.warn(
+    `[labels] group "${group}" is born already clamped: authored size ${d} at min-zoom ${groupMinZoom(
+      group
+    )} exceeds its ceiling ${groupCeilPx(group)}px. It will never scale from its floor.`
+  );
+}
 
 /**
  * Read the authored per-group size.
@@ -41,10 +59,12 @@ export function readBurgLabelStyles(root: ParentNode = document): Record<string,
   for (const el of shells) {
     const stroke = el.getAttribute("stroke");
     const override = parseFloat(el.getAttribute("data-min-zoom") || "");
+    const fontSize = readAuthoredSize(el);
+    warnIfEntryPxExceedsCeiling(el.id, fontSize);
     out[el.id] = {
       group: el.id,
       rank: groupRank(el.id),
-      fontSize: readAuthoredSize(el),
+      fontSize,
       minZoom: Number.isFinite(override) ? override : groupMinZoom(el.id),
       floorPx: groupFloorPx(el.id),
       ceilPx: groupCeilPx(el.id),
