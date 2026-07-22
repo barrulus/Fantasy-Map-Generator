@@ -701,7 +701,12 @@ function invokeActiveZooming() {
       const relative = Math.max(rn((desired + desired / scale) / 2, 2), 1);
       if (rescaleLabels.checked) this.setAttribute("font-size", relative);
 
-      const minZoom = +this.dataset.minZoom || (tiers ? tiers.groupMinZoom(this.id) : 0);
+      // Non-burg label groups (#states, #addedLabels) are NOT burg tiers, so they must not consult
+      // the burg tier table: its unknown-group fallback exists for legacy burg groups and would
+      // hide state labels until zoom 4. Default to 0 (show at every zoom) unless the group itself
+      // declares data-min-zoom — this is exactly what the old BURG_MIN_ZOOM literal did via its
+      // explicit `states: 0` entry.
+      const minZoom = +this.dataset.minZoom || 0;
       const hidden = hideLabels.checked && (scale < minZoom || relative * scale < 6 || relative * scale > 60);
       if (hidden) this.classList.add("hidden");
       else this.classList.remove("hidden");
