@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { effectiveLabelPx } from "./label-sizing";
-import { groupMinZoom, groupRank, groupReferenceD, groupRestPx, groupStartPx, REST_PX } from "./tier-table";
+import {
+  groupMaxZoom,
+  groupMinZoom,
+  groupRank,
+  groupReferenceD,
+  groupRestPx,
+  groupStartPx,
+  REST_PX
+} from "./tier-table";
 
 describe("groupRank", () => {
   it("ranks settlement tiers by importance (lower rank = higher priority)", () => {
@@ -64,10 +72,52 @@ describe("size start/rest px", () => {
       expect(groupStartPx(g)).toBeGreaterThan(groupRestPx(g));
   });
 
-  it("falls back to the smallest tier's bounds for unknown groups", () => {
-    expect(groupStartPx("nonsense")).toBe(17);
-    expect(groupRestPx("nonsense")).toBe(11);
+  it("falls back to its own default bounds for unknown groups", () => {
+    expect(groupStartPx("nonsense")).toBe(16);
+    expect(groupRestPx("nonsense")).toBe(13);
   });
+});
+
+describe("groupMaxZoom", () => {
+  it("gates states at zoom 10, disappearing rather than continuing to shrink", () => {
+    expect(groupMaxZoom("states")).toBe(10);
+  });
+
+  it("does not gate any other tier — only states has a max-zoom", () => {
+    for (const g of ["capital", "city", "town", "village", "hamlet", "nonsense"]) {
+      expect(groupMaxZoom(g)).toBe(Infinity);
+    }
+  });
+});
+
+describe("legacy group aliases (pre-v1.109 `cities`/`towns` shells)", () => {
+  it("resolves `cities` to the same values as `city`", () => {
+    expect(groupRank("cities")).toBe(groupRank("city"));
+    expect(groupMinZoom("cities")).toBe(groupMinZoom("city"));
+    expect(groupStartPx("cities")).toBe(groupStartPx("city"));
+    expect(groupRestPx("cities")).toBe(groupRestPx("city"));
+    expect(groupReferenceD("cities")).toBe(groupReferenceD("city"));
+  });
+
+  it("resolves `towns` to the same values as `town`", () => {
+    expect(groupRank("towns")).toBe(groupRank("town"));
+    expect(groupMinZoom("towns")).toBe(groupMinZoom("town"));
+    expect(groupStartPx("towns")).toBe(groupStartPx("town"));
+    expect(groupRestPx("towns")).toBe(groupRestPx("town"));
+    expect(groupReferenceD("towns")).toBe(groupReferenceD("town"));
+  });
+});
+
+describe("states vs burgs invariant", () => {
+  it(
+    "REST_PX.states * 0.5 > REST_PX.capital: draw-state-labels.ts clamps each state's authored " +
+      "size to 50-130% of the #states group base — even a state at the minimum 50% ratio must still " +
+      "render bigger than the largest burg tier (capital), or a small state would look smaller than " +
+      "a burg label, which is the bug this constant exists to prevent.",
+    () => {
+      expect(REST_PX.states * 0.5).toBeGreaterThan(REST_PX.capital);
+    }
+  );
 });
 
 describe("groupReferenceD", () => {

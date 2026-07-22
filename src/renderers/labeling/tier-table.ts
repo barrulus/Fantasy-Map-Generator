@@ -30,7 +30,7 @@ export const GROUP_RANK: Record<string, number> = {
 const UNKNOWN_RANK = 99; // unknown/legacy groups rank below every known tier
 
 export function groupRank(group: string): number {
-  return GROUP_RANK[group] ?? UNKNOWN_RANK;
+  return GROUP_RANK[resolveGroup(group)] ?? UNKNOWN_RANK;
 }
 
 /**
@@ -62,12 +62,41 @@ export const MIN_ZOOM: Record<string, number> = {
 const UNKNOWN_MIN_ZOOM = 4;
 
 export function groupMinZoom(group: string): number {
-  return MIN_ZOOM[group] ?? UNKNOWN_MIN_ZOOM;
+  return MIN_ZOOM[resolveGroup(group)] ?? UNKNOWN_MIN_ZOOM;
 }
 
-const DEFAULT_START_PX = 17;
-const DEFAULT_REST_PX = 11;
+/**
+ * Zoom beyond which a tier is hidden, the counterpart to MIN_ZOOM. Only `states` uses this today:
+ * state labels are tuned to stop shrinking (see REST_PX.states) rather than asymptote to
+ * illegibility, so they need an explicit upper gate instead. This is a ZOOM gate like MIN_ZOOM,
+ * not a size cull — see the "size never culls" note on label-sizing.ts.
+ */
+export const MAX_ZOOM: Record<string, number> = {
+  states: 10
+};
+
+export function groupMaxZoom(group: string): number {
+  return MAX_ZOOM[resolveGroup(group)] ?? Infinity;
+}
+
+const DEFAULT_START_PX = 16;
+const DEFAULT_REST_PX = 13;
 const DEFAULT_REFERENCE_D = 3.32;
+
+// Legacy burg group aliases: pre-v1.109 maps carry burg groups named `cities`/`towns` that were
+// never migrated to the modern `capital`/`city`/`town` ids by the v1.109 migration. Without this
+// alias they'd fall through to the generic unknown-group defaults (rank/min-zoom/size), which
+// looks broken (e.g. capitals rendering as plain circles). This alias only stops that visual
+// regression — the real fix for an affected map is the Burg Groups editor's Restore -> Apply
+// migration, which remaps the burgs to the modern group ids properly.
+const LEGACY_GROUP_ALIAS: Record<string, string> = {
+  cities: "city",
+  towns: "town"
+};
+
+function resolveGroup(group: string): string {
+  return LEGACY_GROUP_ALIAS[group] ?? group;
+}
 
 /**
  * On-screen size (CSS px) at scale 1, before the curve decays toward REST_PX. Bigger tiers start
@@ -79,24 +108,24 @@ const DEFAULT_REFERENCE_D = 3.32;
  * draw-state-labels.ts) resolves.
  */
 export const START_PX: Record<string, number> = {
-  states: 28,
-  capital: 18,
-  "skyburg-capital": 18,
-  city: 16,
-  skyburg: 16,
-  town: 15,
-  "skyburg-mid": 15,
-  fort: 14,
-  monastery: 14,
-  caravanserai: 14,
-  trading_post: 14,
-  "skyburg-small": 14,
-  village: 13.5,
-  hamlet: 13
+  states: 34,
+  capital: 20,
+  "skyburg-capital": 20,
+  city: 18.5,
+  skyburg: 18.5,
+  town: 17.5,
+  "skyburg-mid": 17.5,
+  fort: 16.5,
+  monastery: 16.5,
+  caravanserai: 16.5,
+  trading_post: 16.5,
+  "skyburg-small": 16.5,
+  village: 16,
+  hamlet: 15.5
 };
 
 export function groupStartPx(group: string): number {
-  return START_PX[group] ?? DEFAULT_START_PX;
+  return START_PX[resolveGroup(group)] ?? DEFAULT_START_PX;
 }
 
 /**
@@ -105,24 +134,28 @@ export function groupStartPx(group: string): number {
  * as more of them enter the screen.
  */
 export const REST_PX: Record<string, number> = {
-  states: 21,
-  capital: 13,
-  "skyburg-capital": 13,
-  city: 12.4,
-  skyburg: 12.4,
-  town: 11.9,
-  "skyburg-mid": 11.9,
-  fort: 11.5,
-  monastery: 11.5,
-  caravanserai: 11.5,
-  trading_post: 11.5,
-  "skyburg-small": 11.5,
-  village: 11.2,
-  hamlet: 11
+  // Barely decays from START_PX (34): states must stop shrinking rather than asymptote toward
+  // burg-label sizes, and even a state territory clamped to the minimum 50% ratio (see
+  // draw-state-labels.ts) must still render bigger than the largest burg tier (capital).
+  // Invariant asserted in tier-table.test.ts: REST_PX.states * 0.5 > REST_PX.capital.
+  states: 32,
+  capital: 15,
+  "skyburg-capital": 15,
+  city: 14.2,
+  skyburg: 14.2,
+  town: 13.8,
+  "skyburg-mid": 13.8,
+  fort: 13.4,
+  monastery: 13.4,
+  caravanserai: 13.4,
+  trading_post: 13.4,
+  "skyburg-small": 13.4,
+  village: 13.2,
+  hamlet: 13
 };
 
 export function groupRestPx(group: string): number {
-  return REST_PX[group] ?? DEFAULT_REST_PX;
+  return REST_PX[resolveGroup(group)] ?? DEFAULT_REST_PX;
 }
 
 /**
@@ -149,5 +182,5 @@ export const REFERENCE_D: Record<string, number> = {
 };
 
 export function groupReferenceD(group: string): number {
-  return REFERENCE_D[group] ?? DEFAULT_REFERENCE_D;
+  return REFERENCE_D[resolveGroup(group)] ?? DEFAULT_REFERENCE_D;
 }

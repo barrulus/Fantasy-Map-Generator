@@ -1,4 +1,4 @@
-import { groupMinZoom, groupRank, groupReferenceD, groupRestPx, groupStartPx } from "./tier-table";
+import { groupMaxZoom, groupMinZoom, groupRank, groupReferenceD, groupRestPx, groupStartPx } from "./tier-table";
 
 export { groupRestPx } from "./tier-table";
 
@@ -57,6 +57,6 @@ if (typeof window !== "undefined") {
     labelPxForGroup,
     svgLabelFontSize,
     groupRestPx,
-    labelTiers: { groupRank, groupMinZoom }
+    labelTiers: { groupRank, groupMinZoom, groupMaxZoom }
   });
 }

@@ -702,9 +702,13 @@ function invokeActiveZooming() {
           if (this.getAttribute("font-size") !== next) this.setAttribute("font-size", next);
         }
 
-        // Size never culls (see label-sizing.ts) — min-zoom is the only gate, same as burg tiers.
+        // Size never culls (see label-sizing.ts) — min-zoom/max-zoom are the only gates, same
+        // idea as burg tiers' min-zoom. States also get a max-zoom: they're tuned to stop
+        // shrinking (REST_PX.states) rather than asymptote to illegibility, so they need an
+        // explicit upper gate to disappear instead of lingering tiny at deep zoom.
         const minZoom = +this.dataset.minZoom || 0;
-        const hidden = hideLabels.checked && scale < minZoom;
+        const maxZoom = +this.dataset.maxZoom || tiers.groupMaxZoom("states");
+        const hidden = hideLabels.checked && (scale < minZoom || scale > maxZoom);
         if (hidden) this.classList.add("hidden");
         else this.classList.remove("hidden");
         return;
