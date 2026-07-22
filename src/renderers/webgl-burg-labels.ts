@@ -330,9 +330,12 @@ export function getLabelQuadtree() {
  * or window state.
  */
 export function labelHitExtents(box: LabelBox, scale: number): { hw: number; hh: number } {
+  if (scale <= 0) {
+    // Guard: scale is always positive in practice (d3 zoom scale is always positive)
+    return { hw: box.halfWEm * box.d, hh: box.halfHEm * box.d };
+  }
   const px = effectiveLabelPx(box.d, scale, box.floorPx, box.ceilPx);
-  const s = scale > 0 ? scale : 1;
-  return { hw: (box.halfWEm * px) / s, hh: (box.halfHEm * px) / s };
+  return { hw: (box.halfWEm * px) / scale, hh: (box.halfHEm * px) / scale };
 }
 
 registerLayer({

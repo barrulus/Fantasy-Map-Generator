@@ -44,7 +44,7 @@ describe("hexToRgb", () => {
 });
 
 describe("buildLabelBoxes", () => {
-  const burgs = [{}, { i: 1, name: "Ab", group: "capital", x: 100, y: 200, population: 5 }] as any;
+  const burgs = [{}, { i: 7, name: "Ab", group: "capital", x: 100, y: 200, population: 5 }] as any;
 
   it("emits em-relative half extents that are independent of the authored size", () => {
     const small = buildLabelBoxes(burgs, { capital: style({ fontSize: 2 }) }, METRICS, GEOM)[0];
@@ -83,7 +83,7 @@ describe("buildLabelBoxes", () => {
 
   it("sets box.id to the burg's i", () => {
     const b = buildLabelBoxes(burgs, { capital: style() }, METRICS, GEOM)[0];
-    expect(b.id).toBe(1);
+    expect(b.id).toBe(7);
   });
 
   it("carries population through, defaulting to 0 when absent", () => {
@@ -134,5 +134,23 @@ describe("labelHitExtents", () => {
     const { hw, hh } = labelHitExtents(b, 0);
     expect(Number.isFinite(hw)).toBe(true);
     expect(Number.isFinite(hh)).toBe(true);
+  });
+
+  it("divides by scale to convert pixels back to map units at non-unity scale", () => {
+    // d=4, scale=4, natural = 16, which is above floor (11) and below ceiling (96)
+    // effectiveLabelPx returns 16, then halfWEm * 16 / 4 = halfWEm * 4
+    const b = box({ d: 4, halfWEm: 2, halfHEm: 1, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 4);
+    expect(hw).toBeCloseTo(2 * 4, 10);
+    expect(hh).toBeCloseTo(1 * 4, 10);
+  });
+
+  it("clamps to ceiling and divides by scale", () => {
+    // d=32, scale=4, natural = 128, which exceeds ceiling (96)
+    // effectiveLabelPx returns 96, then halfWEm * 96 / 4 = halfWEm * 24
+    const b = box({ d: 32, halfWEm: 2, halfHEm: 1, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 4);
+    expect(hw).toBeCloseTo(2 * 24, 10);
+    expect(hh).toBeCloseTo(1 * 24, 10);
   });
 });
