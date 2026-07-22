@@ -43,6 +43,14 @@ declare global {
   var stylePreset: HTMLSelectElement;
   var rescaleLabels: HTMLInputElement;
   var temperatureScale: HTMLSelectElement;
+  var effectiveLabelPx: (d: number, scale: number, floorPx: number, ceilPx: number) => number;
+  var svgLabelFontSize: (px: number, scale: number) => number;
+  var labelTiers: {
+    groupRank: (group: string) => number;
+    groupMinZoom: (group: string) => number;
+    groupFloorPx: (group: string) => number;
+    groupCeilPx: (group: string) => number;
+  };
 
   // Global variables defined in main.js / versioning.js
   var viewX: number;

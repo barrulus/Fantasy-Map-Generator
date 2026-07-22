@@ -663,26 +663,22 @@ function invokeActiveZooming() {
   }
 
   // rescale labels on zoom
-  const BURG_MIN_ZOOM = {
-    states: 0,
-    capital: 1, "skyburg-capital": 2, skyburg: 4, "skyburg-mid": 6, "skyburg-small": 8,
-    city: 4, town: 6,
-    fort: 7, monastery: 7, caravanserai: 7, trading_post: 7,
-    village: 10, hamlet: 14
-  };
-
   if (layerIsOn("toggleLabels")) {
+    const tiers = window.labelTiers;
     labels.selectAll("g").each(function () {
       if (this.id === "burgLabels") {
-        if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) return; // GPU owns burg labels; shader rescales for free
-        if (!hideLabels.checked) return;
+        if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) return; // GPU owns burg labels
+        if (!tiers) return; // TS bundle not loaded yet; leave the shells alone
         for (const sub of this.children) {
-          const desiredSub = +sub.dataset.size;
-          const relativeSub = Math.max(rn((desiredSub + desiredSub / scale) / 2, 2), 1);
-          if (rescaleLabels.checked) sub.setAttribute("font-size", relativeSub);
-          const minZoomSub = +sub.dataset.minZoom || BURG_MIN_ZOOM[sub.id] || 0;
-          const hiddenSub = scale < minZoomSub || relativeSub * scale < 6 || relativeSub * scale > 60;
-          if (hiddenSub) sub.classList.add("hidden");
+          const d = +sub.dataset.size;
+          // Size is clamped per tier for legibility and never culls. Only min-zoom hides a tier,
+          // so a capital with a small preset font shows from its min-zoom like the tier promises.
+          const px = rescaleLabels.checked
+            ? window.effectiveLabelPx(d, scale, tiers.groupFloorPx(sub.id), tiers.groupCeilPx(sub.id))
+            : d * scale;
+          sub.setAttribute("font-size", rn(window.svgLabelFontSize(px, scale), 2));
+          const minZoomSub = +sub.dataset.minZoom || tiers.groupMinZoom(sub.id);
+          if (hideLabels.checked && scale < minZoomSub) sub.classList.add("hidden");
           else sub.classList.remove("hidden");
         }
         return;
@@ -691,7 +687,7 @@ function invokeActiveZooming() {
       const relative = Math.max(rn((desired + desired / scale) / 2, 2), 1);
       if (rescaleLabels.checked) this.setAttribute("font-size", relative);
 
-      const minZoom = +this.dataset.minZoom || BURG_MIN_ZOOM[this.id] || 0;
+      const minZoom = +this.dataset.minZoom || (tiers ? tiers.groupMinZoom(this.id) : 0);
       const hidden = hideLabels.checked && (scale < minZoom || relative * scale < 6 || relative * scale > 60);
       if (hidden) this.classList.add("hidden");
       else this.classList.remove("hidden");
@@ -699,12 +695,12 @@ function invokeActiveZooming() {
   }
 
   // cull burg icons + anchors at low zoom to skip ~100K nodes per repaint
-  if (hideLabels.checked) {
+  if (hideLabels.checked && window.labelTiers) {
     const burgIconsOn = layerIsOn("toggleBurgIcons");
     for (const group of [burgIcons.node(), anchors.node()]) {
       if (!group || !burgIconsOn) continue;
       for (const sub of group.children) {
-        const minZoom = +sub.dataset.minZoom || BURG_MIN_ZOOM[sub.id] || 0;
+        const minZoom = +sub.dataset.minZoom || window.labelTiers.groupMinZoom(sub.id);
         if (scale < minZoom) sub.classList.add("hidden");
         else sub.classList.remove("hidden");
       }
