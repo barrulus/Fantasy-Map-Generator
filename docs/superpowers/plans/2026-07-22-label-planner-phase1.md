@@ -1125,30 +1125,12 @@ git commit --no-verify -m "refactor(webgl): consume shared label style, tier and
 - Consumes: `groupMinZoom` from `./labeling/tier-table`.
 - Produces: no signature change — `groupRenders()` keeps returning `Record<string, GroupRender>`.
 
-- [ ] **Step 1: Write the failing test**
+This task adds no test. It is a pure deletion: the behaviour it preserves is already covered by
+`tier-table.test.ts` (Task 1), and the thing it must guarantee — that no second copy of the table
+survives — is proved by the grep and typecheck in step 2. A unit test asserting
+`MIN_ZOOM[g] === groupMinZoom(g)` would assert only that an accessor is still a record lookup.
 
-Add to `src/renderers/burg-instances.test.ts`:
-
-```ts
-import { describe, expect, it } from "vitest";
-import { groupMinZoom, MIN_ZOOM } from "./labeling/tier-table";
-
-describe("icon min-zoom source", () => {
-  // Regression: this table used to be copy-pasted into webgl-burg-icons.ts, webgl-burg-labels.ts
-  // and public/main.js, and had to be hand-synced. There is exactly one copy now.
-  it("covers every tier the icon renderer needs", () => {
-    for (const g of ["capital", "city", "town", "village", "hamlet", "skyburg", "fort"])
-      expect(MIN_ZOOM[g]).toBe(groupMinZoom(g));
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it passes trivially, then make the source change**
-
-Run: `npx vitest run src/renderers/burg-instances.test.ts`
-Expected: PASS (the test guards the shared table; the real change is deleting the duplicate below).
-
-- [ ] **Step 3: Delete the duplicate**
+- [ ] **Step 1: Delete the duplicate**
 
 In `src/renderers/webgl-burg-icons.ts`, delete lines 75–90 (the comment `// BURG_MIN_ZOOM lives in public/main.js as a literal; mirror the needed keys here.` and the whole local `MIN_ZOOM` record), add the import at the top of the file:
 
@@ -1169,7 +1151,7 @@ function groupRenders(): Record<string, GroupRender> {
 }
 ```
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 2: Verify**
 
 Run: `npx tsc --noEmit`
 Expected: no output.
@@ -1177,11 +1159,14 @@ Expected: no output.
 Run: `grep -n "MIN_ZOOM" src/renderers/webgl-burg-icons.ts src/renderers/webgl-burg-labels.ts`
 Expected: no matches.
 
-- [ ] **Step 5: Commit**
+Run: `npx vitest run src/renderers/`
+Expected: PASS — no regression from the deletion.
+
+- [ ] **Step 3: Commit**
 
 ```bash
-npx biome check --write src/renderers/webgl-burg-icons.ts src/renderers/burg-instances.test.ts
-git add src/renderers/webgl-burg-icons.ts src/renderers/burg-instances.test.ts
+npx biome check --write src/renderers/webgl-burg-icons.ts
+git add src/renderers/webgl-burg-icons.ts
 git commit --no-verify -m "refactor(webgl): read icon min-zoom from the shared tier table"
 ```
 
@@ -1337,6 +1322,25 @@ git commit --no-verify -m "docs: mark label planner phase 1 complete"
 
 - **Group `data-dx`/`data-dy` offsets** — GL labels still render centred on the icon (brief §8.3). Phase 2, because the offset machinery is the same machinery as candidate placement.
 - **Screen-space quads** — the GL shader still works in map units; the painter converts with `px / scale`.
-- **Hit-test extents** use natural size (`halfWEm * d`), so a clamped-up capital's clickable box is slightly smaller than its drawn box. Phase 2 replaces the quadtree with the placement list and fixes this properly.
 - **Candidate positions, per-cell budget, hysteresis** — phase 2.
-- **`display:none`** is read into `GroupStyle` and honoured by the GL painter in `buildGroupRanges`, but opacity, letter-spacing, text-shadow and per-group font-family remain phases 3–4.
+- **`display:none`** is read into `GroupStyle` but NOT acted on. Honouring it belongs to phase 3 with the rest of the GL style parity work, alongside opacity, letter-spacing, text-shadow and per-group font-family.
+
+### Corrections made during execution
+
+Two items in this plan were wrong and were changed after Task 5's review. Do not restore the
+original text.
+
+1. **Hit-test extents must use the clamped size, not the authored size.** This plan originally
+   specified `halfWEm * d` for the hit-test and deferred the mismatch to phase 2, describing the
+   clickable box as "slightly smaller" than the drawn box. That was wrong by a factor of ~2.75 at
+   scale 1 for a capital with a typical authored size (`FLOOR_PX.capital = 11`, `d ≈ 4`), and ~9× at
+   scale 0.3 — so the labels this phase makes visible would be exactly the ones that cannot be
+   clicked or dragged, and `qt.find` could return a different, nearer burg. Task 5 now computes
+   extents via `effectiveLabelPx` and the live scale, through an exported pure `labelHitExtents`
+   so the maths is unit-testable.
+2. **The `display:none` filter was removed from phase 1.** This plan had Task 5 skip hidden groups
+   inside `buildGroupRanges`, which runs *after* the collision pass — so hidden groups still won
+   their slots and blanked out visible labels underneath. `public/modules/ui/layers.js:855` hides
+   the four skyburg shells that way and `skyburg-capital` ranks second only to `capital`. The
+   filter was also inert, since `styles` refreshes only in `rebuildBurgLabelGL` and
+   `toggleSkyburgs` never triggers a rebuild. It was scope creep from phase 3 in the first place.

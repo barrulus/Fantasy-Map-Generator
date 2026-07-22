@@ -2,24 +2,21 @@ import { type Quadtree, quadtree } from "d3-quadtree";
 import type { Burg } from "../generators/burgs-generator";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
 import { type FontGeometry, type GlyphMetric, layoutLabel } from "./label-layout";
-import { groupMaxPx, groupRank, type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";
+import { type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";
+import { effectiveLabelPx } from "./labeling/label-sizing";
+import { type GroupStyle, readBurgLabelStyles } from "./labeling/label-style";
 import { registerLayer } from "./layer-host";
 import { buildGlyphAtlas, collectGlyphs, type GlyphAtlas } from "./sdf-glyph-atlas";
 
-export interface LabelGroupStyle {
-  order: number;
-  fontSize: number; // map units per em
-  minZoom: number;
-  maxPx?: number; // on-screen ceiling for this group; defaults to the shared MAX_PX
-  fill?: string;
-  halo?: string;
-  haloWidth?: number;
-}
-
-/** Per-burg label box (pure): anchor incl. override + half-extents from the laid-out name width. */
+/**
+ * Per-burg label box (pure): anchor incl. override, plus half-extents in em.
+ *
+ * Extents are em-relative rather than map units because the drawn size is clamped per tier, so a
+ * label's on-screen box is not simply its authored size times the zoom.
+ */
 export function buildLabelBoxes(
   burgs: Burg[],
-  styles: Record<string, LabelGroupStyle>,
+  styles: Record<string, GroupStyle>,
   metrics: Record<string, GlyphMetric>,
   geom: FontGeometry
 ): (LabelBox & { name: string; group: string })[] {
@@ -30,19 +27,18 @@ export function buildLabelBoxes(
     if (!s) continue;
     let adv = 0;
     for (const ch of b.name) if (metrics[ch]) adv += metrics[ch].advance;
-    const halfW = (adv * s.fontSize) / 2 + geom.originXEm * s.fontSize;
-    const halfH = (geom.cellEm * s.fontSize) / 2;
     out.push({
       id: b.i,
       x: b.x! + (b.labelDx || 0),
       y: b.y! + (b.labelDy || 0),
-      order: s.order,
+      order: s.rank,
       population: b.population || 0,
-      halfW,
-      halfH,
+      halfWEm: adv / 2 + geom.originXEm,
+      halfHEm: geom.cellEm / 2,
+      d: s.fontSize,
       minZoom: s.minZoom,
-      maxPx: s.maxPx,
-      fontSize: s.fontSize,
+      floorPx: s.floorPx,
+      ceilPx: s.ceilPx,
       name: b.name,
       group: b.group as string
     });
@@ -96,7 +92,7 @@ let quadBuf: WebGLBuffer;
 let instanceBuf: WebGLBuffer;
 let atlasTex: WebGLTexture;
 let atlas: GlyphAtlas | null = null;
-let styles: Record<string, LabelGroupStyle> = {};
+let styles: Record<string, GroupStyle> = {};
 let boxes: (LabelBox & { name: string; group: string })[] = [];
 let labelQuadtree: Quadtree<LabelBox & { name: string; group: string }> | null = null;
 let lastKey = "";
@@ -124,51 +120,6 @@ export function hexToRgb(color: string): [number, number, number] {
   const rgb = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(c);
   if (rgb) return [+rgb[1] / 255, +rgb[2] / 255, +rgb[3] / 255];
   return [0, 0, 0];
-}
-
-/**
- * Read live #burgLabels group <g> shells into LabelGroupStyle, reading the DOM directly
- * (like the burg-icon atlas reads #burgIcons > g).
- *
- * Collision priority and the on-screen ceiling come from the group's identity (groupRank /
- * groupMaxPx), NOT from its DOM index: shells are appended in SVG paint order, least-important
- * first, so DOM order is the inverse of priority.
- */
-export function readGroupStyles(): Record<string, LabelGroupStyle> {
-  const MIN_ZOOM: Record<string, number> = {
-    capital: 1,
-    "skyburg-capital": 2,
-    skyburg: 4,
-    "skyburg-mid": 6,
-    "skyburg-small": 8,
-    city: 4,
-    town: 6,
-    fort: 7,
-    monastery: 7,
-    caravanserai: 7,
-    trading_post: 7,
-    village: 10,
-    hamlet: 14
-  };
-  const out: Record<string, LabelGroupStyle> = {};
-  const shells = Array.from(document.querySelectorAll<SVGGElement>("#burgLabels > g"));
-  shells.forEach(el => {
-    const fontSize = parseFloat(getComputedStyle(el).fontSize) || 4;
-    const stroke = el.getAttribute("stroke");
-    out[el.id] = {
-      // collision priority comes from the group's importance, NOT its DOM index: DOM order is
-      // SVG paint order (least-important first), which is the inverse of priority.
-      order: groupRank(el.id),
-      maxPx: groupMaxPx(el.id),
-      fontSize,
-      minZoom: MIN_ZOOM[el.id] ?? 0,
-      fill: el.getAttribute("fill") || getComputedStyle(el).fill || "#3e3e4b",
-      halo: stroke || "#ffffff",
-      // only halo when the group actually has a stroke; 0 width disables the halo ring in the shader
-      haloWidth: stroke ? +(el.getAttribute("stroke-width") || 0.5) : 0
-    };
-  });
-  return out;
 }
 
 export async function initBurgLabelGL(): Promise<void> {
@@ -201,7 +152,7 @@ export async function rebuildBurgLabelGL(): Promise<void> {
     return;
   }
   const burgs = (window as any).pack.burgs as Burg[];
-  styles = readGroupStyles();
+  styles = readBurgLabelStyles();
   // one atlas for the dominant font; group fonts that differ fall back to it visually for v1
   const font = `${getComputedStyle(document.getElementById("burgLabels") || document.body).fontSize} ${
     getComputedStyle(document.getElementById("burgLabels") || document.body).fontFamily
@@ -261,7 +212,9 @@ export function drawBurgLabelGL(): void {
   const t = (window as any).getMapTransform?.() || { scale: 1, viewX: 0, viewY: 0 };
   const canvas = gl.canvas as HTMLCanvasElement;
   const vp = currentViewport(canvas, t.scale, t.viewX, t.viewY);
-  const key = `${t.scale.toFixed(4)}|${vp.x0.toFixed(1)}|${vp.y0.toFixed(1)}`;
+  const hideGate = (window as any).hideLabels?.checked !== false;
+  const rescaleGate = (window as any).rescaleLabels?.checked !== false;
+  const key = `${t.scale.toFixed(4)}|${vp.x0.toFixed(1)}|${vp.y0.toFixed(1)}|${hideGate}|${rescaleGate}`;
 
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clearColor(0, 0, 0, 0);
@@ -272,9 +225,11 @@ export function drawBurgLabelGL(): void {
   // transform-gated: only recompute visibility/instances when the view key changes
   if (key !== lastKey) {
     lastKey = key;
-    const visibleIds = new Set(selectVisibleLabels(boxes, t.scale, vp));
-    // group surviving labels and lay them out, building per-group instance ranges
-    (drawBurgLabelGL as any)._ranges = buildGroupRanges(visibleIds);
+    const visible = selectVisibleLabels(boxes, t.scale, vp, {
+      hideLabels: hideGate,
+      rescale: rescaleGate
+    });
+    (drawBurgLabelGL as any)._ranges = buildGroupRanges(new Map(visible.map(v => [v.id, v.px])), t.scale);
   }
   const ranges: { group: string; data: Float32Array }[] = (drawBurgLabelGL as any)._ranges || [];
   if (!ranges.length) return;
@@ -311,7 +266,7 @@ export function drawBurgLabelGL(): void {
     const s = styles[o.group];
     gl.uniform3fv(uniforms.uFill!, hexToRgb(s?.fill || "#3e3e4b"));
     gl.uniform3fv(uniforms.uHalo!, hexToRgb(s?.halo || "#ffffff"));
-    gl.uniform1f(uniforms.uHaloEdge!, 0.5 - Math.min(0.45, (s?.haloWidth || 0.5) / 8));
+    gl.uniform1f(uniforms.uHaloEdge!, 0.5 - Math.min(0.45, (s?.haloWidth ?? 0.5) / 8));
     gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
     // aQuad (loc1) + aUV (loc2), divisor 1, byte offset into the group's slice
     gl.enableVertexAttribArray(1);
@@ -324,12 +279,20 @@ export function drawBurgLabelGL(): void {
   }
 }
 
-function buildGroupRanges(visibleIds: Set<number>): { group: string; data: Float32Array }[] {
+/**
+ * Lay out the surviving labels into per-group glyph quads.
+ *
+ * The shader still works in map units in this phase, so the clamped on-screen size is converted
+ * back with px/scale. Moving the quads into screen space is phase 2.
+ */
+function buildGroupRanges(visible: Map<number, number>, scale: number): { group: string; data: Float32Array }[] {
   if (!atlas) return [];
   const byGroup: Record<string, number[]> = {};
   for (const b of boxes) {
-    if (!visibleIds.has(b.id)) continue;
-    const laid = layoutLabel(b.name, atlas.metrics, atlas.geom, b.fontSize, b.x, b.y);
+    const px = visible.get(b.id);
+    if (px === undefined) continue;
+    const mapUnits = scale > 0 ? px / scale : b.d;
+    const laid = layoutLabel(b.name, atlas.metrics, atlas.geom, mapUnits, b.x, b.y);
     const packed = packGlyphQuads(laid.quads);
     const acc = (byGroup[b.group] ||= []) as unknown as number[];
     for (let i = 0; i < packed.length; i++) acc.push(packed[i]);
@@ -364,6 +327,20 @@ export function getLabelQuadtree() {
   return labelQuadtree;
 }
 
+/**
+ * Half-extents (map units) for hit-testing, matching the clamped size the label is actually
+ * drawn at rather than its authored size. Pure so the clamp math is unit-testable without WebGL
+ * or window state.
+ */
+export function labelHitExtents(box: LabelBox, scale: number): { hw: number; hh: number } {
+  if (scale <= 0) {
+    // Guard: scale is always positive in practice (d3 zoom scale is always positive)
+    return { hw: box.halfWEm * box.d, hh: box.halfHEm * box.d };
+  }
+  const px = effectiveLabelPx(box.d, scale, box.floorPx, box.ceilPx);
+  return { hw: (box.halfWEm * px) / scale, hh: (box.halfHEm * px) / scale };
+}
+
 registerLayer({
   id: "toggleLabels",
   renderer: "webgl",
@@ -375,14 +352,9 @@ registerLayer({
     if (!qt) return null;
     const found = qt.find(mapX, mapY);
     if (!found) return null;
-    // accept the hit when inside the label's box
-    if (
-      mapX >= found.x - found.halfW &&
-      mapX <= found.x + found.halfW &&
-      mapY >= found.y - found.halfH &&
-      mapY <= found.y + found.halfH
-    )
-      return found.id;
+    const t = (window as any).getMapTransform?.() || { scale: 1 };
+    const { hw, hh } = labelHitExtents(found, t.scale);
+    if (mapX >= found.x - hw && mapX <= found.x + hw && mapY >= found.y - hh && mapY <= found.y + hh) return found.id;
     return null;
   }
 });

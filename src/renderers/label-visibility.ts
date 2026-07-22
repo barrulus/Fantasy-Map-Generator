@@ -1,14 +1,17 @@
+import { effectiveLabelPx } from "./labeling/label-sizing";
+
 export interface LabelBox {
   id: number;
   x: number;
   y: number; // anchor (map units), already includes any drag override
   order: number; // group priority (lower = higher priority)
   population: number; // tiebreak (higher = higher priority)
-  halfW: number;
-  halfH: number; // half-extents in map units
+  halfWEm: number;
+  halfHEm: number; // half-extents in em, so they track the size actually drawn
+  d: number; // authored map units per em
   minZoom: number;
-  fontSize: number; // map units per em
-  maxPx?: number; // per-group on-screen ceiling; defaults to MAX_PX
+  floorPx: number;
+  ceilPx: number;
 }
 
 export interface MapViewport {
@@ -18,85 +21,61 @@ export interface MapViewport {
   y1: number;
 }
 
-const MIN_PX = 6; // on-screen size band (matches today's invokeActiveZooming)
-const MAX_PX = 60;
+export interface VisibleLabel {
+  id: number;
+  px: number; // on-screen size the painter must draw at
+}
+
+export interface VisibilityOptions {
+  hideLabels?: boolean; // apply min-zoom tier gating (the hideLabels checkbox)
+  rescale?: boolean; // clamp size per tier (the rescaleLabels checkbox); default true
+}
+
 const GRID_PX = 64; // collision spatial-hash cell, screen px
 
 /**
- * Collision priority per burg group, lower = placed first = wins overlaps.
+ * Per-frame visibility: gate on min-zoom, size every survivor, cull to the viewport, sort by
+ * priority, then greedy collision-place in screen space. Returns survivors with their size. Pure.
  *
- * This must NOT be derived from the label groups' DOM order: that order is SVG *paint* order
- * (least important first, so capitals paint on top), i.e. the exact inverse of priority. Using
- * it directly let hamlets outrank capitals and monopolise the screen wherever both were eligible.
+ * Size does NOT cull. It used to (`px < 6 -> drop`), which silently overruled the tier system:
+ * a capital with a small preset font was dropped before it reached the collision pass it would
+ * have won, while hamlets with larger fonts rendered. min-zoom is now the only tier gate.
  */
-export const GROUP_RANK: Record<string, number> = {
-  capital: 0,
-  "skyburg-capital": 1,
-  city: 2,
-  skyburg: 3,
-  town: 4,
-  "skyburg-mid": 5,
-  fort: 6,
-  monastery: 7,
-  caravanserai: 8,
-  trading_post: 9,
-  "skyburg-small": 10,
-  village: 11,
-  hamlet: 12
-};
-const UNKNOWN_RANK = 99; // unknown/legacy groups rank below every known tier
+export function selectVisibleLabels(
+  boxes: LabelBox[],
+  scale: number,
+  vp: MapViewport,
+  opts: VisibilityOptions = {}
+): VisibleLabel[] {
+  const gate = opts.hideLabels !== false;
+  const rescale = opts.rescale !== false;
 
-export function groupRank(group: string): number {
-  return GROUP_RANK[group] ?? UNKNOWN_RANK;
-}
-
-/**
- * Per-group on-screen ceiling. The flat MAX_PX exists to stop labels ballooning as you zoom in,
- * but applying one ceiling to every tier meant the *important* labels died first: on a large map
- * capitals/cities/towns all exceeded 60px well before the small tiers did, so zooming in swapped
- * tiers out instead of accumulating them. Important tiers get proportionally more headroom.
- */
-export const GROUP_MAX_PX: Record<string, number> = {
-  capital: 240,
-  "skyburg-capital": 240,
-  city: 180,
-  skyburg: 180,
-  town: 140,
-  "skyburg-mid": 140
-};
-
-export function groupMaxPx(group: string): number {
-  return GROUP_MAX_PX[group] ?? MAX_PX;
-}
-
-/**
- * Per-frame visibility: cull by min-zoom + on-screen size band + viewport, sort by priority,
- * then greedy collision-place in screen space. Returns surviving label ids. Pure.
- */
-export function selectVisibleLabels(boxes: LabelBox[], scale: number, vp: MapViewport): number[] {
-  // 1. cull
-  const candidates = boxes.filter(b => {
-    if (scale < b.minZoom) return false;
-    const px = b.fontSize * scale;
-    if (px < MIN_PX || px > (b.maxPx ?? MAX_PX)) return false;
-    if (b.x + b.halfW < vp.x0 || b.x - b.halfW > vp.x1) return false;
-    if (b.y + b.halfH < vp.y0 || b.y - b.halfH > vp.y1) return false;
-    return true;
-  });
+  // 1. gate + size + viewport cull
+  const candidates: { b: LabelBox; px: number; hwMap: number; hhMap: number }[] = [];
+  for (const b of boxes) {
+    if (gate && scale < b.minZoom) continue;
+    const px = rescale ? effectiveLabelPx(b.d, scale, b.floorPx, b.ceilPx) : b.d * scale;
+    // extents follow the drawn size, converted back to map units for the viewport test
+    const hwMap = (b.halfWEm * px) / scale;
+    const hhMap = (b.halfHEm * px) / scale;
+    if (b.x + hwMap < vp.x0 || b.x - hwMap > vp.x1) continue;
+    if (b.y + hhMap < vp.y0 || b.y - hhMap > vp.y1) continue;
+    candidates.push({ b, px, hwMap, hhMap });
+  }
 
   // 2. priority sort: lower order first, then higher population
-  candidates.sort((a, b) => a.order - b.order || b.population - a.population);
+  candidates.sort((p, q) => p.b.order - q.b.order || q.b.population - p.b.population);
 
   // 3. greedy collision in screen space using a spatial hash
   const grid = new Map<string, { l: number; t: number; r: number; bo: number }[]>();
   const key = (cx: number, cy: number) => `${cx},${cy}`;
-  const kept: number[] = [];
+  const kept: VisibleLabel[] = [];
 
-  for (const b of candidates) {
-    const l = (b.x - b.halfW) * scale;
-    const t = (b.y - b.halfH) * scale;
-    const r = (b.x + b.halfW) * scale;
-    const bo = (b.y + b.halfH) * scale;
+  for (const c of candidates) {
+    const l = (c.b.x - c.hwMap) * scale;
+    const t = (c.b.y - c.hhMap) * scale;
+    const r = (c.b.x + c.hwMap) * scale;
+    const bo = (c.b.y + c.hhMap) * scale;
     const cx0 = Math.floor(l / GRID_PX);
     const cy0 = Math.floor(t / GRID_PX);
     const cx1 = Math.floor(r / GRID_PX);
@@ -117,7 +96,7 @@ export function selectVisibleLabels(boxes: LabelBox[], scale: number, vp: MapVie
     }
     if (collides) continue;
 
-    kept.push(b.id);
+    kept.push({ id: c.b.id, px: c.px });
     const placed = { l, t, r, bo };
     for (let cx = cx0; cx <= cx1; cx++) {
       for (let cy = cy0; cy <= cy1; cy++) {

@@ -1,16 +1,30 @@
 import { describe, expect, it } from "vitest";
-import type { GlyphMetric } from "./label-layout";
-import { buildLabelBoxes, hexToRgb, type LabelGroupStyle, readGroupStyles } from "./webgl-burg-labels";
+import type { FontGeometry, GlyphMetric } from "./label-layout";
+import type { LabelBox } from "./label-visibility";
+import type { GroupStyle } from "./labeling/label-style";
+import { buildLabelBoxes, hexToRgb, labelHitExtents } from "./webgl-burg-labels";
 
-const metrics: Record<string, GlyphMetric> = {
-  A: { advance: 1, u0: 0, v0: 0, u1: 1, v1: 1 },
-  b: { advance: 0.5, u0: 1, v0: 0, u1: 2, v1: 1 }
+const GEOM: FontGeometry = { cellEm: 1.333, originXEm: 0.167, baselineYEm: 0.967 };
+const METRICS: Record<string, GlyphMetric> = {
+  A: { advance: 0.6, u0: 0, v0: 0, u1: 64, v1: 64 },
+  b: { advance: 0.5, u0: 64, v0: 0, u1: 128, v1: 64 }
 };
-const geom = { cellEm: 1, originXEm: 0, baselineYEm: 1 };
-const styles: Record<string, LabelGroupStyle> = {
-  city: { order: 1, fontSize: 4, minZoom: 4 },
-  capital: { order: 0, fontSize: 6, minZoom: 1 }
-};
+
+function style(p: Partial<GroupStyle> = {}): GroupStyle {
+  return {
+    group: "capital",
+    rank: 0,
+    fontSize: 4,
+    minZoom: 1,
+    floorPx: 11,
+    ceilPx: 96,
+    fill: "#000000",
+    halo: "#ffffff",
+    haloWidth: 1,
+    hidden: false,
+    ...p
+  };
+}
 
 describe("hexToRgb", () => {
   it("parses 6-digit hex", () => {
@@ -30,63 +44,113 @@ describe("hexToRgb", () => {
 });
 
 describe("buildLabelBoxes", () => {
-  it("creates one box per live burg with half-extents from its name + group fontSize", () => {
-    const burgs = [
-      {},
-      { i: 1, x: 100, y: 100, name: "Ab", group: "capital" },
-      { i: 2, x: 200, y: 200, name: "A", group: "city", removed: true }
-    ] as any;
-    const boxes = buildLabelBoxes(burgs, styles, metrics, geom);
-    expect(boxes).toHaveLength(1); // burg 2 removed
-    const b = boxes[0];
-    expect(b.id).toBe(1);
+  const burgs = [{}, { i: 7, name: "Ab", group: "capital", x: 100, y: 200, population: 5 }] as any;
+
+  it("emits em-relative half extents that are independent of the authored size", () => {
+    const small = buildLabelBoxes(burgs, { capital: style({ fontSize: 2 }) }, METRICS, GEOM)[0];
+    const large = buildLabelBoxes(burgs, { capital: style({ fontSize: 8 }) }, METRICS, GEOM)[0];
+    expect(small.halfWEm).toBeCloseTo(large.halfWEm, 10);
+    expect(small.halfHEm).toBeCloseTo(large.halfHEm, 10);
+    // (0.6 + 0.5)/2 + 0.167
+    expect(small.halfWEm).toBeCloseTo(0.717, 3);
+    expect(small.halfHEm).toBeCloseTo(0.6665, 4);
+  });
+
+  it("carries the tier bounds and authored size through from the style", () => {
+    const b = buildLabelBoxes(burgs, { capital: style({ fontSize: 2.49 }) }, METRICS, GEOM)[0];
+    expect(b.d).toBeCloseTo(2.49, 5);
+    expect(b.floorPx).toBe(11);
+    expect(b.ceilPx).toBe(96);
+    expect(b.minZoom).toBe(1);
     expect(b.order).toBe(0);
-    expect(b.fontSize).toBe(6);
-    // "Ab": advance 1 + 0.5 = 1.5 em * fontSize 6 = 9 map units wide => halfW 4.5
-    expect(b.halfW).toBeCloseTo(4.5);
   });
 
-  it("applies labelDx/labelDy override to the anchor", () => {
-    const burgs = [{}, { i: 1, x: 100, y: 100, name: "A", group: "city", labelDx: 5, labelDy: -3 }] as any;
-    const boxes = buildLabelBoxes(burgs, styles, metrics, geom);
-    expect(boxes[0].x).toBe(105);
-    expect(boxes[0].y).toBe(97);
+  it("applies the per-burg label override to the anchor", () => {
+    const moved = [{}, { ...burgs[1], labelDx: 5, labelDy: -3 }] as any;
+    const b = buildLabelBoxes(moved, { capital: style() }, METRICS, GEOM)[0];
+    expect(b.x).toBe(105);
+    expect(b.y).toBe(197);
   });
 
-  it("carries the group's maxPx ceiling onto each box", () => {
-    const capped: Record<string, LabelGroupStyle> = {
-      capital: { order: 0, fontSize: 6, minZoom: 1, maxPx: 240 }
-    };
-    const burgs = [{}, { i: 1, x: 0, y: 0, name: "A", group: "capital" }] as any;
-    expect(buildLabelBoxes(burgs, capped, metrics, geom)[0].maxPx).toBe(240);
+  it("skips burgs whose group has no style shell", () => {
+    expect(buildLabelBoxes(burgs, { hamlet: style({ group: "hamlet" }) }, METRICS, GEOM)).toEqual([]);
   });
 
-  it("widens halfW by the cell padding (originXEm)", () => {
-    const padGeom = { cellEm: 1, originXEm: 0.25, baselineYEm: 1 };
-    const burgs = [{}, { i: 1, x: 0, y: 0, name: "A", group: "city" }] as any;
-    const boxes = buildLabelBoxes(burgs, styles, metrics, padGeom);
-    // "A": advance 1 * fontSize 4 / 2 = 2, plus originXEm 0.25 * 4 = 1 => halfW 3
-    expect(boxes[0].halfW).toBeCloseTo(3);
+  it("skips removed burgs", () => {
+    const removed = [{}, { i: 1, name: "Ab", group: "capital", x: 100, y: 200, population: 5, removed: true }] as any;
+    expect(buildLabelBoxes(removed, { capital: style() }, METRICS, GEOM)).toEqual([]);
+  });
+
+  it("sets box.id to the burg's i", () => {
+    const b = buildLabelBoxes(burgs, { capital: style() }, METRICS, GEOM)[0];
+    expect(b.id).toBe(7);
+  });
+
+  it("carries population through, defaulting to 0 when absent", () => {
+    const b = buildLabelBoxes(burgs, { capital: style() }, METRICS, GEOM)[0];
+    expect(b.population).toBe(5);
+
+    const noPop = [{}, { i: 1, name: "Ab", group: "capital", x: 100, y: 200 }] as any;
+    const b2 = buildLabelBoxes(noPop, { capital: style() }, METRICS, GEOM)[0];
+    expect(b2.population).toBe(0);
   });
 });
 
-describe("readGroupStyles", () => {
-  function mountGroups(...ids: string[]) {
-    // DOM order is SVG paint order: least-important first, capitals last (painted on top)
-    document.body.innerHTML = `<svg><g id="burgLabels">${ids.map(i => `<g id="${i}"></g>`).join("")}</g></svg>`;
+describe("labelHitExtents", () => {
+  function box(overrides: Partial<LabelBox> = {}): LabelBox {
+    return {
+      id: 1,
+      x: 0,
+      y: 0,
+      order: 0,
+      population: 0,
+      halfWEm: 2,
+      halfHEm: 1,
+      d: 4,
+      minZoom: 1,
+      floorPx: 11,
+      ceilPx: 96,
+      ...overrides
+    };
   }
 
-  it("ranks groups by importance, not by DOM order", () => {
-    mountGroups("hamlet", "village", "city", "capital");
-    const s = readGroupStyles();
-    expect(s.capital.order).toBeLessThan(s.city.order);
-    expect(s.city.order).toBeLessThan(s.village.order);
-    expect(s.village.order).toBeLessThan(s.hamlet.order);
+  it("matches the old halfWEm * d behaviour when the natural size sits inside the band", () => {
+    // natural = d * scale = 20, within [floorPx=11, ceilPx=96] -> effective px == natural map size
+    const b = box({ d: 20, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 1);
+    expect(hw).toBeCloseTo(b.halfWEm * b.d, 10);
+    expect(hh).toBeCloseTo(b.halfHEm * b.d, 10);
   });
 
-  it("gives important tiers a higher on-screen ceiling than small ones", () => {
-    mountGroups("hamlet", "capital");
-    const s = readGroupStyles();
-    expect(s.capital.maxPx).toBeGreaterThan(s.hamlet.maxPx ?? 60);
+  it("grows the extents to match the clamped drawn size when below the floor", () => {
+    const b = box({ d: 4, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 1);
+    expect(hw).toBeCloseTo(b.halfWEm * 11, 10);
+    expect(hh).toBeCloseTo(b.halfHEm * 11, 10);
+  });
+
+  it("does not produce Infinity or NaN for a zero scale", () => {
+    const b = box({ d: 4, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 0);
+    expect(Number.isFinite(hw)).toBe(true);
+    expect(Number.isFinite(hh)).toBe(true);
+  });
+
+  it("divides by scale to convert pixels back to map units at non-unity scale", () => {
+    // d=4, scale=4, natural = 16, which is above floor (11) and below ceiling (96)
+    // effectiveLabelPx returns 16, then halfWEm * 16 / 4 = halfWEm * 4
+    const b = box({ d: 4, halfWEm: 2, halfHEm: 1, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 4);
+    expect(hw).toBeCloseTo(2 * 4, 10);
+    expect(hh).toBeCloseTo(1 * 4, 10);
+  });
+
+  it("clamps to ceiling and divides by scale", () => {
+    // d=32, scale=4, natural = 128, which exceeds ceiling (96)
+    // effectiveLabelPx returns 96, then halfWEm * 96 / 4 = halfWEm * 24
+    const b = box({ d: 32, halfWEm: 2, halfHEm: 1, floorPx: 11, ceilPx: 96 });
+    const { hw, hh } = labelHitExtents(b, 4);
+    expect(hw).toBeCloseTo(2 * 24, 10);
+    expect(hh).toBeCloseTo(1 * 24, 10);
   });
 });

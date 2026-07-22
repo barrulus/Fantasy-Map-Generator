@@ -6,6 +6,7 @@ import {
   hitTestBurg,
   INSTANCE_STRIDE
 } from "./burg-instances";
+import { groupMinZoom } from "./labeling/tier-table";
 import { registerLayer } from "./layer-host";
 import { type BurgAtlas, buildBurgAtlas } from "./webgl-burg-atlas";
 
@@ -72,28 +73,11 @@ function compile(src: string, type: number): WebGLShader {
   return s;
 }
 
-// BURG_MIN_ZOOM lives in public/main.js as a literal; mirror the needed keys here.
-const MIN_ZOOM: Record<string, number> = {
-  capital: 1,
-  "skyburg-capital": 2,
-  skyburg: 4,
-  "skyburg-mid": 6,
-  "skyburg-small": 8,
-  city: 4,
-  town: 6,
-  fort: 7,
-  monastery: 7,
-  caravanserai: 7,
-  trading_post: 7,
-  village: 10,
-  hamlet: 14
-};
-
 function groupRenders(): Record<string, GroupRender> {
   const out: Record<string, GroupRender> = {};
   if (!atlas) return out;
   for (const [name, t] of Object.entries(atlas.tiles)) {
-    out[name] = { tileIndex: t.tileIndex, size: t.size, minZoom: MIN_ZOOM[name] ?? 0 };
+    out[name] = { tileIndex: t.tileIndex, size: t.size, minZoom: groupMinZoom(name) };
   }
   return out;
 }
