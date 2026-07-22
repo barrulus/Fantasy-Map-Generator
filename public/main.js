@@ -683,6 +683,13 @@ function invokeActiveZooming() {
         }
         return;
       }
+      // labels.selectAll("g") matches ALL descendant <g> elements, not just direct children of
+      // #labels. Burg tier shells (#burgLabels > g#capital, g#city, ...) are already handled
+      // above by the burgLabels branch (per-tier clamp, no size-based cull). Without this guard
+      // each tier shell would ALSO be visited here as a generic label group, and this branch's
+      // damping + 6..60px cull band would overwrite the per-tier clamp — reintroducing the
+      // small-font-capital-hidden bug this branch of work exists to remove.
+      if (this.parentNode && this.parentNode.id === "burgLabels") return;
       const desired = +this.dataset.size;
       const relative = Math.max(rn((desired + desired / scale) / 2, 2), 1);
       if (rescaleLabels.checked) this.setAttribute("font-size", relative);
