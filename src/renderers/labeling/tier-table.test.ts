@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effectiveLabelPx } from "./label-sizing";
+import { authoredSizeFactor, effectiveLabelPx, labelPxForGroup, stateBasePxFloor } from "./label-sizing";
 import {
   groupMaxZoom,
   groupMinZoom,
@@ -110,12 +110,72 @@ describe("legacy group aliases (pre-v1.109 `cities`/`towns` shells)", () => {
 
 describe("states vs burgs invariant", () => {
   it(
-    "REST_PX.states * 0.5 > REST_PX.capital: draw-state-labels.ts clamps each state's authored " +
-      "size to 50-130% of the #states group base — even a state at the minimum 50% ratio must still " +
-      "render bigger than the largest burg tier (capital), or a small state would look smaller than " +
-      "a burg label, which is the bug this constant exists to prevent.",
+    "0.5 * statesPx(scale) > capitalPx(scale) across the whole curve, not just at rest: " +
+      "draw-state-labels.ts clamps each state's authored size to 50-130% of the #states group " +
+      "base, so the worst case is a state at the minimum 50% ratio. That must still render bigger " +
+      "than the largest burg tier (capital) at every scale, including scale 1 (START_PX) where a " +
+      "resting-only check would miss the failure — or a small state would look smaller than a " +
+      "burg label, which is the bug this invariant exists to prevent.",
     () => {
-      expect(REST_PX.states * 0.5).toBeGreaterThan(REST_PX.capital);
+      for (const scale of [1, 1.5, 2, 5, 10, 20]) {
+        const statesPx = effectiveLabelPx(scale, groupStartPx("states"), groupRestPx("states"));
+        const capitalPx = effectiveLabelPx(scale, groupStartPx("capital"), groupRestPx("capital"));
+        expect(statesPx * 0.5).toBeGreaterThan(capitalPx);
+      }
+    }
+  );
+});
+
+describe("stateBasePxFloor", () => {
+  it("exceeds twice the capital size, giving headroom above the break-even point", () => {
+    const capitalPx = 15;
+    expect(stateBasePxFloor(capitalPx)).toBeGreaterThan(capitalPx * 2);
+  });
+
+  it("a state at exactly the 0.5 territory ratio of the returned floor is strictly bigger than the capital", () => {
+    const capitalPx = 15;
+    const floor = stateBasePxFloor(capitalPx);
+    expect(floor * 0.5).toBeGreaterThan(capitalPx);
+  });
+
+  it("scales linearly with its input", () => {
+    const floorA = stateBasePxFloor(10);
+    const floorB = stateBasePxFloor(20);
+    expect(floorB).toBeCloseTo(floorA * 2, 10);
+  });
+
+  it("handles 0 without returning NaN or Infinity", () => {
+    const floor = stateBasePxFloor(0);
+    expect(Number.isFinite(floor)).toBe(true);
+    expect(Number.isNaN(floor)).toBe(false);
+  });
+});
+
+describe("stateBasePxFloor closes the authoredSizeFactor hole", () => {
+  it(
+    "when a map's states shell is authored at the min factor (0.75x) and its capital shell at " +
+      "the max factor (1.5x), the raw curve puts states below capitals — but applying " +
+      "stateBasePxFloor restores states > capitals",
+    () => {
+      const scale = 1;
+
+      // Drive authoredSizeFactor to its extremes via a tiny/huge live data-size, same mechanism
+      // main.js reads from the DOM `data-size` attribute.
+      const statesD = groupReferenceD("states") * 0.01; // clamps to FACTOR_MIN (0.75)
+      const capitalD = groupReferenceD("capital") * 100; // clamps to FACTOR_MAX (1.5)
+      expect(authoredSizeFactor("states", statesD)).toBeCloseTo(0.75, 10);
+      expect(authoredSizeFactor("capital", capitalD)).toBeCloseTo(1.5, 10);
+
+      const rawStatesPx = labelPxForGroup("states", statesD, scale) * 0.5; // worst-case 50% ratio
+      const capitalPx = labelPxForGroup("capital", capitalD, scale);
+
+      // Hole 2, unpatched: the skewed authored factors alone break the invariant.
+      expect(rawStatesPx).toBeLessThan(capitalPx);
+
+      // The runtime floor restores it.
+      const flooredStatesBase = stateBasePxFloor(capitalPx);
+      const flooredStatesPx = flooredStatesBase * 0.5;
+      expect(flooredStatesPx).toBeGreaterThan(capitalPx);
     }
   );
 });

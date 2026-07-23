@@ -697,7 +697,22 @@ function invokeActiveZooming() {
           // Same on/off split as the #burgLabels branch above: rescaled follows the screen-space
           // curve, unrescaled sits at a constant screen size (the tier's resting px) rather than
           // growing unbounded with scale.
-          const px = rescaleLabels.checked ? window.labelPxForGroup("states", d, scale) : window.groupRestPx("states");
+          let px = rescaleLabels.checked ? window.labelPxForGroup("states", d, scale) : window.groupRestPx("states");
+
+          // State labels must always render bigger than capital labels, at every zoom (the bug
+          // this block exists to fix). tier-table.ts's START_PX/REST_PX.states are tuned so a
+          // state clamped to draw-state-labels.ts's minimum 50% territory-ratio still clears a
+          // capital — but that assumption breaks if authoredSizeFactor (label-sizing.ts) skews
+          // this map's states-shell size down while its capital shell is skewed up (0.75x vs
+          // 1.5x, a 2x swing no constant tuning survives). Enforce the relationship at runtime
+          // instead of trusting the constants alone.
+          if (window.stateBasePxFloor && window.labelPxForGroup && window.labelTiers && window.labelTiers.groupReferenceD) {
+            const capitalShell = document.querySelector("#burgLabels > #capital");
+            const capitalD = capitalShell ? +capitalShell.dataset.size : window.labelTiers.groupReferenceD("capital");
+            const capitalPx = window.labelPxForGroup("capital", capitalD, scale);
+            px = Math.max(px, window.stateBasePxFloor(capitalPx));
+          }
+
           const next = String(rn(window.svgLabelFontSize(px, scale), 2));
           if (this.getAttribute("font-size") !== next) this.setAttribute("font-size", next);
         }

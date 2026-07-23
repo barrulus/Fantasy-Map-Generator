@@ -108,7 +108,7 @@ function resolveGroup(group: string): string {
  * draw-state-labels.ts) resolves.
  */
 export const START_PX: Record<string, number> = {
-  states: 34,
+  states: 44,
   capital: 20,
   "skyburg-capital": 20,
   city: 18.5,
@@ -134,11 +134,14 @@ export function groupStartPx(group: string): number {
  * as more of them enter the screen.
  */
 export const REST_PX: Record<string, number> = {
-  // Barely decays from START_PX (34): states must stop shrinking rather than asymptote toward
+  // Barely decays from START_PX (44): states must stop shrinking rather than asymptote toward
   // burg-label sizes, and even a state territory clamped to the minimum 50% ratio (see
-  // draw-state-labels.ts) must still render bigger than the largest burg tier (capital).
-  // Invariant asserted in tier-table.test.ts: REST_PX.states * 0.5 > REST_PX.capital.
-  states: 32,
+  // draw-state-labels.ts) must still render bigger than the largest burg tier (capital) across the
+  // WHOLE curve, not just at rest — the failure case is at scale 1 (START_PX), not just at rest.
+  // Invariant asserted in tier-table.test.ts across scales 1, 1.5, 2, 5, 10, 20. This constant
+  // alone still isn't sufficient when authoredSizeFactor skews states/capitals apart at runtime —
+  // see stateBasePxFloor in label-sizing.ts for the runtime enforcement.
+  states: 33,
   capital: 15,
   "skyburg-capital": 15,
   city: 14.2,

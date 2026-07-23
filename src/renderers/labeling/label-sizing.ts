@@ -1,9 +1,19 @@
 import { groupMaxZoom, groupMinZoom, groupRank, groupReferenceD, groupRestPx, groupStartPx } from "./tier-table";
 
-export { groupRestPx } from "./tier-table";
+export { groupReferenceD, groupRestPx } from "./tier-table";
 
 const FACTOR_MIN = 0.75;
 const FACTOR_MAX = 1.5;
+
+// Smallest fraction an individual state label's authored size can be clamped to, relative to the
+// `#states` group base — see draw-state-labels.ts's `minmax(rn(ratio * ...), 50, 130)` clamp
+// (currently 50-130%). If that clamp's lower bound ever changes, this must change with it, or
+// stateBasePxFloor below stops guaranteeing states render bigger than capitals.
+const MIN_TERRITORY_RATIO = 0.5;
+
+// Extra headroom above the break-even point so a floored state renders visibly, not merely
+// technically, larger than a capital.
+const STATE_FLOOR_MARGIN = 1.05;
 
 /**
  * On-screen font size for a label, in CSS px: screen-space size that starts at `startPx` at
@@ -50,6 +60,21 @@ export function svgLabelFontSize(px: number, scale: number): number {
   return scale > 0 ? px / scale : px;
 }
 
+/**
+ * Smallest states-group base (CSS px) that keeps even a minimum-territory-ratio state above a
+ * capital label, at the given live `capitalPx`.
+ *
+ * The tier-table.ts START_PX/REST_PX.states constants are tuned so this holds for the *default*
+ * authored sizes — but authoredSizeFactor (above) can independently scale a map's states-shell
+ * size down (to FACTOR_MIN) while scaling its capital shell up (to FACTOR_MAX), a swing no
+ * constant tuning survives. Callers (public/main.js's invokeActiveZooming) use this to enforce
+ * the relationship at runtime instead of trusting the constants alone.
+ */
+export function stateBasePxFloor(capitalPx: number): number {
+  if (!Number.isFinite(capitalPx) || capitalPx <= 0) return 0;
+  return (capitalPx / MIN_TERRITORY_RATIO) * STATE_FLOOR_MARGIN;
+}
+
 // public/main.js is a classic script and can only reach TS through globals.
 if (typeof window !== "undefined") {
   Object.assign(window, {
@@ -57,6 +82,7 @@ if (typeof window !== "undefined") {
     labelPxForGroup,
     svgLabelFontSize,
     groupRestPx,
-    labelTiers: { groupRank, groupMinZoom, groupMaxZoom }
+    stateBasePxFloor,
+    labelTiers: { groupRank, groupMinZoom, groupMaxZoom, groupReferenceD }
   });
 }
