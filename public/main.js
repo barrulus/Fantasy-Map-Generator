@@ -669,24 +669,72 @@ function invokeActiveZooming() {
       if (this.id === "burgLabels") {
         if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) return; // GPU owns burg labels
         if (!tiers) return; // TS bundle not loaded yet; leave the shells alone
+
+        // Non-capital burg labels yield to surviving state-label obstacles. #states is earlier in
+        // DOM order than #burgLabels, so `labels.selectAll("g").each` (document order) always
+        // processes and publishes the states branch's obstacles before we get here in the SAME
+        // invokeActiveZooming call — no extra sequencing needed. Capitals (tier rank 0) are exempt
+        // and never consulted below. SCREEN coordinates (getBoundingClientRect space), same frame
+        // the obstacles were published in.
+        const obstacles = window.getStateLabelObstacles ? window.getStateLabelObstacles() : [];
+        const mapRect = obstacles.length ? svg.node().getBoundingClientRect() : null;
+        const CHAR_WIDTH_EM = 0.5; // rough average glyph-width-to-font-size ratio, good enough for a collision box
+
         for (const sub of this.children) {
           const d = +sub.dataset.size;
+          let currentPx = null;
           // Size is clamped per tier for legibility and never culls. Only min-zoom hides a tier,
           // so a capital with a small preset font shows from its min-zoom like the tier promises.
           if (rescaleLabels.checked) {
-            const px = window.labelPxForGroup(sub.id, d, scale);
-            const next = String(rn(window.svgLabelFontSize(px, scale), 2));
+            currentPx = window.labelPxForGroup(sub.id, d, scale);
+            const next = String(rn(window.svgLabelFontSize(currentPx, scale), 2));
             if (sub.getAttribute("font-size") !== next) sub.setAttribute("font-size", next);
           } else if (Number.isFinite(d)) {
             // Unclamped: raw d*scale. Guard NaN authored sizes here — the curved branch above is
             // already safe because labelPxForGroup() catches NaN and returns the tier's startPx.
-            const px = d * scale;
-            const next = String(rn(window.svgLabelFontSize(px, scale), 2));
+            currentPx = d * scale;
+            const next = String(rn(window.svgLabelFontSize(currentPx, scale), 2));
             if (sub.getAttribute("font-size") !== next) sub.setAttribute("font-size", next);
           }
           const minZoomSub = +sub.dataset.minZoom || tiers.groupMinZoom(sub.id);
           if (hideLabels.checked && scale < minZoomSub) sub.classList.add("hidden");
           else sub.classList.remove("hidden");
+
+          // Obstacle avoidance: skip the capital tier entirely (never hidden by anything) and
+          // skip when there's nothing to avoid or nothing left visible after the min-zoom gate.
+          if (!mapRect || tiers.groupRank(sub.id) === 0 || sub.classList.contains("hidden")) continue;
+          if (!Number.isFinite(currentPx) || currentPx <= 0) continue;
+
+          // Read every candidate's approximate screen rect first (anchor + on-screen px + text
+          // length — no per-node getBoundingClientRect on thousands of nodes), then decide, then
+          // write classes, same read/write split as the state collision pass below.
+          const boxes = [];
+          for (const el of sub.children) {
+            if (el.tagName !== "text") continue;
+            const x = +el.getAttribute("x");
+            const y = +el.getAttribute("y");
+            if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+            const halfW = ((el.textContent || "").length * currentPx * CHAR_WIDTH_EM) / 2;
+            const halfH = currentPx / 2;
+            const screenX = mapRect.left + x * scale + viewX;
+            const screenY = mapRect.top + y * scale + viewY;
+            boxes.push({
+              id: el.id,
+              left: screenX - halfW,
+              top: screenY - halfH,
+              right: screenX + halfW,
+              bottom: screenY + halfH
+            });
+          }
+          if (!boxes.length || !window.filterAgainstObstacles) continue;
+
+          const survivors = window.filterAgainstObstacles(boxes, obstacles);
+          for (const box of boxes) {
+            const el = document.getElementById(box.id);
+            if (!el) continue;
+            if (survivors.has(box.id)) el.classList.remove("hidden");
+            else el.classList.add("hidden");
+          }
         }
         return;
       }
@@ -726,6 +774,11 @@ function invokeActiveZooming() {
         const hidden = hideLabels.checked && (scale < minZoom || scale > maxZoom);
         if (hidden) this.classList.add("hidden");
         else this.classList.remove("hidden");
+
+        // Stale obstacles would blank burg labels for no visible reason once the whole states
+        // group is gated off — clear the published set immediately. The collision pass below
+        // (when it runs) republishes with the actual survivors.
+        if (hidden && window.setStateLabelObstacles) window.setStateLabelObstacles([]);
 
         // Collision pass: packed small states pile their names on top of each other. Recomputed
         // from scratch every settle (not just once) so a label hidden at one zoom reappears once
@@ -771,6 +824,18 @@ function invokeActiveZooming() {
             if (keep.has(el.id)) el.classList.remove("hidden");
             else el.classList.add("hidden");
           }
+
+          // Publish the SURVIVING state labels' rects as obstacles for the burg-label passes
+          // (SVG #burgLabels branch below in this same call, and the WebGL burg-label layer on
+          // its own schedule). Non-capital burg labels must yield to these; capitals are exempt.
+          if (window.setStateLabelObstacles) {
+            const surviving = boxes.filter(box => keep.has(box.id));
+            window.setStateLabelObstacles(surviving);
+          }
+        } else if (!hidden && window.setStateLabelObstacles) {
+          // selectNonOverlapping unavailable (TS bundle not loaded yet): nothing decided, so
+          // there's nothing safe to publish as an obstacle.
+          window.setStateLabelObstacles([]);
         }
 
         return;

@@ -1,3 +1,4 @@
+import type { Rect } from "./labeling/label-collision";
 import { effectiveLabelPx } from "./labeling/label-sizing";
 
 export interface LabelBox {
@@ -29,6 +30,17 @@ export interface VisibleLabel {
 export interface VisibilityOptions {
   hideLabels?: boolean; // apply min-zoom tier gating (the hideLabels checkbox)
   rescale?: boolean; // screen-space size curve per tier (the rescaleLabels checkbox); default true
+  // Fixed obstacle rects (e.g. surviving state labels) in the SAME screen-space frame as
+  // `translate` below — a candidate whose box intersects one is dropped, UNLESS it's a capital
+  // (order 0), which is exempt from every obstacle check (and from collision generally — a
+  // capital is never hidden). Obstacles are seeded into the collision grid before any candidate
+  // is placed, so they always win, and are never evicted.
+  obstacles?: readonly Rect[];
+  // Screen-space offset (map-space translate, e.g. {x: viewX, y: viewY}) to align this
+  // function's internal box coordinates with `obstacles`' coordinate frame. Defaults to {0,0},
+  // which keeps prior behaviour (translation-invariant burg-vs-burg collision) when no obstacles
+  // are supplied.
+  translate?: { x: number; y: number };
 }
 
 const GRID_PX = 64; // collision spatial-hash cell, screen px
@@ -74,32 +86,11 @@ export function selectVisibleLabels(
   const key = (cx: number, cy: number) => `${cx},${cy}`;
   const kept: VisibleLabel[] = [];
 
-  for (const c of candidates) {
-    const l = (c.b.x - c.hwMap) * scale;
-    const t = (c.b.y - c.hhMap) * scale;
-    const r = (c.b.x + c.hwMap) * scale;
-    const bo = (c.b.y + c.hhMap) * scale;
+  const place = (l: number, t: number, r: number, bo: number): void => {
     const cx0 = Math.floor(l / GRID_PX);
     const cy0 = Math.floor(t / GRID_PX);
     const cx1 = Math.floor(r / GRID_PX);
     const cy1 = Math.floor(bo / GRID_PX);
-
-    let collides = false;
-    outer: for (let cx = cx0; cx <= cx1 && !collides; cx++) {
-      for (let cy = cy0; cy <= cy1; cy++) {
-        const bucket = grid.get(key(cx, cy));
-        if (!bucket) continue;
-        for (const p of bucket) {
-          if (l < p.r && r > p.l && t < p.bo && bo > p.t) {
-            collides = true;
-            break outer;
-          }
-        }
-      }
-    }
-    if (collides) continue;
-
-    kept.push({ id: c.b.id, px: c.px });
     const placed = { l, t, r, bo };
     for (let cx = cx0; cx <= cx1; cx++) {
       for (let cy = cy0; cy <= cy1; cy++) {
@@ -109,6 +100,48 @@ export function selectVisibleLabels(
         else grid.set(k, [placed]);
       }
     }
+  };
+
+  // Seed obstacles first so they always win: any burg candidate checked below sees them already
+  // "placed" in the grid. Obstacles are fixed — they are never evicted and never appear in `kept`.
+  if (opts.obstacles) {
+    for (const o of opts.obstacles) place(o.left, o.top, o.right, o.bottom);
+  }
+
+  const tx = opts.translate?.x ?? 0;
+  const ty = opts.translate?.y ?? 0;
+
+  for (const c of candidates) {
+    const isCapital = c.b.order === 0; // groupRank(...) === 0 — never hidden, exempt from every check
+    const l = (c.b.x - c.hwMap) * scale + tx;
+    const t = (c.b.y - c.hhMap) * scale + ty;
+    const r = (c.b.x + c.hwMap) * scale + tx;
+    const bo = (c.b.y + c.hhMap) * scale + ty;
+
+    if (!isCapital) {
+      const cx0 = Math.floor(l / GRID_PX);
+      const cy0 = Math.floor(t / GRID_PX);
+      const cx1 = Math.floor(r / GRID_PX);
+      const cy1 = Math.floor(bo / GRID_PX);
+
+      let collides = false;
+      outer: for (let cx = cx0; cx <= cx1 && !collides; cx++) {
+        for (let cy = cy0; cy <= cy1; cy++) {
+          const bucket = grid.get(key(cx, cy));
+          if (!bucket) continue;
+          for (const p of bucket) {
+            if (l < p.r && r > p.l && t < p.bo && bo > p.t) {
+              collides = true;
+              break outer;
+            }
+          }
+        }
+      }
+      if (collides) continue;
+    }
+
+    kept.push({ id: c.b.id, px: c.px });
+    place(l, t, r, bo);
   }
   return kept;
 }

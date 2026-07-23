@@ -110,8 +110,11 @@ describe("selectVisibleLabels — collision", () => {
   });
 
   it("breaks priority ties by population (higher wins)", () => {
-    const a = box({ id: 1, order: 0, population: 10, x: 100, y: 100 });
-    const b = box({ id: 2, order: 0, population: 99, x: 101, y: 100 });
+    // order: 0 is capital rank, which is now exempt from every collision check (see the
+    // "state-label obstacles" describe block below) — use a non-zero tied order here so this
+    // test still exercises the generic population tiebreak, not the capital exemption.
+    const a = box({ id: 1, order: 3, population: 10, x: 100, y: 100 });
+    const b = box({ id: 2, order: 3, population: 99, x: 101, y: 100 });
     expect(ids(selectVisibleLabels([a, b], 4, VP, { hideLabels: true }))).toEqual([2]);
   });
 
@@ -127,5 +130,48 @@ describe("selectVisibleLabels — collision", () => {
     const a = box({ id: 1, startPx: 32, restPx: 15, order: 0, x: 100, y: 100 });
     const b = box({ id: 2, startPx: 32, restPx: 15, order: 5, x: 103, y: 100 });
     expect(ids(selectVisibleLabels([a, b], 1, VP, { hideLabels: true }))).toEqual([1]);
+  });
+});
+
+describe("selectVisibleLabels — state-label obstacles", () => {
+  // A box at (100,100) with halfWEm 1.25 / halfHEm 0.5 and startPx 32 at scale 1 draws to
+  // [60,84]..[140,116] screen px (no translate) — an obstacle covering that area intersects it.
+  const OVERLAPPING_OBSTACLE = [{ left: 50, top: 50, right: 150, bottom: 150 }];
+  const CLEAR_OBSTACLE = [{ left: 5000, top: 5000, right: 6000, bottom: 6000 }];
+
+  it("drops a non-capital label overlapping a state obstacle", () => {
+    const hamlet = box({ id: 1, order: groupRank("hamlet"), x: 100, y: 100 });
+    expect(selectVisibleLabels([hamlet], 1, VP, { hideLabels: true, obstacles: OVERLAPPING_OBSTACLE })).toEqual([]);
+  });
+
+  it("keeps a capital that overlaps a state obstacle — capitals are exempt from every check", () => {
+    const capital = box({ id: 1, order: groupRank("capital"), x: 100, y: 100 });
+    expect(ids(selectVisibleLabels([capital], 1, VP, { hideLabels: true, obstacles: OVERLAPPING_OBSTACLE }))).toEqual([
+      1
+    ]);
+  });
+
+  it("keeps a non-capital label that does not overlap any obstacle", () => {
+    const hamlet = box({ id: 1, order: groupRank("hamlet"), x: 100, y: 100 });
+    expect(ids(selectVisibleLabels([hamlet], 1, VP, { hideLabels: true, obstacles: CLEAR_OBSTACLE }))).toEqual([1]);
+  });
+
+  it("keeps every label when there are no obstacles", () => {
+    const a = box({ id: 1, order: groupRank("hamlet"), x: 100, y: 100 });
+    const b = box({ id: 2, order: groupRank("hamlet"), x: 900, y: 900 });
+    expect(ids(selectVisibleLabels([a, b], 1, VP, { hideLabels: true, obstacles: [] })).sort()).toEqual([1, 2]);
+  });
+
+  it("aligns obstacles to the box coordinate frame via `translate`", () => {
+    // Without translate the box draws around screen (100,100); an obstacle only covering that
+    // area collides. Once translate shifts the box's effective screen position away from the
+    // obstacle, it should no longer collide.
+    const hamlet = box({ id: 1, order: groupRank("hamlet"), x: 100, y: 100 });
+    const kept = selectVisibleLabels([hamlet], 1, VP, {
+      hideLabels: true,
+      obstacles: OVERLAPPING_OBSTACLE,
+      translate: { x: 10_000, y: 10_000 }
+    });
+    expect(ids(kept)).toEqual([1]);
   });
 });

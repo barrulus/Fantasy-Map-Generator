@@ -56,7 +56,10 @@ describe("readBurgLabelStyles", () => {
     expect(s.capital.restPx).toBeCloseTo(REST_PX.capital * 1.5, 10);
   });
 
-  it("reads fill and halo, and disables the halo when no stroke is set", () => {
+  it("reads fill and halo, and falls back to a modest default halo width when no stroke is set", () => {
+    // No preset sets a `stroke` on a burg-label shell, so a 0-width fallback here would silently
+    // disable the halo everywhere — a small capital label needs it to stay readable over a big
+    // state name (see webgl-burg-labels.ts's uHaloEdge).
     mount(
       shell("capital", { "data-size": "4", fill: "#112233", stroke: "#ffffff", "stroke-width": "2" }) +
         shell("hamlet", { "data-size": "1", fill: "#445566" })
@@ -65,7 +68,7 @@ describe("readBurgLabelStyles", () => {
     expect(s.capital.fill).toBe("#112233");
     expect(s.capital.halo).toBe("#ffffff");
     expect(s.capital.haloWidth).toBe(2);
-    expect(s.hamlet.haloWidth).toBe(0);
+    expect(s.hamlet.haloWidth).toBeGreaterThan(0);
   });
 
   it("records a display:none group as hidden", () => {

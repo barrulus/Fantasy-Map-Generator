@@ -53,8 +53,11 @@ export function readBurgLabelStyles(root: ParentNode = document): Record<string,
       restPx: groupRestPx(el.id) * factor,
       fill: el.getAttribute("fill") || "#3e3e4b",
       halo: stroke || "#ffffff",
-      // only halo when the group actually has a stroke; 0 width disables the halo ring in the shader
-      haloWidth: stroke ? +(el.getAttribute("stroke-width") || 0.5) : 0,
+      // A stroke on the shell overrides the width; otherwise fall back to a modest legibility
+      // halo (not 0 — no preset sets a stroke on burg-label groups today, so a 0-width default
+      // silently disabled the halo entirely, and a small capital label needs it to stay readable
+      // painted over a big state name).
+      haloWidth: +(el.getAttribute("stroke-width") || 0.5),
       hidden: (el.getAttribute("style") || "").includes("display:none") || getComputedStyle(el).display === "none"
     };
   }

@@ -3,6 +3,7 @@ import type { Burg } from "../generators/burgs-generator";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
 import { type FontGeometry, type GlyphMetric, layoutLabel } from "./label-layout";
 import { type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";
+import { getStateLabelObstacles, hashObstacles, type Rect } from "./labeling/label-collision";
 import { effectiveLabelPx } from "./labeling/label-sizing";
 import { type GroupStyle, readBurgLabelStyles } from "./labeling/label-style";
 import { registerLayer } from "./layer-host";
@@ -214,7 +215,28 @@ export function drawBurgLabelGL(): void {
   const vp = currentViewport(canvas, t.scale, t.viewX, t.viewY);
   const hideGate = (window as any).hideLabels?.checked !== false;
   const rescaleGate = (window as any).rescaleLabels?.checked !== false;
-  const key = `${t.scale.toFixed(4)}|${vp.x0.toFixed(1)}|${vp.y0.toFixed(1)}|${hideGate}|${rescaleGate}`;
+
+  // Surviving state labels published by public/main.js's #states branch, in SCREEN coordinates
+  // (getBoundingClientRect space — real page pixels). Reproject into this canvas's own local CSS
+  // pixel frame (top-left = 0,0) so they line up with the box coordinates `selectVisibleLabels`
+  // computes internally (map units * scale + translate). The canvas is sized/positioned to
+  // exactly track #map (see ensureBurgLabelGLCanvas in main.js), so a single rect subtraction is
+  // enough — no extra viewBox scale factor.
+  const rawObstacles = getStateLabelObstacles();
+  const canvasRect = rawObstacles.length ? canvas.getBoundingClientRect() : null;
+  const obstacles: Rect[] = canvasRect
+    ? rawObstacles.map(o => ({
+        left: o.left - canvasRect.left,
+        top: o.top - canvasRect.top,
+        right: o.right - canvasRect.left,
+        bottom: o.bottom - canvasRect.top
+      }))
+    : [];
+
+  // Obstacles can change (state labels re-collide) without the transform changing, so the cache
+  // key must fold in a cheap fingerprint of the obstacle set — otherwise burgs would only
+  // re-avoid state labels on the next pan/zoom instead of as soon as the states pass settles.
+  const key = `${t.scale.toFixed(4)}|${vp.x0.toFixed(1)}|${vp.y0.toFixed(1)}|${hideGate}|${rescaleGate}|${hashObstacles(obstacles)}`;
 
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clearColor(0, 0, 0, 0);
@@ -227,7 +249,9 @@ export function drawBurgLabelGL(): void {
     lastKey = key;
     const visible = selectVisibleLabels(boxes, t.scale, vp, {
       hideLabels: hideGate,
-      rescale: rescaleGate
+      rescale: rescaleGate,
+      obstacles,
+      translate: { x: t.viewX, y: t.viewY }
     });
     (drawBurgLabelGL as any)._ranges = buildGroupRanges(new Map(visible.map(v => [v.id, v.px])), t.scale);
   }
