@@ -108,20 +108,24 @@ function resolveGroup(group: string): string {
  * draw-state-labels.ts) resolves.
  */
 export const START_PX: Record<string, number> = {
-  states: 44,
-  capital: 20,
-  "skyburg-capital": 20,
-  city: 18.5,
-  skyburg: 18.5,
-  town: 17.5,
-  "skyburg-mid": 17.5,
-  fort: 16.5,
-  monastery: 16.5,
-  caravanserai: 16.5,
-  trading_post: 16.5,
-  "skyburg-small": 16.5,
-  village: 16,
-  hamlet: 15.5
+  // States dwarf burgs: the owner wants a large state name and a small capital under it, with a
+  // huge ratio between them (vanilla FMG behaviour). States sit far above the whole burg band;
+  // the burg tiers are compressed into a tight, still-legible 11-14px range so that even the
+  // capital (the biggest burg) is nowhere near the size of a state label.
+  states: 52,
+  capital: 14,
+  "skyburg-capital": 14,
+  city: 13,
+  skyburg: 13,
+  town: 12.5,
+  "skyburg-mid": 12.5,
+  fort: 12,
+  monastery: 12,
+  caravanserai: 12,
+  trading_post: 12,
+  "skyburg-small": 12,
+  village: 11.5,
+  hamlet: 11.4
 };
 
 export function groupStartPx(group: string): number {
@@ -141,20 +145,20 @@ export const REST_PX: Record<string, number> = {
   // Invariant asserted in tier-table.test.ts across scales 1, 1.5, 2, 5, 10, 20. This constant
   // alone still isn't sufficient when authoredSizeFactor skews states/capitals apart at runtime —
   // see stateBasePxFloor in label-sizing.ts for the runtime enforcement.
-  states: 33,
-  capital: 15,
-  "skyburg-capital": 15,
-  city: 14.2,
-  skyburg: 14.2,
-  town: 13.8,
-  "skyburg-mid": 13.8,
-  fort: 13.4,
-  monastery: 13.4,
-  caravanserai: 13.4,
-  trading_post: 13.4,
-  "skyburg-small": 13.4,
-  village: 13.2,
-  hamlet: 13
+  states: 40,
+  capital: 12,
+  "skyburg-capital": 12,
+  city: 11.6,
+  skyburg: 11.6,
+  town: 11.4,
+  "skyburg-mid": 11.4,
+  fort: 11.3,
+  monastery: 11.3,
+  caravanserai: 11.3,
+  trading_post: 11.3,
+  "skyburg-small": 11.3,
+  village: 11.1,
+  hamlet: 11
 };
 
 export function groupRestPx(group: string): number {
