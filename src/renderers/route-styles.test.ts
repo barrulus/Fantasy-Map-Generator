@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ROUTE_GROUP_DEFAULTS, ROUTE_TYPE_DEFAULTS, routeGroupStyle, routeTypeStyle } from "./route-styles";
+import {
+  applyRouteLineStyle,
+  ROUTE_GROUP_DEFAULTS,
+  ROUTE_TYPE_DEFAULTS,
+  routeGroupStyle,
+  routeTypeStyle
+} from "./route-styles";
 
 // Every overland type the generator can emit (routes-generator.ts assigns these).
 const EMITTED_TYPES = ["royal", "main", "market", "town", "local", "trail", "footpath"];
@@ -54,5 +60,30 @@ describe("accessors", () => {
   it("return undefined for an unknown type/group rather than throwing", () => {
     expect(routeTypeStyle("nonsense")).toBeUndefined();
     expect(routeGroupStyle("nonsense")).toBeUndefined();
+  });
+});
+
+describe("applyRouteLineStyle (preset wins, defaults fill gaps)", () => {
+  it("applies the default hierarchy when the preset supplies nothing", () => {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    applyRouteLineStyle(el, ROUTE_TYPE_DEFAULTS.market, undefined);
+    expect(el.getAttribute("stroke-width")).toBe("1.1");
+    expect(el.getAttribute("stroke-dasharray")).toBe("6 4");
+    expect(el.getAttribute("stroke-linecap")).toBe("butt");
+  });
+
+  it("lets a preset value override the default", () => {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    applyRouteLineStyle(el, ROUTE_TYPE_DEFAULTS.market, { "stroke-width": 3, stroke: "#abcdef" });
+    expect(el.getAttribute("stroke-width")).toBe("3"); // preset wins
+    expect(el.getAttribute("stroke")).toBe("#abcdef"); // preset-only attr passes through
+    expect(el.getAttribute("stroke-dasharray")).toBe("6 4"); // default fills the gap
+  });
+
+  it("removes stroke-dasharray for a solid default (null)", () => {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    el.setAttribute("stroke-dasharray", "2"); // stale value from a prior render
+    applyRouteLineStyle(el, ROUTE_TYPE_DEFAULTS.royal, undefined);
+    expect(el.hasAttribute("stroke-dasharray")).toBe(false);
   });
 });

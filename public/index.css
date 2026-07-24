@@ -269,6 +269,11 @@ t,
   fill: none;
   cursor: pointer;
 }
+/* Route stroke width and dashes are evaluated in screen px, not the #viewbox zoom space, so
+   they stay crisp and never balloon into fat ticks as you zoom in. */
+#routes path {
+  vector-effect: non-scaling-stroke;
+}
 
 i.icon-lock {
   cursor: pointer;

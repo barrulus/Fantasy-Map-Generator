@@ -59,7 +59,26 @@ export function routeGroupStyle(group: string): RouteLineStyle | undefined {
   return ROUTE_GROUP_DEFAULTS[group];
 }
 
+/**
+ * Apply a route line style to an element: the default hierarchy for this type/group, with any
+ * preset attributes layered on top (preset wins). A `null` value removes the attribute (solid line
+ * / cleared stale dash). `presetStyle` is the preset's own attribute map for this type/group, or
+ * undefined when the preset defines nothing.
+ */
+export function applyRouteLineStyle(
+  el: Element,
+  fallback: RouteLineStyle | undefined,
+  presetStyle: Record<string, unknown> | undefined
+): void {
+  const merged: Record<string, unknown> = { ...(fallback || {}), ...(presetStyle || {}) };
+  for (const attr in merged) {
+    const value = merged[attr];
+    if (value === null || value === "null" || value === undefined) el.removeAttribute(attr);
+    else el.setAttribute(attr, String(value));
+  }
+}
+
 // public/modules/ui/layers.js is a classic script and can only reach TS through globals.
 if (typeof window !== "undefined") {
-  Object.assign(window, { routeTypeStyle, routeGroupStyle });
+  Object.assign(window, { routeTypeStyle, routeGroupStyle, applyRouteLineStyle });
 }

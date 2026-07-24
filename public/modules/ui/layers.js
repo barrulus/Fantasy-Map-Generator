@@ -879,6 +879,9 @@ function drawRoutes() {
     const {group, type, paths} = typedPaths[key];
     const groupEl = routes.select("#" + group);
     if (groupEl.empty()) continue;
+    // ensure the group carries the default line style (preset group style still applies on load;
+    // this fills gaps for presets that omit it, and for routes rendered directly on the group)
+    window.applyRouteLineStyle(groupEl.node(), window.routeGroupStyle(group), undefined);
     if (type) {
       const subGroup = groupEl.append("g").attr("id", type);
       applyRouteTypeStyle(subGroup.node(), type);
@@ -907,16 +910,8 @@ function drawRoute(route) {
 }
 
 function applyRouteTypeStyle(el, type) {
-  const typeStyle = style.routes[type];
-  if (!typeStyle) return;
-  for (const attr in typeStyle) {
-    const value = typeStyle[attr];
-    if (value === null || value === "null") {
-      el.removeAttribute(attr);
-    } else if (value !== undefined) {
-      el.setAttribute(attr, value);
-    }
-  }
+  // preset value (may be undefined) layered over the shared default hierarchy
+  window.applyRouteLineStyle(el, window.routeTypeStyle(type), style.routes[type]);
 }
 
 function toggleMilitary(event) {

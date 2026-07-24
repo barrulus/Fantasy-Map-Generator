@@ -91,6 +91,13 @@ declare global {
   var svgHeight: number;
   var viewbox: Selection<SVGElement, unknown, null, undefined>;
   var routes: Selection<SVGElement, unknown, null, undefined>;
+  var routeTypeStyle: (
+    type: string
+  ) => { "stroke-width": number; "stroke-dasharray": string | null; "stroke-linecap": string } | undefined;
+  var routeGroupStyle: (
+    group: string
+  ) => { "stroke-width": number; "stroke-dasharray": string | null; "stroke-linecap": string } | undefined;
+  var applyRouteLineStyle: (el: Element, fallback: unknown, presetStyle: unknown) => void;
   var debug: Selection<SVGElement, unknown, null, undefined>;
   var elSelected: Selection<SVGElement, unknown, HTMLElement, any>;
 
