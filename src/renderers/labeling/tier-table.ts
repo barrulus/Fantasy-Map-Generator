@@ -71,9 +71,10 @@ export function groupMinZoom(group: string): number {
 
 /**
  * Zoom beyond which a tier is hidden, the counterpart to MIN_ZOOM. Only `states` uses this today:
- * state labels are tuned to stop shrinking (see REST_PX.states) rather than asymptote to
- * illegibility, so they need an explicit upper gate instead. This is a ZOOM gate like MIN_ZOOM,
- * not a size cull — see the "size never culls" note on label-sizing.ts.
+ * state labels sit in map-space (they scale with their fitted territory rather than shrinking
+ * toward a screen-space resting size), so they need an explicit upper gate to disappear at deep
+ * zoom instead of lingering forever. This is a ZOOM gate like MIN_ZOOM, not a size cull — see the
+ * "size never culls" note on label-sizing.ts.
  */
 export const MAX_ZOOM: Record<string, number> = {
   states: 10
@@ -107,16 +108,11 @@ function resolveGroup(group: string): string {
  * bigger so that when zoomed all the way out — where a capital may be the only label on screen —
  * it dominates instead of sitting at a tiny floor.
  *
- * `states` is on this same screen-space curve: it is the base font-size for the `#labels > g#states`
- * group, against which each individual state label's authored `${ratio}%` (50-130%, see
- * draw-state-labels.ts) resolves.
+ * `states` is NOT on this screen-space curve (see MAX_ZOOM's note and public/main.js's
+ * invokeActiveZooming `#states` branch): state labels stay map-space so they scale with their
+ * territory the way draw-state-labels.ts fitted them, instead of overflowing past it.
  */
 export const START_PX: Record<string, number> = {
-  // States dwarf burgs: the owner wants a large state name and a small capital under it, with a
-  // huge ratio between them (vanilla FMG behaviour). States sit far above the whole burg band;
-  // the burg tiers are compressed into a tight, still-legible 11-14px range so that even the
-  // capital (the biggest burg) is nowhere near the size of a state label.
-  states: 52,
   capital: 14,
   "skyburg-capital": 14,
   city: 13,
@@ -142,14 +138,6 @@ export function groupStartPx(group: string): number {
  * as more of them enter the screen.
  */
 export const REST_PX: Record<string, number> = {
-  // Barely decays from START_PX (44): states must stop shrinking rather than asymptote toward
-  // burg-label sizes, and even a state territory clamped to the minimum 50% ratio (see
-  // draw-state-labels.ts) must still render bigger than the largest burg tier (capital) across the
-  // WHOLE curve, not just at rest — the failure case is at scale 1 (START_PX), not just at rest.
-  // Invariant asserted in tier-table.test.ts across scales 1, 1.5, 2, 5, 10, 20. This constant
-  // alone still isn't sufficient when authoredSizeFactor skews states/capitals apart at runtime —
-  // see stateBasePxFloor in label-sizing.ts for the runtime enforcement.
-  states: 40,
   capital: 12,
   "skyburg-capital": 12,
   city: 11.6,
@@ -176,7 +164,6 @@ export function groupRestPx(group: string): number {
  * screen-space curve.
  */
 export const REFERENCE_D: Record<string, number> = {
-  states: 22,
   capital: 4.98,
   "skyburg-capital": 4.98,
   city: 4.15,

@@ -739,30 +739,20 @@ function invokeActiveZooming() {
         return;
       }
       if (this.id === "states") {
-        if (!tiers || !window.groupRestPx) return; // TS bundle not loaded yet; leave the group alone
-        const d = +this.dataset.size;
-        if (Number.isFinite(d)) {
-          // Same on/off split as the #burgLabels branch above: rescaled follows the screen-space
-          // curve, unrescaled sits at a constant screen size (the tier's resting px) rather than
-          // growing unbounded with scale.
-          let px = rescaleLabels.checked ? window.labelPxForGroup("states", d, scale) : window.groupRestPx("states");
+        if (!tiers) return; // TS bundle not loaded yet; leave the group alone
 
-          // State labels must always render bigger than capital labels, at every zoom (the bug
-          // this block exists to fix). tier-table.ts's START_PX/REST_PX.states are tuned so a
-          // state clamped to draw-state-labels.ts's minimum 50% territory-ratio still clears a
-          // capital — but that assumption breaks if authoredSizeFactor (label-sizing.ts) skews
-          // this map's states-shell size down while its capital shell is skewed up (0.75x vs
-          // 1.5x, a 2x swing no constant tuning survives). Enforce the relationship at runtime
-          // instead of trusting the constants alone.
-          if (window.stateBasePxFloor && window.labelPxForGroup && window.labelTiers && window.labelTiers.groupReferenceD) {
-            const capitalShell = document.querySelector("#burgLabels > #capital");
-            const capitalD = capitalShell ? +capitalShell.dataset.size : window.labelTiers.groupReferenceD("capital");
-            const capitalPx = window.labelPxForGroup("capital", capitalD, scale);
-            px = Math.max(px, window.stateBasePxFloor(capitalPx));
-          }
-
-          const next = String(rn(window.svgLabelFontSize(px, scale), 2));
-          if (this.getAttribute("font-size") !== next) this.setAttribute("font-size", next);
+        // State labels are sized like vanilla's generic label groups (see the #addedLabels-style
+        // branch below), NOT via the burg screen-space decay curve. draw-state-labels.ts fits
+        // each label's font-size (a % of this group's font-size) to its territory at draw time,
+        // in MAP units — so the group's own font-size must stay in map units too, or every label
+        // scales past the size it was fitted to and overflows into neighbours/the sea. This is
+        // the damped map-space formula vanilla uses: at scale 1 it equals the authored size
+        // exactly (matching draw-state-labels.ts's calibration), and it shrinks in map units as
+        // you zoom in so the on-screen size stays fitted to the (now larger) territory.
+        const desired = +this.dataset.size;
+        if (Number.isFinite(desired) && rescaleLabels.checked) {
+          const relative = Math.max(rn((desired + desired / scale) / 2, 2), 1);
+          if (this.getAttribute("font-size") !== String(relative)) this.setAttribute("font-size", relative);
         }
 
         // Size never culls (see label-sizing.ts) — min-zoom/max-zoom are the only gates, same
