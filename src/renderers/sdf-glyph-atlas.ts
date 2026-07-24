@@ -76,9 +76,22 @@ export function edt2d(mask: ArrayLike<number>, w: number, h: number): Float64Arr
 }
 
 /**
+ * Swap the CSS size token in a font string for our fixed raster size (FONT_PX), preserving any
+ * leading weight/style/variant tokens and the family. The field is always baked at FONT_PX, so the
+ * incoming size is irrelevant — but weight and family are NOT, so we must keep them (the old
+ * "strip a leading `<size>px`" approach dropped a `bold`/`700` prefix, baking regular-weight glyphs
+ * even when the burg labels were styled bold). Accepts e.g. "5px Almendra SC",
+ * "700 5px Almendra SC", 'bold 12.5px "Almendra SC"'.
+ */
+export function atlasFontAtRasterSize(font: string): string {
+  return /\d*\.?\d+px/.test(font) ? font.replace(/\d*\.?\d+px/, `${FONT_PX}px`) : `${FONT_PX}px ${font}`;
+}
+
+/**
  * Build a single-channel SDF atlas for `glyphs` rendered in `font` (a CSS font string,
- * e.g. "16px Times"). Color-agnostic: stores distance in the canvas R channel.
- * `font` size is ignored for the field (we always raster at FONT_PX); only family/style matter.
+ * e.g. "16px Times" or "700 5px Almendra SC"). Color-agnostic: stores distance in the canvas R
+ * channel. `font` size is ignored for the field (we always raster at FONT_PX); only weight/family
+ * matter.
  */
 export function buildGlyphAtlas(glyphs: Set<string>, font: string): GlyphAtlas {
   const list = [...glyphs];
@@ -95,8 +108,7 @@ export function buildGlyphAtlas(glyphs: Set<string>, font: string): GlyphAtlas {
   // willReadFrequently: this scratch canvas is read back with getImageData once per glyph,
   // so keep its backing store in CPU memory to avoid GPU→CPU readback stalls during the bake.
   const sctx = scratch.getContext("2d", { willReadFrequently: true })!;
-  const family = font.replace(/^\s*\d+px\s*/, ""); // strip leading size
-  sctx.font = `${FONT_PX}px ${family}`;
+  sctx.font = atlasFontAtRasterSize(font);
   sctx.textBaseline = "alphabetic";
   sctx.fillStyle = "#fff";
 

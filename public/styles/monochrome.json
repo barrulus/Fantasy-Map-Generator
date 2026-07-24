@@ -268,7 +268,8 @@
     "data-size": 5,
     "font-size": 5,
     "font-family": "Almendra SC",
-    "data-dy": -0.5
+    "data-dy": -0.5,
+    "font-weight": "bold"
   },
   "#burgIcons > g#skyburg": {
     "data-icon": "#icon-diamond",
@@ -297,7 +298,8 @@
     "data-size": 5,
     "font-size": 5,
     "font-family": "Almendra SC",
-    "data-dy": -0.5
+    "data-dy": -0.5,
+    "font-weight": "bold"
   },
   "#burgIcons > g#skyburg-mid": {
     "data-icon": "#icon-diamond",
@@ -326,7 +328,8 @@
     "data-size": 5,
     "font-size": 5,
     "font-family": "Almendra SC",
-    "data-dy": -0.5
+    "data-dy": -0.5,
+    "font-weight": "bold"
   },
   "#burgIcons > g#skyburg-small": {
     "data-icon": "#icon-diamond",
@@ -465,8 +468,9 @@
     "letter-spacing": 0,
     "data-size": 7,
     "font-size": 7,
-    "font-family": "Courier New",
-    "data-dy": -0.4
+    "font-family": "Almendra SC",
+    "data-dy": -0.4,
+    "font-weight": "bold"
   },
   "#burgIcons > g#city": {
     "data-icon": "#icon-circle",
@@ -492,8 +496,9 @@
     "letter-spacing": 0,
     "data-size": 4,
     "font-size": 4,
-    "font-family": "Courier New",
-    "data-dy": -0.4
+    "font-family": "Almendra SC",
+    "data-dy": -0.4,
+    "font-weight": "bold"
   },
   "#burgIcons > g#town": {
     "data-icon": "#icon-circle",
@@ -520,8 +525,9 @@
     "letter-spacing": 0,
     "data-size": 7,
     "font-size": 7,
-    "font-family": "Courier New",
-    "data-dy": -0.4
+    "font-family": "Almendra SC",
+    "data-dy": -0.4,
+    "font-weight": "bold"
   },
   "#burgIcons > g#capital": {
     "data-icon": "#icon-square",
@@ -549,8 +555,9 @@
     "letter-spacing": 0,
     "data-size": 2,
     "font-size": 2,
-    "font-family": "Courier New",
-    "data-dy": -0.4
+    "font-family": "Almendra SC",
+    "data-dy": -0.4,
+    "font-weight": "bold"
   },
   "#burgIcons > g#fort": {
     "data-icon": "#icon-triangle",
@@ -578,8 +585,9 @@
     "letter-spacing": 0,
     "data-size": 2,
     "font-size": 2,
-    "font-family": "Courier New",
-    "data-dy": -0.4
+    "font-family": "Almendra SC",
+    "data-dy": -0.4,
+    "font-weight": "bold"
   },
   "#burgIcons > g#monastery": {
     "data-icon": "#icon-cross",
@@ -607,8 +615,9 @@
     "letter-spacing": 0,
     "data-size": 2,
     "font-size": 2,
-    "font-family": "Courier New",
-    "data-dy": -0.4
+    "font-family": "Almendra SC",
+    "data-dy": -0.4,
+    "font-weight": "bold"
   },
   "#burgIcons > g#caravanserai": {
     "data-icon": "#icon-triangle",
@@ -636,8 +645,9 @@
     "letter-spacing": 0,
     "data-size": 2,
     "font-size": 2,
-    "font-family": "Courier New",
-    "data-dy": -0.4
+    "font-family": "Almendra SC",
+    "data-dy": -0.4,
+    "font-weight": "bold"
   },
   "#burgIcons > g#trading_post": {
     "data-icon": "#icon-triangle",
@@ -665,8 +675,9 @@
     "letter-spacing": 0,
     "data-size": 3,
     "font-size": 3,
-    "font-family": "Courier New",
-    "data-dy": -0.4
+    "font-family": "Almendra SC",
+    "data-dy": -0.4,
+    "font-weight": "bold"
   },
   "#burgIcons > g#village": {
     "data-icon": "#icon-circle",
@@ -694,8 +705,9 @@
     "letter-spacing": 0,
     "data-size": 2,
     "font-size": 2,
-    "font-family": "Courier New",
-    "data-dy": -0.4
+    "font-family": "Almendra SC",
+    "data-dy": -0.4,
+    "font-weight": "bold"
   },
   "#burgIcons > g#hamlet": {
     "data-icon": "#icon-circle",

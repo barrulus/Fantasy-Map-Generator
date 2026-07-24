@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { collectGlyphs, edt1d } from "./sdf-glyph-atlas";
-import { buildGlyphAtlas, edt2d } from "./sdf-glyph-atlas";
+import { atlasFontAtRasterSize, buildGlyphAtlas, collectGlyphs, edt1d, edt2d } from "./sdf-glyph-atlas";
+
+describe("atlasFontAtRasterSize", () => {
+  it("swaps the CSS size token for the fixed raster size, preserving the family", () => {
+    expect(atlasFontAtRasterSize("5px Almendra SC")).toBe("48px Almendra SC");
+  });
+
+  it("preserves a leading weight token (so bold burg labels bake bold glyphs)", () => {
+    expect(atlasFontAtRasterSize("700 5px Almendra SC")).toBe("700 48px Almendra SC");
+  });
+
+  it("preserves weight + a quoted family with a fractional size", () => {
+    expect(atlasFontAtRasterSize('bold 12.5px "Almendra SC"')).toBe('bold 48px "Almendra SC"');
+  });
+
+  it("prefixes the raster size when no px token is present", () => {
+    expect(atlasFontAtRasterSize("Almendra SC")).toBe("48px Almendra SC");
+  });
+});
 
 describe("collectGlyphs", () => {
   it("returns the distinct, non-space characters across all burg names", () => {

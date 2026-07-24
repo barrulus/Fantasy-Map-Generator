@@ -155,10 +155,18 @@ export async function rebuildBurgLabelGL(): Promise<void> {
   }
   const burgs = (window as any).pack.burgs as Burg[];
   styles = readBurgLabelStyles();
-  // one atlas for the dominant font; group fonts that differ fall back to it visually for v1
-  const font = `${getComputedStyle(document.getElementById("burgLabels") || document.body).fontSize} ${
-    getComputedStyle(document.getElementById("burgLabels") || document.body).fontFamily
-  }`;
+  // One atlas for the dominant font; group fonts that differ fall back to it visually for v1.
+  // Read weight + family from a representative burg-label group (capital, then any group) rather
+  // than the #burgLabels container: the container carries no font, so it resolves to an inherited
+  // default — never the small-caps family the groups are actually styled with. Include font-weight
+  // so bold burg labels bake bold glyphs (the container path also dropped weight entirely).
+  const fontSrc =
+    document.querySelector<SVGGElement>("#burgLabels > g#capital") ||
+    document.querySelector<SVGGElement>("#burgLabels > g") ||
+    document.getElementById("burgLabels") ||
+    document.body;
+  const cs = getComputedStyle(fontSrc as Element);
+  const font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
   atlas = buildGlyphAtlas(collectGlyphs(burgs), font);
   gl.bindTexture(gl.TEXTURE_2D, atlasTex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlas.canvas);
