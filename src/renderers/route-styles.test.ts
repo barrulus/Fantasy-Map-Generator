@@ -45,8 +45,8 @@ describe("ROUTE_GROUP_DEFAULTS", () => {
     }
   });
 
-  it("makes trade lanes bolder than an ordinary road", () => {
-    expect(ROUTE_GROUP_DEFAULTS.traderoutes["stroke-width"]).toBeGreaterThan(ROUTE_TYPE_DEFAULTS.main["stroke-width"]);
+  it("makes trade lanes bolder than a town road", () => {
+    expect(ROUTE_GROUP_DEFAULTS.traderoutes["stroke-width"]).toBeGreaterThan(ROUTE_TYPE_DEFAULTS.town["stroke-width"]);
   });
 });
 

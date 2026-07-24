@@ -49,7 +49,7 @@ export const ROUTE_GROUP_DEFAULTS: Record<string, RouteLineStyle> = {
   trails: dotted(0.6, "0.5 3"),
   searoutes: dotted(0.8, "1 4"),
   airroutes: dotted(0.9, "6 4"),
-  traderoutes: dashed(1.5, "6 2 1 2")
+  traderoutes: dashed(1.3, "6 2 1 2")
 };
 
 export function routeTypeStyle(type: string): RouteLineStyle | undefined {
