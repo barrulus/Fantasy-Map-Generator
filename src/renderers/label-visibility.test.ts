@@ -57,7 +57,10 @@ describe("selectVisibleLabels — size never culls", () => {
 
   // Regression: Nomia's capital (small preset font) was invisible below scale 2.41 under the old
   // floor/ceiling model. Under the new model there is no floor to fall below.
-  it("shows a small-font capital at scale 1 with its full startPx", () => {
+  it("shows a small-font capital at its min-zoom, sized by the curve not culled", () => {
+    // Capitals gate in at scale 3 (min-zoom), so they are hidden at the fit-to-screen view; the
+    // point of this test is that once eligible they are sized by the curve and NEVER dropped for
+    // being small (the original small-font-capital bug). Below min-zoom they are gated out.
     const capital = box({
       id: 1,
       minZoom: groupMinZoom("capital"),
@@ -65,9 +68,10 @@ describe("selectVisibleLabels — size never culls", () => {
       startPx: groupStartPx("capital"),
       restPx: groupRestPx("capital")
     });
-    const out = selectVisibleLabels([capital], 1, VP, { hideLabels: true });
+    expect(selectVisibleLabels([capital], 1, VP, { hideLabels: true })).toEqual([]); // gated below min-zoom
+    const out = selectVisibleLabels([capital], groupMinZoom("capital"), VP, { hideLabels: true });
     expect(ids(out)).toEqual([1]);
-    expect(out[0].px).toBe(groupStartPx("capital"));
+    expect(out[0].px).toBeGreaterThan(0); // sized, never culled
   });
 });
 

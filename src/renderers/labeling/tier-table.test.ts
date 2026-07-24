@@ -24,8 +24,10 @@ describe("groupRank", () => {
 });
 
 describe("groupMinZoom", () => {
-  it("matches the tier gates the SVG and GL paths used separately", () => {
-    expect(groupMinZoom("capital")).toBe(1);
+  it("gates the tiers so burgs stay hidden at the fit-to-screen zoom", () => {
+    // capital is 3 (not 1) so a fresh generate at scale ~1 shows only state labels, like vanilla;
+    // burgs reveal as you zoom in. Every tier is gated at or above the capital.
+    expect(groupMinZoom("capital")).toBe(3);
     expect(groupMinZoom("city")).toBe(4);
     expect(groupMinZoom("town")).toBe(6);
     expect(groupMinZoom("village")).toBe(10);

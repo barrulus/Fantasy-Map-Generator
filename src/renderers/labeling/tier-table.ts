@@ -38,8 +38,12 @@ export function groupRank(group: string): number {
  * being unimportant — size never culls (see label-sizing.ts).
  */
 export const MIN_ZOOM: Record<string, number> = {
-  capital: 1,
-  "skyburg-capital": 2,
+  // Capitals appear only after you zoom in a little, not at the fit-to-screen view: on a fresh
+  // generate the whole map shows at scale ~1 and, like vanilla FMG, only STATE labels belong
+  // there — burg labels are noise at that zoom. (This is a zoom gate, not the old size cull that
+  // once hid capitals on small-font presets; min-zoom is font-size-independent.)
+  capital: 3,
+  "skyburg-capital": 3,
   skyburg: 4,
   "skyburg-mid": 6,
   "skyburg-small": 8,

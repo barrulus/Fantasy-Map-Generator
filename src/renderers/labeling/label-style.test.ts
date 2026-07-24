@@ -35,7 +35,7 @@ describe("readBurgLabelStyles", () => {
     mount(shell("capital", { "data-size": "4.98" }) + shell("hamlet", { "data-size": "1" }));
     const s = readBurgLabelStyles();
     expect(s.capital.rank).toBeLessThan(s.hamlet.rank);
-    expect(s.capital.minZoom).toBe(1);
+    expect(s.capital.minZoom).toBe(3);
     expect(s.hamlet.minZoom).toBe(14);
     expect(s.capital.startPx).toBeGreaterThan(s.hamlet.startPx);
     expect(s.capital.restPx).toBeGreaterThan(s.hamlet.restPx);
