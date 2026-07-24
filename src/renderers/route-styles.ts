@@ -1,0 +1,65 @@
+/**
+ * Single source of truth for the route line hierarchy: per-type and per-group defaults for the
+ * road network's line character. Values are SCREEN pixels — route paths carry
+ * `vector-effect: non-scaling-stroke` (see public/index.css), so stroke width and dash pattern are
+ * evaluated in screen space and never balloon as you zoom in.
+ *
+ * These are DEFAULTS. A style preset may override any of them per type/group; this module is the
+ * fallback so a stripped or custom preset still renders the hierarchy instead of one flat dash.
+ * Colour and opacity are intentionally NOT set here — presets own those.
+ *
+ * `stroke-dasharray: null` means a solid line (the attribute is removed).
+ */
+export interface RouteLineStyle {
+  "stroke-width": number;
+  "stroke-dasharray": string | null;
+  "stroke-linecap": string;
+}
+
+const solid = (width: number): RouteLineStyle => ({
+  "stroke-width": width,
+  "stroke-dasharray": null,
+  "stroke-linecap": "butt"
+});
+const dashed = (width: number, dash: string): RouteLineStyle => ({
+  "stroke-width": width,
+  "stroke-dasharray": dash,
+  "stroke-linecap": "butt"
+});
+const dotted = (width: number, dash: string): RouteLineStyle => ({
+  "stroke-width": width,
+  "stroke-dasharray": dash,
+  "stroke-linecap": "round"
+});
+
+/** Overland route types, most-important first. Solid trunk roads → dashed secondary → dotted paths. */
+export const ROUTE_TYPE_DEFAULTS: Record<string, RouteLineStyle> = {
+  royal: solid(2.0),
+  main: solid(1.4),
+  market: dashed(1.1, "6 4"),
+  town: dashed(0.9, "4 3"),
+  local: dashed(0.7, "2.5 2.5"),
+  trail: dotted(0.6, "0.5 3"),
+  footpath: dotted(0.5, "0.5 2")
+};
+
+/** Route groups: overland catch-alls (for routes with no type) plus the special sea/air/trade lanes. */
+export const ROUTE_GROUP_DEFAULTS: Record<string, RouteLineStyle> = {
+  roads: solid(1.4),
+  trails: dotted(0.6, "0.5 3"),
+  searoutes: dotted(0.8, "1 4"),
+  airroutes: dotted(0.9, "6 4"),
+  traderoutes: dashed(1.5, "6 2 1 2")
+};
+
+export function routeTypeStyle(type: string): RouteLineStyle | undefined {
+  return ROUTE_TYPE_DEFAULTS[type];
+}
+export function routeGroupStyle(group: string): RouteLineStyle | undefined {
+  return ROUTE_GROUP_DEFAULTS[group];
+}
+
+// public/modules/ui/layers.js is a classic script and can only reach TS through globals.
+if (typeof window !== "undefined") {
+  Object.assign(window, { routeTypeStyle, routeGroupStyle });
+}
