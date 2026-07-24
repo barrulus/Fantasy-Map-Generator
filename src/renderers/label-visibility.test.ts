@@ -16,6 +16,7 @@ function box(p: Partial<LabelBox> & { id: number }): LabelBox {
     minZoom: 0,
     startPx: 32,
     restPx: 15,
+    iconDiameter: 1,
     ...p
   };
 }

@@ -700,6 +700,22 @@ function invokeActiveZooming() {
           if (hideLabels.checked && scale < minZoomSub) sub.classList.add("hidden");
           else sub.classList.remove("hidden");
 
+          // Icon-clearance lift: labels are constant-on-screen-size (rescale curve above) while
+          // the matching #burgIcons tier grows in map space with zoom, so a fixed em dy (the old
+          // model) stops clearing the icon past a certain zoom. Recompute the on-screen clearance
+          // every frame from the icon's actual current radius and apply it as a group transform
+          // (cheap — one per tier, ~13 groups — instead of touching every text node's dy).
+          // draw-burg-labels.ts now always writes dy=0 for burg text, so this is the only offset.
+          let offsetPx = 0;
+          if (window.labelIconOffsetPx) {
+            const iconEl = burgIcons.node() && burgIcons.node().querySelector(`:scope > g#${sub.id}`);
+            const iconDiameter = iconEl ? parseFloat(getComputedStyle(iconEl).fontSize) || 1 : 1;
+            offsetPx = window.labelIconOffsetPx(iconDiameter, scale);
+          }
+          const offsetMap = scale > 0 ? offsetPx / scale : 0;
+          if (offsetMap) sub.setAttribute("transform", `translate(0 ${rn(-offsetMap, 2)})`);
+          else sub.removeAttribute("transform");
+
           // Obstacle avoidance: skip the capital tier entirely (never hidden by anything) and
           // skip when there's nothing to avoid or nothing left visible after the min-zoom gate.
           if (!mapRect || tiers.groupRank(sub.id) === 0 || sub.classList.contains("hidden")) continue;
@@ -716,8 +732,10 @@ function invokeActiveZooming() {
             if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
             const halfW = ((el.textContent || "").length * currentPx * CHAR_WIDTH_EM) / 2;
             const halfH = currentPx / 2;
+            // Subtract offsetPx to match the group's translate(0 -offsetMap) lift above — the
+            // collision box must reflect where the label is actually drawn on screen.
             const screenX = mapRect.left + x * scale + viewX;
-            const screenY = mapRect.top + y * scale + viewY;
+            const screenY = mapRect.top + y * scale + viewY - offsetPx;
             boxes.push({
               id: el.id,
               left: screenX - halfW,

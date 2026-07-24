@@ -50,12 +50,27 @@ export function svgLabelFontSize(px: number, scale: number): number {
   return scale > 0 ? px / scale : px;
 }
 
+/**
+ * On-screen pixels to lift a label above its burg so it clears the icon at this zoom.
+ *
+ * Icons are drawn in MAP space at `max(diameter * scale, 3px)` (see webgl-burg-icons.ts's
+ * VERT shader / webgl-burg-atlas.ts's per-tile size), while labels are now sized in SCREEN
+ * space (the decay curve above) — the two grow at different rates as scale changes, so the
+ * clearance has to be recomputed every frame from the icon's current on-screen radius rather
+ * than baked in as a fixed em offset.
+ */
+export function labelIconOffsetPx(iconDiameterMapUnits: number, scale: number, gapPx = 3): number {
+  const iconRadiusPx = Math.max(iconDiameterMapUnits * scale, 3) / 2; // matches the icon shader's max(d*scale,3)
+  return iconRadiusPx + gapPx;
+}
+
 // public/main.js is a classic script and can only reach TS through globals.
 if (typeof window !== "undefined") {
   Object.assign(window, {
     effectiveLabelPx,
     labelPxForGroup,
     svgLabelFontSize,
+    labelIconOffsetPx,
     groupRestPx,
     labelTiers: { groupRank, groupMinZoom, groupMaxZoom, groupReferenceD }
   });

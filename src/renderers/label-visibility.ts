@@ -1,5 +1,5 @@
 import type { Rect } from "./labeling/label-collision";
-import { effectiveLabelPx } from "./labeling/label-sizing";
+import { effectiveLabelPx, labelIconOffsetPx } from "./labeling/label-sizing";
 
 export interface LabelBox {
   id: number;
@@ -13,6 +13,20 @@ export interface LabelBox {
   minZoom: number;
   startPx: number; // screen px at scale 1
   restPx: number; // asymptotic resting screen px as scale grows
+  iconDiameter: number; // map-unit diameter of this box's tier's burg icon
+}
+
+/**
+ * The map-units anchor y a label is actually drawn/collided/hit-tested at: the burg's raw y,
+ * lifted above the icon by labelIconOffsetPx converted back to map units (the GL painter works
+ * in map units; dividing by scale undoes the shader's `* uScale`). Scale-independent (built once
+ * from static burg/style data) inputs stay in buildLabelBoxes; this is the one DRY spot every
+ * per-frame consumer (visibility/collision, glyph layout, hit-test) calls with the frame's scale
+ * so they all agree on where the label sits.
+ */
+export function liftedAnchorY(box: LabelBox, scale: number): number {
+  if (!(scale > 0)) return box.y;
+  return box.y - labelIconOffsetPx(box.iconDiameter, scale) / scale;
 }
 
 export interface MapViewport {
@@ -63,9 +77,11 @@ export function selectVisibleLabels(
   const rescale = opts.rescale !== false;
 
   // 1. gate + size + viewport cull
-  const candidates: { b: LabelBox; px: number; hwMap: number; hhMap: number }[] = [];
+  const candidates: { b: LabelBox; ay: number; px: number; hwMap: number; hhMap: number }[] = [];
   for (const b of boxes) {
     if (gate && scale < b.minZoom) continue;
+    // Anchor lifted above the icon so culling/collision reflect where the label is actually drawn.
+    const ay = liftedAnchorY(b, scale);
     // rescale off means constant screen size at the tier's resting size: the label simply stops
     // responding to zoom, which is the sensible reading of "don't rescale" under a screen-space
     // sizing model (the old model's fallback, raw d*scale, was a map-space artifact).
@@ -74,8 +90,8 @@ export function selectVisibleLabels(
     const hwMap = (b.halfWEm * px) / scale;
     const hhMap = (b.halfHEm * px) / scale;
     if (b.x + hwMap < vp.x0 || b.x - hwMap > vp.x1) continue;
-    if (b.y + hhMap < vp.y0 || b.y - hhMap > vp.y1) continue;
-    candidates.push({ b, px, hwMap, hhMap });
+    if (ay + hhMap < vp.y0 || ay - hhMap > vp.y1) continue;
+    candidates.push({ b, ay, px, hwMap, hhMap });
   }
 
   // 2. priority sort: lower order first, then higher population
@@ -114,9 +130,9 @@ export function selectVisibleLabels(
   for (const c of candidates) {
     const isCapital = c.b.order === 0; // groupRank(...) === 0 — never hidden, exempt from every check
     const l = (c.b.x - c.hwMap) * scale + tx;
-    const t = (c.b.y - c.hhMap) * scale + ty;
+    const t = (c.ay - c.hhMap) * scale + ty;
     const r = (c.b.x + c.hwMap) * scale + tx;
-    const bo = (c.b.y + c.hhMap) * scale + ty;
+    const bo = (c.ay + c.hhMap) * scale + ty;
 
     if (!isCapital) {
       const cx0 = Math.floor(l / GRID_PX);

@@ -12,9 +12,24 @@ export interface GroupStyle {
   halo: string;
   haloWidth: number;
   hidden: boolean; // display:none — read here, consumed by the GL painter in phase 3
+  iconDiameter: number; // map-unit diameter of this tier's burg icon (sibling #burgIcons > g#{id})
 }
 
 const DEFAULT_FONT_SIZE = 4;
+const DEFAULT_ICON_DIAMETER = 1;
+
+/**
+ * Read the sibling `#burgIcons > g#{id}` element's computed font-size, which the icon atlas
+ * (webgl-burg-atlas.ts) treats as the icon's map-unit diameter. Falls back to a sensible default
+ * when the icon group is missing (e.g. in tests that only mount #burgLabels) so label offset math
+ * always has a finite input.
+ */
+function readIconDiameter(id: string, root: ParentNode): number {
+  const iconEl = root.querySelector<SVGGElement>(`#burgIcons > g#${id}`);
+  if (!iconEl) return DEFAULT_ICON_DIAMETER;
+  const size = parseFloat(getComputedStyle(iconEl).fontSize);
+  return Number.isFinite(size) && size > 0 ? size : DEFAULT_ICON_DIAMETER;
+}
 
 /**
  * Read the authored per-group size.
@@ -58,7 +73,8 @@ export function readBurgLabelStyles(root: ParentNode = document): Record<string,
       // silently disabled the halo entirely, and a small capital label needs it to stay readable
       // painted over a big state name).
       haloWidth: +(el.getAttribute("stroke-width") || 0.5),
-      hidden: (el.getAttribute("style") || "").includes("display:none") || getComputedStyle(el).display === "none"
+      hidden: (el.getAttribute("style") || "").includes("display:none") || getComputedStyle(el).display === "none",
+      iconDiameter: readIconDiameter(el.id, root)
     };
   }
   return out;

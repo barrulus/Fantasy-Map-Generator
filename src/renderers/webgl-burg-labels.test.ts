@@ -22,6 +22,7 @@ function style(p: Partial<GroupStyle> = {}): GroupStyle {
     halo: "#ffffff",
     haloWidth: 1,
     hidden: false,
+    iconDiameter: 2,
     ...p
   };
 }
@@ -63,6 +64,11 @@ describe("buildLabelBoxes", () => {
     expect(b.restPx).toBe(15);
     expect(b.minZoom).toBe(1);
     expect(b.order).toBe(0);
+  });
+
+  it("carries the tier's icon diameter through from the style", () => {
+    const b = buildLabelBoxes(burgs, { capital: style({ iconDiameter: 3.5 }) }, METRICS, GEOM)[0];
+    expect(b.iconDiameter).toBeCloseTo(3.5, 10);
   });
 
   it("applies the per-burg label override to the anchor", () => {
@@ -110,6 +116,7 @@ describe("labelHitExtents", () => {
       minZoom: 1,
       startPx: 32,
       restPx: 15,
+      iconDiameter: 2,
       ...overrides
     };
   }

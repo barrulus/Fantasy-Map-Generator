@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { authoredSizeFactor, effectiveLabelPx, labelPxForGroup, svgLabelFontSize } from "./label-sizing";
+import {
+  authoredSizeFactor,
+  effectiveLabelPx,
+  labelIconOffsetPx,
+  labelPxForGroup,
+  svgLabelFontSize
+} from "./label-sizing";
 import { groupRestPx, groupStartPx } from "./tier-table";
 
 describe("effectiveLabelPx", () => {
@@ -78,6 +84,30 @@ describe("labelPxForGroup", () => {
       effectiveLabelPx(5, groupStartPx("capital"), groupRestPx("capital")),
       10
     );
+  });
+});
+
+describe("labelIconOffsetPx", () => {
+  it("matches the icon shader's floor at scale 1 for a capital (d=2)", () => {
+    expect(labelIconOffsetPx(2, 1)).toBeCloseTo(4.5, 10); // max(2,3)/2 + 3
+  });
+
+  it("grows with scale once the icon exceeds the 3px floor", () => {
+    expect(labelIconOffsetPx(2, 5)).toBeCloseTo(8, 10); // max(10,3)/2 + 3
+  });
+
+  it("floors small icons at the shader's 3px minimum (hamlet d=0.5 at scale 1)", () => {
+    expect(labelIconOffsetPx(0.5, 1)).toBeCloseTo(4.5, 10); // max(0.5,3)/2 + 3
+  });
+
+  it("increases as diameter or scale increases", () => {
+    expect(labelIconOffsetPx(4, 5)).toBeGreaterThan(labelIconOffsetPx(2, 5));
+    expect(labelIconOffsetPx(2, 10)).toBeGreaterThan(labelIconOffsetPx(2, 5));
+  });
+
+  it("does not produce NaN or Infinity at scale 0", () => {
+    const px = labelIconOffsetPx(2, 0);
+    expect(Number.isFinite(px)).toBe(true);
   });
 });
 

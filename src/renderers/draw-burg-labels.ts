@@ -33,7 +33,11 @@ const burgLabelsRenderer = (): void => {
     if (labelGroup.empty()) continue;
 
     const dx = labelGroup.attr("data-dx") || 0;
-    const dy = labelGroup.attr("data-dy") || 0;
+    // Vertical offset is owned entirely by invokeActiveZooming's icon-clearance lift (see
+    // public/main.js's #burgLabels branch, which applies a per-tier `translate(0 -offsetMap)`
+    // recomputed every frame from the icon's on-screen radius). A per-text data-dy em here would
+    // stack with that group transform and either over-lift or, at some zooms, put the label back
+    // on top of the icon, so burg labels always draw with dy=0.
 
     labelGroup
       .selectAll("text")
@@ -46,7 +50,7 @@ const burgLabelsRenderer = (): void => {
       .attr("x", d => d.x)
       .attr("y", d => d.y)
       .attr("dx", `${dx}em`)
-      .attr("dy", `${dy}em`)
+      .attr("dy", "0em")
       .text(d => d.name!);
   }
 
@@ -65,7 +69,8 @@ const drawBurgLabelRenderer = (burg: Burg): void => {
   }
 
   const dx = labelGroup.attr("data-dx") || 0;
-  const dy = labelGroup.attr("data-dy") || 0;
+  // See burgLabelsRenderer above: vertical offset is owned by invokeActiveZooming's icon-clearance
+  // group transform, so dy stays 0 here to avoid double-applying it.
 
   removeBurgLabelRenderer(burg.i!);
   labelGroup
@@ -76,7 +81,7 @@ const drawBurgLabelRenderer = (burg: Burg): void => {
     .attr("x", burg.x)
     .attr("y", burg.y)
     .attr("dx", `${dx}em`)
-    .attr("dy", `${dy}em`)
+    .attr("dy", "0em")
     .text(burg.name!);
 };
 

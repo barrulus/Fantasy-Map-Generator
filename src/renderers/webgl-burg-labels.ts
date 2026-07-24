@@ -2,7 +2,7 @@ import { type Quadtree, quadtree } from "d3-quadtree";
 import type { Burg } from "../generators/burgs-generator";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
 import { type FontGeometry, type GlyphMetric, layoutLabel } from "./label-layout";
-import { type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";
+import { type LabelBox, liftedAnchorY, type MapViewport, selectVisibleLabels } from "./label-visibility";
 import { getStateLabelObstacles, hashObstacles, type Rect } from "./labeling/label-collision";
 import { effectiveLabelPx } from "./labeling/label-sizing";
 import { type GroupStyle, readBurgLabelStyles } from "./labeling/label-style";
@@ -40,6 +40,7 @@ export function buildLabelBoxes(
       minZoom: s.minZoom,
       startPx: s.startPx,
       restPx: s.restPx,
+      iconDiameter: s.iconDiameter,
       name: b.name,
       group: b.group as string
     });
@@ -316,7 +317,8 @@ function buildGroupRanges(visible: Map<number, number>, scale: number): { group:
     const px = visible.get(b.id);
     if (px === undefined) continue;
     const mapUnits = scale > 0 ? px / scale : b.d;
-    const laid = layoutLabel(b.name, atlas.metrics, atlas.geom, mapUnits, b.x, b.y);
+    const ay = liftedAnchorY(b, scale);
+    const laid = layoutLabel(b.name, atlas.metrics, atlas.geom, mapUnits, b.x, ay);
     const packed = packGlyphQuads(laid.quads);
     const acc = (byGroup[b.group] ||= []) as unknown as number[];
     for (let i = 0; i < packed.length; i++) acc.push(packed[i]);
@@ -378,7 +380,8 @@ registerLayer({
     if (!found) return null;
     const t = (window as any).getMapTransform?.() || { scale: 1 };
     const { hw, hh } = labelHitExtents(found, t.scale);
-    if (mapX >= found.x - hw && mapX <= found.x + hw && mapY >= found.y - hh && mapY <= found.y + hh) return found.id;
+    const ay = liftedAnchorY(found, t.scale);
+    if (mapX >= found.x - hw && mapX <= found.x + hw && mapY >= ay - hh && mapY <= ay + hh) return found.id;
     return null;
   }
 });
