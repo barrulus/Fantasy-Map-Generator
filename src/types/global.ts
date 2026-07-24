@@ -98,6 +98,7 @@ declare global {
     group: string
   ) => { "stroke-width": number; "stroke-dasharray": string | null; "stroke-linecap": string } | undefined;
   var applyRouteLineStyle: (el: Element, fallback: unknown, presetStyle: unknown) => void;
+  var readPresetAttrs: (el: Element, attrs: string[]) => Record<string, string>;
   var debug: Selection<SVGElement, unknown, null, undefined>;
   var elSelected: Selection<SVGElement, unknown, HTMLElement, any>;
 

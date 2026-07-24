@@ -78,7 +78,18 @@ export function applyRouteLineStyle(
   }
 }
 
+/**
+ * Read the attributes a caller cares about off an element, skipping absent ones. Used to treat a
+ * route group's preset-set attributes as the winning `presetStyle` in applyRouteLineStyle, so the
+ * default hierarchy only fills attributes the preset did not set (rather than clobbering them).
+ */
+export function readPresetAttrs(el: Element, attrs: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const a of attrs) if (el.hasAttribute(a)) out[a] = el.getAttribute(a)!;
+  return out;
+}
+
 // public/modules/ui/layers.js is a classic script and can only reach TS through globals.
 if (typeof window !== "undefined") {
-  Object.assign(window, { routeTypeStyle, routeGroupStyle, applyRouteLineStyle });
+  Object.assign(window, { routeTypeStyle, routeGroupStyle, applyRouteLineStyle, readPresetAttrs });
 }

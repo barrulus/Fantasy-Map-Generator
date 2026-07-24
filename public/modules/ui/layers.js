@@ -875,13 +875,24 @@ function drawRoutes() {
   routes.attr("fill", "none");
   routes.selectAll("#roads, #trails, #searoutes, #airroutes, #traderoutes").html("");
 
+  const styledGroups = new Set();
+
   for (const key in typedPaths) {
     const {group, type, paths} = typedPaths[key];
     const groupEl = routes.select("#" + group);
     if (groupEl.empty()) continue;
-    // ensure the group carries the default line style (preset group style still applies on load;
-    // this fills gaps for presets that omit it, and for routes rendered directly on the group)
-    window.applyRouteLineStyle(groupEl.node(), window.routeGroupStyle(group), undefined);
+    if (!styledGroups.has(group)) {
+      styledGroups.add(group);
+      // ensure the group carries the default line style (preset group style still applies on load;
+      // this fills gaps for presets that omit it, and for routes rendered directly on the group).
+      // Read the group's own currently-set attributes first so the preset's values win over the
+      // default hierarchy instead of being clobbered by it.
+      const groupNode = groupEl.node();
+      const presetGroupStyle = window.readPresetAttrs(groupNode, [
+        "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "opacity", "filter", "mask"
+      ]);
+      window.applyRouteLineStyle(groupNode, window.routeGroupStyle(group), presetGroupStyle);
+    }
     if (type) {
       const subGroup = groupEl.append("g").attr("id", type);
       applyRouteTypeStyle(subGroup.node(), type);

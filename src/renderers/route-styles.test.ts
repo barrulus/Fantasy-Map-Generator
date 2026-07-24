@@ -3,6 +3,7 @@ import {
   applyRouteLineStyle,
   ROUTE_GROUP_DEFAULTS,
   ROUTE_TYPE_DEFAULTS,
+  readPresetAttrs,
   routeGroupStyle,
   routeTypeStyle
 } from "./route-styles";
@@ -85,5 +86,39 @@ describe("applyRouteLineStyle (preset wins, defaults fill gaps)", () => {
     el.setAttribute("stroke-dasharray", "2"); // stale value from a prior render
     applyRouteLineStyle(el, ROUTE_TYPE_DEFAULTS.royal, undefined);
     expect(el.hasAttribute("stroke-dasharray")).toBe(false);
+  });
+});
+
+describe("readPresetAttrs", () => {
+  it("returns only present attributes, omitting absent ones", () => {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    el.setAttribute("stroke-width", "0.35");
+    const attrs = readPresetAttrs(el, ["stroke-width", "stroke-dasharray", "stroke-linecap"]);
+    expect(attrs).toEqual({ "stroke-width": "0.35" });
+    expect(attrs).not.toHaveProperty("stroke-dasharray");
+  });
+});
+
+describe("preset group style survives applyRouteLineStyle via readPresetAttrs (drawRoutes regression)", () => {
+  const attrNames = ["stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "opacity", "filter", "mask"];
+
+  it("keeps a preset's group-level width/dash instead of letting the default clobber them", () => {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    el.setAttribute("stroke-width", "0.35");
+    el.setAttribute("stroke-dasharray", "1 2");
+
+    applyRouteLineStyle(el, ROUTE_GROUP_DEFAULTS.searoutes, readPresetAttrs(el, attrNames));
+
+    expect(el.getAttribute("stroke-width")).toBe("0.35");
+    expect(el.getAttribute("stroke-dasharray")).toBe("1 2");
+  });
+
+  it("falls back to the default when the element has no line attributes set", () => {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+    applyRouteLineStyle(el, ROUTE_GROUP_DEFAULTS.searoutes, readPresetAttrs(el, attrNames));
+
+    expect(el.getAttribute("stroke-width")).toBe(String(ROUTE_GROUP_DEFAULTS.searoutes["stroke-width"]));
+    expect(el.getAttribute("stroke-dasharray")).toBe(ROUTE_GROUP_DEFAULTS.searoutes["stroke-dasharray"]);
   });
 });
