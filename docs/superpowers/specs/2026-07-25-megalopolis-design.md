@@ -1,7 +1,11 @@
 # Megalopolis (Same-Cell Burg Grouping) — Design
 
-**Status:** approved design, pre-implementation
+**Status:** implemented (main, 2026-07-25); amended after first in-map verification
 **Depends on:** multi-burg-per-cell (merged to main 2026-07-25, commits `ccc5a6ba..b72629a8`)
+
+> **Amendments (2026-07-25, post-verification):**
+> 1. **Skyburgs never join megalopolises.** Membership is ≥2 *ground* burgs in a cell. Auto-enrolling flying burgs turned the whole skyburg archipelago into "Greater X" groups. Skyburgs keep their existing stacking and consumers-only economy. (Supersedes "skyburg members" below.)
+> 2. **Composites follow the capital tier zoom gate.** Composite icons/labels appear from `groupMinZoom("capital")` (like capitals), not from zoom 0, and still swap out for members at the split zoom.
 
 ## Purpose
 
