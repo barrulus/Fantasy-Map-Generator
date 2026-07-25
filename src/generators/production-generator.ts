@@ -5,6 +5,7 @@ import { type CultureType, DEFAULT_CULTURE_TYPE } from "./cultures-generator";
 import type { DemandCategory, Good } from "./goods-generator";
 import { DEMAND_PRIORITY, getDemandTargets } from "./goods-generator";
 import type { Deal, Market } from "./markets-generator";
+import { findMegalopolises, groupedMemberIds, pooledPopulation } from "./megalopolis";
 import type { Zone } from "./zones-generator";
 
 const BONUS_RURAL_PRODUCTION = 0.25;
@@ -28,13 +29,18 @@ export class ProductionModule {
       .filter(burg => burg.i && !burg.removed)
       .sort((a, b) => a.population! - b.population!);
 
+    const megas = findMegalopolises(pack.burgs, pack.cells.burg);
+    const memberIds = groupedMemberIds(megas);
+    const pooled = pooledPopulation(megas);
+
     for (const burg of sortedBurgs) {
       if (!burg.i || burg.removed || !burg.market) continue;
       if (burg.flying) continue; // sky-burgs don't manufacture (consumers only); they still buy via fillBurgsDemand
+      if (memberIds.has(burg.i)) continue; // grouped members produce via their anchor's pooled run
       const market = Markets.get(burg.market);
       if (!market) continue;
 
-      const state = this.createBurgProductionState(burg, market, index);
+      const state = this.createBurgProductionState(burg, market, index, pooled.get(burg.i));
       this.runWorkerLoop(index, state);
 
       const phaseRevenue = this.sellInventoryToMarket(state);
@@ -51,13 +57,18 @@ export class ProductionModule {
   }
 
   private fillBurgsDemand(sortedBurgs: Burg[], index: ProductionIndex): void {
+    const megas = findMegalopolises(pack.burgs, pack.cells.burg);
+    const memberIds = groupedMemberIds(megas);
+    const pooled = pooledPopulation(megas);
+
     for (const burg of sortedBurgs) {
       if (!burg.i || burg.removed || !burg.market) continue;
+      if (memberIds.has(burg.i)) continue; // grouped members' demand is folded into the anchor's pooled buy
       this.fillDemandFromMarket({
         burg,
         demandCoverageByGood: index.demandCoverageByGood,
         demandGoodsByCategory: index.demandGoodsByCategory,
-        demandTargets: getDemandTargets(burg.population || 0),
+        demandTargets: getDemandTargets(pooled.get(burg.i) ?? burg.population ?? 0),
         records: burg.production || []
       });
     }
@@ -81,8 +92,14 @@ export class ProductionModule {
     };
   }
 
-  private createBurgProductionState(burg: Burg, market: Market, index: ProductionIndex): BurgProductionState {
-    const population = rn(burg.population || 0, 2);
+  private createBurgProductionState(
+    burg: Burg,
+    market: Market,
+    index: ProductionIndex,
+    populationOverride?: number
+  ): BurgProductionState {
+    // megalopolis anchors run with the pooled member population
+    const population = rn(populationOverride ?? burg.population ?? 0, 2);
     const inventory: number[] = [];
     const demandTargets = getDemandTargets(population);
     const demandCoverage = this.calculateDemandCoverage(inventory, index.demandCoverageByGood);
