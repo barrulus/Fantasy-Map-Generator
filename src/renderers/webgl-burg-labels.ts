@@ -1,5 +1,6 @@
 import { type Quadtree, quadtree } from "d3-quadtree";
 import type { Burg } from "../generators/burgs-generator";
+import { findMegalopolises, type Megalopolis, MEGALOPOLIS_SPLIT_ZOOM, megalopolisName } from "../generators/megalopolis";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
 import { type FontGeometry, type GlyphMetric, layoutLabel } from "./label-layout";
 import { type LabelBox, liftedAnchorY, type MapViewport, selectVisibleLabels } from "./label-visibility";
@@ -19,31 +20,67 @@ export function buildLabelBoxes(
   burgs: Burg[],
   styles: Record<string, GroupStyle>,
   metrics: Record<string, GlyphMetric>,
-  geom: FontGeometry
+  geom: FontGeometry,
+  megas?: Map<number, Megalopolis>
 ): (LabelBox & { name: string; group: string })[] {
   const out: (LabelBox & { name: string; group: string })[] = [];
+  // Megalopolis burgs (anchor + members) only label individually past the split
+  // zoom; below it one composite "Greater X" box (added after the loop) stands in.
+  const groupedIds = new Set<number>();
+  if (megas) for (const m of megas.values()) for (const b of m.members) groupedIds.add(b.i);
+
+  const advanceOf = (name: string): number => {
+    let adv = 0;
+    for (const ch of name) if (metrics[ch]) adv += metrics[ch].advance;
+    return adv;
+  };
+
   for (const b of burgs) {
     if (!b || !b.i || b.removed || !b.name) continue;
     const s = styles[b.group as string];
     if (!s) continue;
-    let adv = 0;
-    for (const ch of b.name) if (metrics[ch]) adv += metrics[ch].advance;
+    const grouped = groupedIds.has(b.i);
     out.push({
       id: b.i,
       x: b.x! + (b.labelDx || 0),
       y: b.y! + (b.labelDy || 0),
       order: s.rank,
       population: b.population || 0,
-      halfWEm: adv / 2 + geom.originXEm,
+      halfWEm: advanceOf(b.name) / 2 + geom.originXEm,
       halfHEm: geom.cellEm / 2,
       d: s.fontSize,
-      minZoom: s.minZoom,
+      minZoom: grouped ? Math.max(s.minZoom, MEGALOPOLIS_SPLIT_ZOOM) : s.minZoom,
       startPx: s.startPx,
       restPx: s.restPx,
       iconDiameter: s.iconDiameter,
       name: b.name,
       group: b.group as string
     });
+  }
+
+  if (megas) {
+    for (const m of megas.values()) {
+      const s = styles[m.anchor.group as string];
+      if (!s) continue;
+      const name = megalopolisName(m.anchor);
+      out.push({
+        id: m.anchor.i,
+        x: m.anchor.x! + (m.anchor.labelDx || 0),
+        y: m.anchor.y! + (m.anchor.labelDy || 0),
+        order: 0, // capital-tier priority: the composite label is never collision-dropped
+        population: m.population,
+        halfWEm: advanceOf(name) / 2 + geom.originXEm,
+        halfHEm: geom.cellEm / 2,
+        d: s.fontSize,
+        minZoom: 0,
+        maxZoom: MEGALOPOLIS_SPLIT_ZOOM,
+        startPx: s.startPx,
+        restPx: s.restPx,
+        iconDiameter: s.iconDiameter,
+        name,
+        group: m.anchor.group as string
+      });
+    }
   }
   return out;
 }
@@ -167,14 +204,19 @@ export async function rebuildBurgLabelGL(): Promise<void> {
     document.body;
   const cs = getComputedStyle(fontSrc as Element);
   const font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-  atlas = buildGlyphAtlas(collectGlyphs(burgs), font);
+  const megas = findMegalopolises(burgs, (window as any).pack.cells.burg);
+  // composite "Greater X" labels need their glyphs in the atlas too
+  const compositeNameCarriers = [...megas.values()].map(
+    m => ({ i: m.anchor.i, name: megalopolisName(m.anchor) }) as Burg
+  );
+  atlas = buildGlyphAtlas(collectGlyphs([...burgs, ...compositeNameCarriers]), font);
   gl.bindTexture(gl.TEXTURE_2D, atlasTex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlas.canvas);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  boxes = buildLabelBoxes(burgs, styles, atlas.metrics, atlas.geom);
+  boxes = buildLabelBoxes(burgs, styles, atlas.metrics, atlas.geom, megas);
   rebuildQuadtree();
   lastKey = "";
   drawBurgLabelGL();

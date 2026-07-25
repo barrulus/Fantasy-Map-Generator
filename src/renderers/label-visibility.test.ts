@@ -37,6 +37,23 @@ describe("selectVisibleLabels — tier gating", () => {
   });
 });
 
+describe("selectVisibleLabels — megalopolis maxZoom swap", () => {
+  it("suppresses boxes at or beyond their maxZoom and keeps them below it", () => {
+    const boxes = [
+      box({ id: 1, minZoom: 0, maxZoom: 4, y: 100 }), // composite: visible only below 4
+      box({ id: 2, minZoom: 4, y: 600 }) // member: visible only at/above 4
+    ];
+    expect(ids(selectVisibleLabels(boxes, 2, VP, { hideLabels: true }))).toEqual([1]);
+    expect(ids(selectVisibleLabels(boxes, 5, VP, { hideLabels: true }))).toEqual([2]);
+  });
+
+  it("applies maxZoom even when hideLabels gating is off", () => {
+    const boxes = [box({ id: 1, maxZoom: 4 })];
+    expect(ids(selectVisibleLabels(boxes, 5, VP, { hideLabels: false }))).toEqual([]);
+    expect(ids(selectVisibleLabels(boxes, 2, VP, { hideLabels: false }))).toEqual([1]);
+  });
+});
+
 describe("selectVisibleLabels — size never culls", () => {
   it("reports startPx at scale 1", () => {
     const out = selectVisibleLabels([box({ id: 1, startPx: 32, restPx: 15 })], 1, VP, { hideLabels: true });

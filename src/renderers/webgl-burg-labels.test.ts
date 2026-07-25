@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { findMegalopolises, MEGALOPOLIS_SPLIT_ZOOM } from "../generators/megalopolis";
 import type { FontGeometry, GlyphMetric } from "./label-layout";
 import type { LabelBox } from "./label-visibility";
 import type { GroupStyle } from "./labeling/label-style";
@@ -80,6 +81,30 @@ describe("buildLabelBoxes", () => {
 
   it("skips burgs whose group has no style shell", () => {
     expect(buildLabelBoxes(burgs, { hamlet: style({ group: "hamlet" }) }, METRICS, GEOM)).toEqual([]);
+  });
+
+  it("megalopolis: members swap out below the split zoom and a composite 'Greater X' box swaps in", () => {
+    const cellsBurg = new Uint32Array(10);
+    cellsBurg[5] = 1;
+    const grouped = [
+      {},
+      { i: 1, name: "Ab", group: "capital", cell: 5, x: 100, y: 200, population: 5 },
+      { i: 2, name: "bA", group: "capital", cell: 5, x: 102, y: 202, population: 3 }
+    ] as any;
+    const megas = findMegalopolises(grouped, cellsBurg);
+    const out = buildLabelBoxes(grouped, { capital: style({ minZoom: 1 }) }, METRICS, GEOM, megas);
+
+    const anchorBox = out.find(b => b.id === 1 && b.maxZoom === undefined)!;
+    const memberBox = out.find(b => b.id === 2)!;
+    const compositeBox = out.find(b => b.maxZoom !== undefined)!;
+
+    expect(anchorBox.minZoom).toBe(MEGALOPOLIS_SPLIT_ZOOM); // raised from 1 to the split
+    expect(memberBox.minZoom).toBe(MEGALOPOLIS_SPLIT_ZOOM);
+    expect(compositeBox.id).toBe(1);
+    expect(compositeBox.name).toBe("Greater Ab");
+    expect(compositeBox.maxZoom).toBe(MEGALOPOLIS_SPLIT_ZOOM);
+    expect(compositeBox.order).toBe(0); // capital-tier priority: never collision-dropped
+    expect(compositeBox.population).toBe(8);
   });
 
   it("skips removed burgs", () => {

@@ -11,6 +11,7 @@ export interface LabelBox {
   halfHEm: number; // half-extents in em, so they track the size actually drawn
   d: number; // authored map units per em
   minZoom: number;
+  maxZoom?: number; // suppress at/beyond this scale (megalopolis composite labels swap out)
   startPx: number; // screen px at scale 1
   restPx: number; // asymptotic resting screen px as scale grows
   iconDiameter: number; // map-unit diameter of this box's tier's burg icon
@@ -80,6 +81,9 @@ export function selectVisibleLabels(
   const candidates: { b: LabelBox; ay: number; px: number; hwMap: number; hhMap: number }[] = [];
   for (const b of boxes) {
     if (gate && scale < b.minZoom) continue;
+    // maxZoom is not behind the hideLabels gate: a composite label must swap for
+    // its members at the split zoom regardless of tier-gating preferences.
+    if (b.maxZoom !== undefined && scale >= b.maxZoom) continue;
     // Anchor lifted above the icon so culling/collision reflect where the label is actually drawn.
     const ay = liftedAnchorY(b, scale);
     // rescale off means constant screen size at the tier's resting size: the label simply stops
