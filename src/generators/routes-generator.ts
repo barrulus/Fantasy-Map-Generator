@@ -14,6 +14,7 @@ import {
 } from "../utils";
 import { buildAirRoutes } from "./air-routes-generator";
 import type { Burg } from "./burgs-generator";
+import { findMegalopolises, groupedMemberIds, pooledPopulation } from "./megalopolis";
 import { assignTradeRoles, buildLegGraph, routeTradeNetwork, type TradeNode } from "./trade-network-generator";
 import type { Point } from "./voronoi";
 
@@ -1302,18 +1303,33 @@ class RoutesModule {
       if (b.i && !b.removed && b.capital && b.state !== undefined) capitalByState.set(b.state, b);
     }
 
-    assignTradeRoles(pack.burgs, {
-      importance: portImportance,
-      isLargePort: (b: Burg) => Boolean(b.isLargePort) || b.settlementType === "largePort",
-      minHubSize: MIN_HUB_SIZE,
-      capitalByState,
-      dist2
-    });
+    // megalopolises trade as ONE node: members are excluded from role
+    // assignment and the anchor's gravity uses the pooled population
+    const megas = findMegalopolises(pack.burgs, pack.cells.burg);
+    const memberIds = groupedMemberIds(megas);
+    const pooledPop = pooledPopulation(megas);
+    for (const id of memberIds) pack.burgs[id].tradeRole = undefined; // members never trade independently
+    const megalopolisImportance = (b: Burg) => {
+      const pop = pooledPop.get(b.i);
+      return pop === undefined ? portImportance(b) : portImportance({ ...b, population: pop } as Burg);
+    };
+
+    assignTradeRoles(
+      pack.burgs.filter(b => !b.i || !memberIds.has(b.i)),
+      {
+        importance: megalopolisImportance,
+        isLargePort: (b: Burg) => Boolean(b.isLargePort) || b.settlementType === "largePort",
+        minHubSize: MIN_HUB_SIZE,
+        capitalByState,
+        dist2
+      }
+    );
 
     // build nodes (hubs + waystations) with their navigable component
     const nodes: TradeNode[] = [];
     const hubIndices: number[] = [];
     for (const b of pack.burgs) {
+      if (b.i && memberIds.has(b.i)) continue; // grouped members never become trade nodes
       if (!b.tradeRole) continue;
       if (!b.port) continue;
       const component = components.get(b.port as number) ?? (b.port as number);
