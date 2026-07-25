@@ -1431,9 +1431,9 @@ class BurgModule {
     this.defineGroup(burg, popIndex, populations.length);
 
     pack.burgs.push(burg);
-    // Skyburgs don't occupy the per-cell ground burg slot, so a flying burg
-    // can share a cell with a ground burg and other skyburgs can stack here.
-    if (!flying) cells.burg[cellId as number] = burgId;
+    // First ground burg in a cell claims the primary slot; later arrivals and
+    // flying burgs coexist in the cell without owning it.
+    cells.burg[cellId as number] = groundSlotOnPlacement(cells.burg[cellId as number], burgId, flying);
 
     if (flying) {
       Routes.rebuildAirroutes();

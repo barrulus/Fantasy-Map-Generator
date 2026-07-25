@@ -490,10 +490,6 @@ function addBurgOnClick(this: SVGGElement, event: any): void {
     tip("You cannot place state into the water. Please click on a land cell", false, "error");
     return;
   }
-  if (pack.cells.burg[cell]) {
-    tip("There is already a burg in this cell. Please select a free cell", false, "error");
-    return;
-  }
 
   Burgs.add(point as [number, number]); // add new burg
 
@@ -516,12 +512,6 @@ function enterAddSkyBurgMode(this: HTMLElement): void {
 
 function addSkyBurgOnClick(this: SVGGElement, event: any): void {
   const point = getPointer(event, this);
-  const cell = findCell(point[0], point[1])!;
-
-  if (pack.cells.burg[cell]) {
-    tip("There is already a burg in this cell. Please select a free cell", false, "error");
-    return;
-  }
 
   Burgs.add(point as [number, number], { flying: true } as any);
 

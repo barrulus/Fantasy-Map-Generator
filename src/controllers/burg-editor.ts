@@ -1,6 +1,6 @@
 import { drag, type Selection, select } from "d3";
 import { Controllers } from "@/controllers";
-import type { Burg } from "../generators/burgs-generator";
+import { type Burg, cellSlotAfterRemoval, groundSlotOnPlacement } from "../generators/burgs-generator";
 import {
   convertTemperature,
   destroyDialogIfExists,
@@ -735,16 +735,13 @@ function relocateBurgOnClick(this: SVGGElement, event: any): void {
   const id = getSelectedId();
   const burg = pack.burgs[id];
 
-  if (cells.h[cellId] < 20) {
+  if (cells.h[cellId] < 20 && !burg.flying) {
     tip("Cannot place burg into the water! Select a land cell", false, "error");
     return;
   }
-  if (cells.burg[cellId] && cells.burg[cellId] !== id) {
-    tip("There is already a burg in this cell. Please select a free cell", false, "error");
-    return;
-  }
 
-  const newState = cells.state[cellId];
+  // Flying burgs keep their own state (sky states are not tied to ground cells)
+  const newState = burg.flying ? (burg.state ?? 0) : cells.state[cellId];
   const oldState = burg.state;
   if (newState !== oldState && burg.capital) {
     tip("Capital cannot be relocated into another state!", false, "error");
@@ -767,8 +764,8 @@ function relocateBurgOnClick(this: SVGGElement, event: any): void {
   }
 
   // change data
-  cells.burg[burg.cell] = 0;
-  cells.burg[cellId] = id;
+  cells.burg[burg.cell] = cellSlotAfterRemoval(cells.burg[burg.cell], burg, pack.burgs);
+  cells.burg[cellId] = groundSlotOnPlacement(cells.burg[cellId], id, Boolean(burg.flying));
   burg.cell = cellId;
   burg.state = newState;
   burg.x = x;
