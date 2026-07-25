@@ -84,6 +84,27 @@ export function skyburgPlacementWeight(t: number): number {
   return 0.15;
 }
 
+// --- Multi-burg-per-cell slot rules ------------------------------------------
+// `pack.cells.burg` holds at most ONE ground burg per cell — the "primary".
+// Additional ground burgs and all flying burgs live only in pack.burgs (each
+// carries its own .cell) and never own the slot. Invariant: a cell has >=1
+// ground burg <=> its slot is non-zero.
+
+// Slot value for a cell after `burg` is removed or relocated away. Only the
+// slot owner releases it; a co-located ground burg (if any) is promoted.
+export function cellSlotAfterRemoval(currentSlot: number, burg: Burg, burgs: Burg[]): number {
+  if (currentSlot !== burg.i) return currentSlot;
+  const successor = burgs.find(b => b.i && !b.removed && !b.flying && b.i !== burg.i && b.cell === burg.cell);
+  return successor ? successor.i : 0;
+}
+
+// Slot value for a cell after a burg is placed on it: the first ground burg
+// claims the slot; later arrivals and flying burgs leave it unchanged.
+export function groundSlotOnPlacement(currentSlot: number, burgId: number, flying: boolean): number {
+  if (flying) return currentSlot;
+  return currentSlot || burgId;
+}
+
 // Id of the burg (among `ids`) closest to (ax, ay); -1 if ids is empty.
 // `ids` must not include 0 — pack.burgs[0] is the numeric placeholder slot.
 export function nearestBurgId(burgs: { x: number; y: number }[], ids: number[], ax: number, ay: number): number {
@@ -1445,7 +1466,7 @@ class BurgModule {
     const burg = pack.burgs[burgId];
     if (!burg) return tip(`Burg ${burgId} not found`, false, "error");
 
-    pack.cells.burg[burg.cell] = 0;
+    pack.cells.burg[burg.cell] = cellSlotAfterRemoval(pack.cells.burg[burg.cell], burg, pack.burgs);
     burg.removed = true;
 
     const noteId = notes.findIndex(note => note.id === `burg${burgId}`);

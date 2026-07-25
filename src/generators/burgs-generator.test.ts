@@ -1,5 +1,12 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { nearestBurgId, skyburgAltitude, skyburgGroupFromPopulation, skyburgPlacementWeight } from "./burgs-generator";
+import {
+  cellSlotAfterRemoval,
+  groundSlotOnPlacement,
+  nearestBurgId,
+  skyburgAltitude,
+  skyburgGroupFromPopulation,
+  skyburgPlacementWeight
+} from "./burgs-generator";
 
 // ---------------------------------------------------------------------------
 // Fork tests: skyburg helpers
@@ -569,5 +576,67 @@ describe("BurgsModule.assignPorts — river-bank shift", () => {
     const burg = globalThis.pack.burgs[1];
     // Still shifted (axis-aligned fallback), just not crashing on the missing course.
     expect(burg.x === 5 && burg.y === 5).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fork tests: multi-burg-per-cell slot rules
+// ---------------------------------------------------------------------------
+
+const makeBurg = (i: number, cell: number, extra: Record<string, unknown> = {}) =>
+  ({ i, cell, x: 0, y: 0, state: 0, culture: 0, name: `b${i}`, feature: 0, capital: 0, port: 0, ...extra }) as any;
+
+describe("cellSlotAfterRemoval", () => {
+  it("clears the slot when the removed burg owns it and has no co-residents", () => {
+    const b = makeBurg(3, 10);
+    expect(cellSlotAfterRemoval(3, b, [makeBurg(0, 0), b])).toBe(0);
+  });
+
+  it("promotes a co-located ground burg when the slot owner is removed", () => {
+    const primary = makeBurg(3, 10);
+    const secondary = makeBurg(7, 10);
+    expect(cellSlotAfterRemoval(3, primary, [makeBurg(0, 0), primary, secondary])).toBe(7);
+  });
+
+  it("does NOT promote a flying co-resident", () => {
+    const primary = makeBurg(3, 10);
+    const sky = makeBurg(7, 10, { flying: 1 });
+    expect(cellSlotAfterRemoval(3, primary, [makeBurg(0, 0), primary, sky])).toBe(0);
+  });
+
+  it("does NOT promote a removed co-resident", () => {
+    const primary = makeBurg(3, 10);
+    const dead = makeBurg(7, 10, { removed: true });
+    expect(cellSlotAfterRemoval(3, primary, [makeBurg(0, 0), primary, dead])).toBe(0);
+  });
+
+  it("leaves the slot alone when removing a secondary (non-owner) burg", () => {
+    const secondary = makeBurg(7, 10);
+    expect(cellSlotAfterRemoval(3, secondary, [makeBurg(0, 0), makeBurg(3, 10), secondary])).toBe(3);
+  });
+
+  it("leaves the slot alone when removing a flying burg above a ground burg (live wrong-clear bug)", () => {
+    const sky = makeBurg(7, 10, { flying: 1 });
+    expect(cellSlotAfterRemoval(3, sky, [makeBurg(0, 0), makeBurg(3, 10), sky])).toBe(3);
+  });
+
+  it("leaves an empty slot empty when removing a flying burg over open terrain", () => {
+    const sky = makeBurg(7, 10, { flying: 1 });
+    expect(cellSlotAfterRemoval(0, sky, [makeBurg(0, 0), sky])).toBe(0);
+  });
+});
+
+describe("groundSlotOnPlacement", () => {
+  it("first ground burg claims an empty slot", () => {
+    expect(groundSlotOnPlacement(0, 5, false)).toBe(5);
+  });
+
+  it("later ground burgs do not steal an occupied slot", () => {
+    expect(groundSlotOnPlacement(3, 5, false)).toBe(3);
+  });
+
+  it("flying burgs never claim the slot, even when empty", () => {
+    expect(groundSlotOnPlacement(0, 5, true)).toBe(0);
+    expect(groundSlotOnPlacement(3, 5, true)).toBe(3);
   });
 });
