@@ -29,6 +29,12 @@ window.bindTopLayerEvents = bindTopLayerEvents;
 // dual-compatible: d3 v7 selections pass the event as the first argument,
 // the legacy v5 selection passes the datum (undefined for viewbox) and sets d3.event
 function clicked(event) {
+  // An active tool mode (add burg, relocate, zone paint, ...) owns map clicks: its handler
+  // replaces the #viewbox listener, but this default dispatcher stays bound on #viewboxTop
+  // and would steal the click (the GPU burg hit-test below opens the Burg Editor whenever
+  // the click lands near an existing burg — exactly the "add burg to an occupied cell" case).
+  if (customization) return;
+
   // WebGL burgs have no per-burg DOM, so hit-test the click against the burg quadtree.
   if (window.LayerHost) {
     const [mx, my] = d3.mouse(ensureEl("viewbox"));
