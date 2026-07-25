@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildBurgInstances, buildBurgQuadtree, type GroupRender, hitTestBurg } from "./burg-instances";
+import {
+  buildBurgInstances,
+  buildBurgQuadtree,
+  buildCompositeSpecs,
+  type GroupRender,
+  hitTestBurg
+} from "./burg-instances";
+import { findMegalopolises } from "../generators/megalopolis";
 
 const groups: Record<string, GroupRender> = {
   city: { tileIndex: 0, size: 4, minZoom: 4 },
@@ -46,5 +53,36 @@ describe("burg hit-test", () => {
   it("uses a minimum screen-px tap target so tiny icons stay clickable when zoomed out", () => {
     // at scale 1, city radius 2 map units, but the 6px min target / scale 1 = 6 map units
     expect(hitTestBurg(qt, 105, 100, 1, sizes)).toBe(1); // 5 units away, within the 6-unit min
+  });
+});
+
+describe("megalopolis composite instances", () => {
+  it("buildBurgInstances suppresses listed ids and appends composite instances", () => {
+    const burgs = [null, { i: 1, x: 10, y: 10, group: "city" }, { i: 2, x: 11, y: 11, group: "hamlet" }] as any;
+    const { count, ids, data } = buildBurgInstances(burgs, groups, undefined, {
+      suppress: new Set([2]),
+      composites: [{ x: 10, y: 10, size: 6.4, tileIndex: 0, anchorId: 1 }]
+    });
+    expect(count).toBe(2); // burg 1 + composite; burg 2 suppressed
+    expect(ids).toEqual([1, 1]); // composite carries the anchor id
+    const composite = Array.from(data.slice(5, 10));
+    expect(composite[0]).toBe(10);
+    expect(composite[1]).toBe(10);
+    expect(composite[2]).toBeCloseTo(6.4, 5); // Float32 rounding
+    expect(composite[3]).toBe(0);
+    expect(composite[4]).toBe(0); // composite always visible (minZoom 0)
+  });
+
+  it("buildCompositeSpecs emits an enlarged anchor icon plus a ring per megalopolis", () => {
+    const cellsBurg = new Uint32Array(10);
+    cellsBurg[5] = 1;
+    const megas = findMegalopolises(
+      [{ i: 0 }, { i: 1, cell: 5, x: 10, y: 10, group: "city", population: 2 }, { i: 2, cell: 5, x: 11, y: 11, group: "hamlet", population: 1 }] as any,
+      cellsBurg
+    );
+    const specs = buildCompositeSpecs(megas, groups, 9);
+    expect(specs).toHaveLength(2);
+    expect(specs[0]).toEqual({ x: 10, y: 10, size: 4 * 1.6, tileIndex: 0, anchorId: 1 });
+    expect(specs[1]).toEqual({ x: 10, y: 10, size: 4 * 2.2, tileIndex: 9, anchorId: 1 });
   });
 });

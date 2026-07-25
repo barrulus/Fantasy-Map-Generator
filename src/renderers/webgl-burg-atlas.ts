@@ -11,6 +11,7 @@ export interface BurgAtlas {
   cols: number;
   rows: number;
   tile: number;
+  ringTileIndex: number; // extra tile: megalopolis composite ring
 }
 
 // Serialize one group's symbol to an <svg> data URL using the live #icon-* symbol
@@ -41,7 +42,7 @@ function loadImage(svg: string): Promise<HTMLImageElement> {
 // Build the atlas for all current #burgIcons groups. Reads live <g> attributes.
 export async function buildBurgAtlas(): Promise<BurgAtlas> {
   const groupEls = Array.from(document.querySelectorAll<SVGGElement>("#burgIcons > g"));
-  const rows = Math.max(1, Math.ceil(groupEls.length / COLS));
+  const rows = Math.max(1, Math.ceil((groupEls.length + 1) / COLS)); // +1: megalopolis ring tile
   const canvas = document.createElement("canvas");
   canvas.width = COLS * TILE;
   canvas.height = rows * TILE;
@@ -69,5 +70,22 @@ export async function buildBurgAtlas(): Promise<BurgAtlas> {
     })
   );
 
-  return { canvas, tiles, cols: COLS, rows, tile: TILE };
+  // Megalopolis composite ring: a plain stroked circle in the tile after the last group.
+  const ringTileIndex = groupEls.length;
+  {
+    const cx = (ringTileIndex % COLS) * TILE + TILE / 2;
+    const cy = Math.floor(ringTileIndex / COLS) * TILE + TILE / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, TILE * 0.42, 0, Math.PI * 2);
+    ctx.lineWidth = TILE * 0.09;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, TILE * 0.42, 0, Math.PI * 2);
+    ctx.lineWidth = TILE * 0.04;
+    ctx.strokeStyle = "#333333";
+    ctx.stroke();
+  }
+
+  return { canvas, tiles, cols: COLS, rows, tile: TILE, ringTileIndex };
 }

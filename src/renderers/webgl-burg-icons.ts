@@ -1,7 +1,9 @@
+import { findMegalopolises, groupedMemberIds, MEGALOPOLIS_SPLIT_ZOOM } from "../generators/megalopolis";
 import {
   type BurgQuadtree,
   buildBurgInstances,
   buildBurgQuadtree,
+  buildCompositeSpecs,
   type GroupRender,
   hitTestBurg,
   INSTANCE_STRIDE
@@ -57,10 +59,16 @@ void main() {
 let gl: WebGL2RenderingContext | null = null;
 let prog: WebGLProgram;
 let instanceBuf: WebGLBuffer;
+let compositeBuf: WebGLBuffer; // megalopolis view: members suppressed, enlarged+ringed anchors appended
 let quadBuf: WebGLBuffer;
 let atlasTex: WebGLTexture;
 let atlas: BurgAtlas | null = null;
 let instanceCount = 0;
+let compositeCount = 0;
+let fullIds: number[] = [];
+let compositeIds: number[] = [];
+let megaBurgIds = new Set<number>(); // every member + anchor id (composite geometry derives from these)
+let anchorByMemberId = new Map<number, number>();
 let burgQuadtree: BurgQuadtree | null = null;
 const uniforms: Record<string, WebGLUniformLocation | null> = {};
 
@@ -102,6 +110,7 @@ export async function initBurgGL(): Promise<void> {
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
   instanceBuf = gl.createBuffer()!;
+  compositeBuf = gl.createBuffer()!;
   atlasTex = gl.createTexture()!;
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -124,11 +133,39 @@ export async function rebuildBurgGL(): Promise<void> {
 
   const renders = groupRenders();
   const fallback = Object.values(renders)[0] || { tileIndex: 0, size: 2, minZoom: 0 };
-  const { data, count, ids } = buildBurgInstances((window as any).pack.burgs, renders, fallback);
+  const burgs = (window as any).pack.burgs;
+  const { data, count, ids } = buildBurgInstances(burgs, renders, fallback);
   instanceCount = count;
+  fullIds = ids;
   gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
   gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-  burgQuadtree = buildBurgQuadtree((window as any).pack.burgs);
+
+  // Megalopolis composite view (only built when the map has any):
+  const megas = findMegalopolises(burgs, (window as any).pack.cells.burg);
+  anchorByMemberId = new Map();
+  megaBurgIds = new Set();
+  for (const m of megas.values()) {
+    megaBurgIds.add(m.anchor.i);
+    for (const b of m.members) {
+      megaBurgIds.add(b.i);
+      if (b.i !== m.anchor.i) anchorByMemberId.set(b.i, m.anchor.i);
+    }
+  }
+  if (megas.size) {
+    const composite = buildBurgInstances(burgs, renders, fallback, {
+      suppress: groupedMemberIds(megas),
+      composites: buildCompositeSpecs(megas, renders, atlas.ringTileIndex, fallback)
+    });
+    compositeCount = composite.count;
+    compositeIds = composite.ids;
+    gl.bindBuffer(gl.ARRAY_BUFFER, compositeBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, composite.data, gl.DYNAMIC_DRAW);
+  } else {
+    compositeCount = 0;
+    compositeIds = [];
+  }
+
+  burgQuadtree = buildBurgQuadtree(burgs);
   (window as any).__burgGLids = ids;
   drawBurgGL();
   (window as any).LayerHost?.reconcile(); // position the canvas at its z-slot once instances are ready
@@ -167,13 +204,17 @@ export function drawBurgGL(): void {
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clearColor(0, 0, 0, 0);
   gl.clear(gl.COLOR_BUFFER_BIT);
-  if (!instanceCount) return;
+  // Megalopolis swap: below the split zoom draw the composite view (members
+  // suppressed, enlarged+ringed anchors); at/above it draw everyone.
+  const useComposite = compositeCount > 0 && w < MEGALOPOLIS_SPLIT_ZOOM;
+  const drawCount = useComposite ? compositeCount : instanceCount;
+  if (!drawCount) return;
   gl.useProgram(prog);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
   gl.enableVertexAttribArray(0);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-  gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
+  gl.bindBuffer(gl.ARRAY_BUFFER, useComposite ? compositeBuf : instanceBuf);
   const stride = INSTANCE_STRIDE * 4;
   const attribs: [number, number, number][] = [
     [1, 2, 0],
@@ -197,7 +238,7 @@ export function drawBurgGL(): void {
   gl.bindTexture(gl.TEXTURE_2D, atlasTex);
   gl.uniform1i(uniforms.uAtlas!, 0);
 
-  gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instanceCount);
+  gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, drawCount);
 }
 
 export function resizeBurgGL(): void {
@@ -226,12 +267,21 @@ export function burgWebglActive(): boolean {
 // Update one burg's instance position (the caller has already set pack.burgs[id].x/y).
 export function moveBurgGL(id: number, x: number, y: number): void {
   if (!gl) return;
-  const ids: number[] = (window as any).__burgGLids || [];
-  const idx = ids.indexOf(id);
-  if (idx >= 0) {
-    gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
-    gl.bufferSubData(gl.ARRAY_BUFFER, idx * INSTANCE_STRIDE * 4, new Float32Array([x, y]));
+  if (megaBurgIds.has(id)) {
+    // members/anchors also drive composite instances (and moving may change the
+    // grouping itself) — a coalesced rebuild derives everything from truth.
+    scheduleRebuildBurgGL();
+    return;
   }
+  const patch = (buf: WebGLBuffer, ids: number[]) => {
+    const idx = ids.indexOf(id);
+    if (idx >= 0) {
+      gl!.bindBuffer(gl!.ARRAY_BUFFER, buf);
+      gl!.bufferSubData(gl!.ARRAY_BUFFER, idx * INSTANCE_STRIDE * 4, new Float32Array([x, y]));
+    }
+  };
+  patch(instanceBuf, fullIds);
+  if (compositeCount) patch(compositeBuf, compositeIds);
   // burg.x/y already reflect the new position — rebuild the hit-test index from truth.
   burgQuadtree = buildBurgQuadtree((window as any).pack.burgs);
   drawBurgGL();
@@ -261,6 +311,9 @@ registerLayer({
     // making the tap-target tolerance wrong at every real zoom level).
     const scale = (window as any).getMapTransform?.()?.scale ?? 1;
     const id = hitTestBurg(qt, mapX, mapY, scale, getBurgSizes());
+    // In composite mode grouped members are invisible — clicking the composite
+    // (or a hidden member's position) selects the anchor.
+    if (id != null && scale < MEGALOPOLIS_SPLIT_ZOOM && anchorByMemberId.has(id)) return anchorByMemberId.get(id)!;
     return id ?? null;
   }
 });
