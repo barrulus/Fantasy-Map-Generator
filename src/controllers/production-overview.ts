@@ -1,5 +1,6 @@
 import type { Burg } from "../generators/burgs-generator";
 import type { DemandCategory } from "../generators/goods-generator";
+import { findMegalopolises, megalopolisName } from "../generators/megalopolis";
 import { DEMAND_CATEGORY_ICONS, DEMAND_PRIORITY, DEMAND_TARGET_FACTORS } from "../generators/goods-generator";
 import type { Deal } from "../generators/markets-generator";
 import type { ProductionCandidate } from "../generators/production-generator";
@@ -329,8 +330,17 @@ function open(burgId: number): void {
   const finalDemandCoverage = calculateDemandCoverageTotals(netInventory);
   const uncoveredDemand = initialDemand.map((target, index) => Math.max(0, target - finalDemandCoverage[index]));
 
+  const megas = findMegalopolises(pack.burgs as Burg[], pack.cells.burg);
+  const mega = megas.get(burg.cell!);
+  const megaBanner = !mega
+    ? ""
+    : mega.anchor.i === burgId
+      ? /*html*/ `<div><b>${megalopolisName(mega.anchor)}</b> — production, demand and treasury pooled over ${mega.members.length} burgs (population ${rn(mega.population, 2)})</div>`
+      : /*html*/ `<div><b>Part of ${megalopolisName(mega.anchor)}</b> — production and treasury are pooled on ${mega.anchor.name} (burg ${mega.anchor.i})</div>`;
+
   const statsHtml = /*html*/ `
     <div style="${styles.topBar}">
+      ${megaBanner}
       <div>
         <span><b>Population:</b> ${population}</span>
         <span><b>Order:</b> ${processRank} of ${totalBurgs}</span>

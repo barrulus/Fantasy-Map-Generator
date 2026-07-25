@@ -156,7 +156,7 @@ Burgs (settlements) data is stored as an array of objects with strict element or
 - `market`: `number` - id of the market this burg belongs to (`0` if none). Derived from `cells.market[burg.cell]` during market territory expansion
 - `production`: `object[]` - per-burg production/trade records from the last production run. Each record is one of: a local-bonus record `{good, units}`, a manufacture record `{good, units, recipe, cultureModifier?}`, or a deal reference `{dealId}` pointing into `pack.deals`. Used by the Production Overview and Production Chains UI
 - `product`: `number` - net product (gross sell revenue minus ingredient costs) from the last production run
-- `treasury`: `number` - accumulated cash balance, updated by ingredient purchases, post-tax sale revenue, and demand-fill purchases
+- `treasury`: `number` - accumulated cash balance, updated by ingredient purchases, post-tax sale revenue, and demand-fill purchases. For megalopolises (multiple burgs in one cell) the pool lives on the anchor (the burg in `pack.cells.burg[cell]`); grouped members stay at `0`, and removing the anchor transfers the pool to the promoted successor
 - `citadel`: `number` - `1` if burg has a castle, `0` if not. Used for MFCG
 - `plaza`: `number` - `1` if burg has a marketplace, `0` if not. Used for MFCG
 - `shanty`: `number` - `1` if burg has a shanty town, `0` if not. Used for MFCG

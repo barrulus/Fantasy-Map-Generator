@@ -1,5 +1,6 @@
 import { pack as packLayout, select, stratify } from "d3";
 import { Controllers } from "@/controllers";
+import { findMegalopolises, groupedMemberIds, megalopolisName } from "../generators/megalopolis";
 import { convertTemperature, ensureEl, getPointer, getTemperatureLikeness, rn, si } from "../utils";
 
 type Filters = { stateId?: number | null; cultureId?: number | null };
@@ -266,6 +267,9 @@ function burgsOverviewAddLines(): void {
   totalProductPerCapita = rn(totalProductPerCapita, 2);
   totalTreasury = rn(totalTreasury, 2);
 
+  const megas = findMegalopolises(pack.burgs, pack.cells.burg);
+  const memberIds = groupedMemberIds(megas);
+
   for (const b of pageBurgs) {
     const population = b.population! * populationRate * urbanization;
     const grossProduct = rn((b as any).product || 0, 2);
@@ -276,6 +280,17 @@ function burgsOverviewAddLines(): void {
     const prov = pack.cells.province[b.cell];
     const province = prov ? pack.provinces[prov].name : "";
     const culture = pack.cultures[b.culture!].name;
+    const mega = megas.get(b.cell);
+    const isAnchor = mega ? mega.anchor.i === b.i : false;
+    const isMember = memberIds.has(b.i!);
+    const megaBadge =
+      mega && isAnchor
+        ? `<span data-tip="Anchor of ${megalopolisName(b)} (${mega.members.length} burgs): treasury and production are pooled here" style="font-size:.8em; padding: 0 1px;">🏙</span>`
+        : "";
+    const nameTip = isMember
+      ? `Burg name. Part of ${megalopolisName(mega!.anchor)} — economy pooled on ${mega!.anchor.name}`
+      : "Burg name";
+    const nameStyle = isMember ? ` style="padding-left:1.2em"` : "";
 
     lines += /* html */ `<div
         class="states"
@@ -292,7 +307,7 @@ function burgsOverviewAddLines(): void {
         data-features="${features}"
       >
         <span data-tip="Click to zoom into view" class="icon-dot-circled pointer"></span>
-        <input data-tip="Burg name" class="burgName" value="${b.name}" disabled />
+        <input data-tip="${nameTip}" class="burgName" value="${b.name}"${nameStyle} disabled />
         <input data-tip="Burg province" value="${province}" disabled />
         <input data-tip="Burg state" value="${state}" disabled />
         <input data-tip="Dominant culture" value="${culture}" disabled />
@@ -311,6 +326,7 @@ function burgsOverviewAddLines(): void {
             class="icon-star-empty${b.capital ? "" : " inactive"}" style="padding: 0 1px;"></span>
           <span data-tip="${b.port ? " This burg is a port" : "This burg is NOT a port"}"
           class="icon-anchor${b.port ? "" : " inactive"}" style="font-size: .9em; padding: 0 1px;"></span>
+          ${megaBadge}
         </div>
         <span data-tip="Edit burg" class="icon-pencil"></span>
         <span class="locks pointer ${

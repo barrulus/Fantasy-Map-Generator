@@ -1,6 +1,7 @@
 import { drag, type Selection, select } from "d3";
 import { Controllers } from "@/controllers";
 import { type Burg, cellSlotAfterRemoval, groundSlotOnPlacement } from "../generators/burgs-generator";
+import { findMegalopolises, megalopolisName } from "../generators/megalopolis";
 import {
   convertTemperature,
   destroyDialogIfExists,
@@ -333,7 +334,15 @@ function updateBurgValues(): void {
   const province = pack.cells.province[b.cell];
   const provinceName = province ? `${pack.provinces[province].fullName}, ` : "";
   const stateName = pack.states[b.state!].fullName || pack.states[b.state!].name;
-  ensureEl("burgProvinceAndState").innerHTML = provinceName + stateName;
+  const mega = findMegalopolises(pack.burgs, pack.cells.burg).get(b.cell);
+  const megaNote = mega
+    ? `<div style="font-weight: normal; font-style: italic">${
+        mega.anchor.i === id
+          ? `${megalopolisName(b)} — ${mega.members.length} burgs share this cell`
+          : `Part of ${megalopolisName(mega.anchor)} (${mega.members.length} burgs)`
+      }</div>`
+    : "";
+  ensureEl("burgProvinceAndState").innerHTML = provinceName + stateName + megaNote;
 
   ensureEl<HTMLInputElement>("burgName").value = b.name!;
   ensureEl<HTMLSelectElement>("burgGroup").value = b.group!;
