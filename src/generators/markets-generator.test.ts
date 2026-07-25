@@ -290,3 +290,58 @@ describe("MarketsModule", () => {
     });
   });
 });
+
+describe("megalopolis market seeding", () => {
+  it("member burgs never host a market center and share the anchor's market", () => {
+    const marketsModule = new MarketsModule();
+    globalThis.Markets = marketsModule;
+    globalThis.graphWidth = 1000;
+    globalThis.graphHeight = 800;
+    globalThis.TIME = false;
+
+    // expandMarkets uses the FlatQueue global; a sorted-array stand-in suffices here
+    class SimpleQueue {
+      items: { v: unknown; p: number }[] = [];
+      get length() {
+        return this.items.length;
+      }
+      push(v: unknown, p: number) {
+        this.items.push({ v, p });
+      }
+      pop() {
+        this.items.sort((a, b) => a.p - b.p);
+        return this.items.shift()!.v;
+      }
+    }
+    (globalThis as any).FlatQueue = SimpleQueue;
+
+    const anchor = { i: 1, cell: 2, x: 100, y: 100, population: 2, state: 0 } as any;
+    const member = { i: 2, cell: 2, x: 101, y: 101, population: 9, state: 0 } as any;
+    globalThis.pack = {
+      burgs: [{ i: 0 } as any, anchor, member],
+      markets: [],
+      deals: [],
+      cells: {
+        i: [0, 1, 2, 3],
+        c: [[1], [0, 2], [1, 3], [2]],
+        h: Uint8Array.from([30, 30, 30, 30]),
+        f: Uint16Array.from([1, 1, 1, 1]),
+        state: Uint16Array.from([0, 0, 0, 0]),
+        good: Uint16Array.from([0, 0, 0, 0]),
+        burg: Uint32Array.from([0, 0, 1, 0])
+      }
+    } as any;
+
+    const realRandom = Math.random;
+    Math.random = () => 0.5; // deterministic scoring: member (9) outscores anchor (2) unless skipped
+    try {
+      const markets = marketsModule.generate(true);
+      expect(markets.length).toBeGreaterThan(0);
+      expect(markets.some(m => m.centerBurgId === member.i)).toBe(false);
+      expect(member.market).toBeGreaterThan(0);
+      expect(anchor.market).toBe(member.market);
+    } finally {
+      Math.random = realRandom;
+    }
+  });
+});

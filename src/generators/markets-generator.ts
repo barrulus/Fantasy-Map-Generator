@@ -4,6 +4,7 @@ import { minmax } from "../utils";
 import { getColors, getRandomColor } from "../utils/colorUtils";
 import type { Burg } from "./burgs-generator";
 import type { DemandCategory, Good } from "./goods-generator";
+import { findMegalopolises, groupedMemberIds, pooledPopulation } from "./megalopolis";
 import { DEMAND_PRIORITY, DEMAND_TARGET_FACTORS } from "./goods-generator";
 
 const PRICE_FLOOR_FACTOR = 0.1;
@@ -49,10 +50,16 @@ export class MarketsModule {
   }
 
   private createMarkets(): Market[] {
+    // Megalopolises (multiple burgs in a cell) seed at the anchor only, scored
+    // by the pooled member population.
+    const megas = findMegalopolises(pack.burgs, pack.cells.burg);
+    const memberIds = groupedMemberIds(megas);
+    const pooled = pooledPopulation(megas);
+
     // Score each burg by population; capitals and ports are weighted higher
     const scored = pack.burgs
       .map(burg => {
-        let score = burg.population || 0;
+        let score = pooled.get(burg.i) ?? burg.population ?? 0;
         if (burg.capital) score *= 2.5;
         if (burg.port) score *= 1.2;
         score *= Math.random() * 2 + 0.5; // add some noise
@@ -73,6 +80,7 @@ export class MarketsModule {
     for (const { burg } of scored) {
       if (!burg.i || burg.removed) continue;
       if (burg.flying) continue; // sky-burgs never host a market (consumers only)
+      if (memberIds.has(burg.i)) continue; // only the anchor of a megalopolis can host the market center
       const { x, y } = burg;
       const nearest = tree.find(x, y, minSpacing);
       if (!nearest) {
@@ -163,8 +171,14 @@ export class MarketsModule {
 
     pack.cells.market = cellMarket;
 
+    const memberIds = groupedMemberIds(findMegalopolises(pack.burgs, pack.cells.burg));
     for (const burg of pack.burgs) {
       if (!burg.i || burg.removed) continue;
+      if (memberIds.has(burg.i)) {
+        // grouped members (incl. flying ones) share the anchor cell's market
+        burg.market = cellMarket[burg.cell] || 0;
+        continue;
+      }
       if (burg.flying) {
         // sky-burgs are consumers only: inherit the market of their skyPort ground burg's cell
         // (read from the fully-populated cellMarket so we don't depend on burg iteration order).
