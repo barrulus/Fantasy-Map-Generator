@@ -105,6 +105,16 @@ export function groundSlotOnPlacement(currentSlot: number, burgId: number, flyin
   return currentSlot || burgId;
 }
 
+// When a slot-owning burg is removed and a co-located ground burg is promoted,
+// the megalopolis treasury pool moves to the promoted successor.
+export function transferTreasuryOnRemoval(burg: Burg, successorId: number, burgs: Burg[]): void {
+  if (!successorId || successorId === burg.i || !burg.treasury) return;
+  const successor = burgs.find(b => b && b.i === successorId);
+  if (!successor) return;
+  successor.treasury = rn((successor.treasury || 0) + burg.treasury, 2);
+  burg.treasury = 0;
+}
+
 // Id of the burg (among `ids`) closest to (ax, ay); -1 if ids is empty.
 // `ids` must not include 0 — pack.burgs[0] is the numeric placeholder slot.
 export function nearestBurgId(burgs: { x: number; y: number }[], ids: number[], ax: number, ay: number): number {
@@ -1466,7 +1476,10 @@ class BurgModule {
     const burg = pack.burgs[burgId];
     if (!burg) return tip(`Burg ${burgId} not found`, false, "error");
 
-    pack.cells.burg[burg.cell] = cellSlotAfterRemoval(pack.cells.burg[burg.cell], burg, pack.burgs);
+    const ownedSlot = pack.cells.burg[burg.cell] === burg.i;
+    const newSlot = cellSlotAfterRemoval(pack.cells.burg[burg.cell], burg, pack.burgs);
+    if (ownedSlot) transferTreasuryOnRemoval(burg, newSlot, pack.burgs);
+    pack.cells.burg[burg.cell] = newSlot;
     burg.removed = true;
 
     const noteId = notes.findIndex(note => note.id === `burg${burgId}`);

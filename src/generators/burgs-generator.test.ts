@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   cellSlotAfterRemoval,
   groundSlotOnPlacement,
+  transferTreasuryOnRemoval,
   nearestBurgId,
   skyburgAltitude,
   skyburgGroupFromPopulation,
@@ -623,6 +624,29 @@ describe("cellSlotAfterRemoval", () => {
   it("leaves an empty slot empty when removing a flying burg over open terrain", () => {
     const sky = makeBurg(7, 10, { flying: 1 });
     expect(cellSlotAfterRemoval(0, sky, [makeBurg(0, 0), sky])).toBe(0);
+  });
+});
+
+describe("transferTreasuryOnRemoval", () => {
+  it("moves the removed anchor's treasury to the promoted successor", () => {
+    const anchor = makeBurg(3, 10, { treasury: 120.5 });
+    const successor = makeBurg(7, 10, { treasury: 10 });
+    transferTreasuryOnRemoval(anchor, 7, [makeBurg(0, 0), anchor, successor]);
+    expect(successor.treasury).toBe(130.5);
+    expect(anchor.treasury).toBe(0);
+  });
+
+  it("does nothing when there is no successor", () => {
+    const anchor = makeBurg(3, 10, { treasury: 50 });
+    transferTreasuryOnRemoval(anchor, 0, [makeBurg(0, 0), anchor]);
+    expect(anchor.treasury).toBe(50); // no successor -> pool dies with the burg (cell emptied)
+  });
+
+  it("does nothing when the removed burg has no treasury", () => {
+    const poor = makeBurg(4, 11);
+    const other = makeBurg(9, 11, { treasury: 5 });
+    transferTreasuryOnRemoval(poor, 9, [makeBurg(0, 0), poor, other]);
+    expect(other.treasury).toBe(5);
   });
 });
 
