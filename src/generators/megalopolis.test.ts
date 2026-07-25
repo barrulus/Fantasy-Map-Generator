@@ -24,13 +24,18 @@ describe("findMegalopolises", () => {
     expect(m.population).toBe(3);
   });
 
-  it("includes flying members in the group and its population", () => {
+  it("never enrolls flying burgs: ground+sky is NOT a megalopolis, and sky members don't count", () => {
     cellsBurg.fill(0);
     cellsBurg[5] = 2;
-    const burgs = [burg(0, 0), burg(2, 5, { population: 2 }), burg(4, 5, { flying: 1, population: 0.5 })];
-    const m = findMegalopolises(burgs, cellsBurg).get(5)!;
-    expect(m.members.map(b => b.i)).toEqual([2, 4]);
-    expect(m.population).toBe(2.5);
+    // one ground + one sky -> no megalopolis (skyburgs already stack freely; user decision 2026-07-25)
+    const groundPlusSky = [burg(0, 0), burg(2, 5, { population: 2 }), burg(4, 5, { flying: 1, population: 0.5 })];
+    expect(findMegalopolises(groundPlusSky, cellsBurg).size).toBe(0);
+
+    // two ground + one sky -> megalopolis of the two ground burgs only
+    const twoGroundPlusSky = [...groundPlusSky, burg(5, 5, { population: 1 })];
+    const m = findMegalopolises(twoGroundPlusSky, cellsBurg).get(5)!;
+    expect(m.members.map(b => b.i)).toEqual([2, 5]);
+    expect(m.population).toBe(3); // flying population excluded
   });
 
   it("ignores single-burg cells, removed burgs, and sky-only cells", () => {
@@ -49,13 +54,13 @@ describe("findMegalopolises", () => {
 });
 
 describe("helpers", () => {
-  it("groupedMemberIds excludes anchors; pooledPopulation keys anchors", () => {
+  it("groupedMemberIds excludes anchors and flying burgs; pooledPopulation keys anchors", () => {
     const cellsBurg = new Uint32Array(10);
     cellsBurg[5] = 2;
     const burgs = [burg(0, 0), burg(2, 5, { population: 2 }), burg(3, 5), burg(6, 5, { flying: 1 })];
     const megas = findMegalopolises(burgs, cellsBurg);
-    expect([...groupedMemberIds(megas)].sort()).toEqual([3, 6]);
-    expect(pooledPopulation(megas).get(2)).toBe(4);
+    expect([...groupedMemberIds(megas)].sort()).toEqual([3]);
+    expect(pooledPopulation(megas).get(2)).toBe(3); // flying burg 6 not pooled
     expect(pooledPopulation(megas).has(3)).toBe(false);
   });
 

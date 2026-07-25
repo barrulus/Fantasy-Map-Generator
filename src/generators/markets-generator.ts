@@ -175,7 +175,7 @@ export class MarketsModule {
     for (const burg of pack.burgs) {
       if (!burg.i || burg.removed) continue;
       if (memberIds.has(burg.i)) {
-        // grouped members (incl. flying ones) share the anchor cell's market
+        // grouped ground members share the anchor cell's market
         burg.market = cellMarket[burg.cell] || 0;
         continue;
       }

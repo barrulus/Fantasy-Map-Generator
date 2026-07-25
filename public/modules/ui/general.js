@@ -394,7 +394,7 @@ function updateCellInfo(point, i, g) {
     : "no";
   infoPopulation.innerHTML = getFriendlyPopulation(i);
   if (cells.burg[i]) {
-    const coLocated = pack.burgs.filter(b => b.i && !b.removed && b.cell === i);
+    const coLocated = pack.burgs.filter(b => b.i && !b.removed && !b.flying && b.cell === i);
     infoBurg.textContent =
       coLocated.length > 1 && window.Megalopolis
         ? `${window.Megalopolis.name(pack.burgs[cells.burg[i]])} — ${coLocated.length} burgs (${coLocated.map(b => b.name).join(", ")})`
