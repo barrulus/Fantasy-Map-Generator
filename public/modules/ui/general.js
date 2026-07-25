@@ -206,7 +206,11 @@ function showMapTooltip(point, e, i, g) {
   if (group === "terrain") return tip("Click to edit the Relief Icon");
 
   if (subgroup === "burgLabels" || subgroup === "burgIcons") {
-    const burgId = +path[path.length - 10].dataset.id;
+    // Resolve the burg from the nearest data-id ancestor (like the markets branch below),
+    // not a fixed path depth: wrappers (e.g. megalopolis composite <g>) change nesting depth,
+    // and a fixed index then reads past the end of the path and throws on every mousemove.
+    const burgEl = e.target.closest("[data-id]");
+    const burgId = burgEl ? +burgEl.dataset.id : 0;
     if (burgId) {
       const burg = pack.burgs[burgId];
       const population = si(burg.population * populationRate * urbanization);

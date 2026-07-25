@@ -48,6 +48,11 @@ function clicked(event) {
   else if (grand.id === "routes") window.Controllers.RouteEditor.open(el.id);
   else if (ancestor.id === "labels" && el.tagName === "tspan") window.Controllers.LabelsEditor.open(el);
   else if (grand.id === "burgLabels" || grand.id === "burgIcons") window.Controllers.BurgEditor.open(el.dataset.id);
+  else if (great.id === "burgIcons" || great.id === "burgLabels") {
+    // megalopolis composite: one extra <g> wrapper deep; open its anchor burg
+    const burgEl = el.closest("[data-id]");
+    if (burgEl) window.Controllers.BurgEditor.open(burgEl.dataset.id);
+  }
   else if (parent.id === "ice") window.Controllers.IceEditor.open(el);
   else if (parent.id === "terrain") window.Controllers.ReliefEditor.open(el);
   else if (grand.id === "markers" || great.id === "markers") window.Controllers.MarkersEditor.open(undefined, el);
