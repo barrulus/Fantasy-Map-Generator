@@ -637,7 +637,7 @@ function restoreRiskedData(): void {
   pack.cells.pop = new Float32Array(n);
   pack.cells.routes = {};
   pack.cells.s = new Uint16Array(n);
-  pack.cells.burg = new Uint16Array(n);
+  pack.cells.burg = new Uint32Array(n);
   pack.cells.state = new Uint16Array(n);
   pack.cells.province = new Uint16Array(n);
   pack.cells.culture = new Uint16Array(n);

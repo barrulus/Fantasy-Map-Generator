@@ -425,7 +425,7 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
     pack.routes = data[37] ? JSON.parse(data[37]) : [];
     pack.zones = data[38] ? JSON.parse(data[38]) : [];
     pack.cells.biome = Uint8Array.from(data[16].split(","), Number);
-    pack.cells.burg = Uint16Array.from(data[17].split(","), Number);
+    pack.cells.burg = Uint32Array.from(data[17].split(","), Number);
     pack.cells.conf = Uint8Array.from(data[18].split(","), Number);
     pack.cells.culture = Uint16Array.from(data[19].split(","), Number);
     pack.cells.fl = Uint16Array.from(data[20].split(","), Number);
