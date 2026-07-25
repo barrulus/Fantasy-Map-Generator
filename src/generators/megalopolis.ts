@@ -56,3 +56,21 @@ export function pooledPopulation(megas: Map<number, Megalopolis>): Map<number, n
 export function megalopolisName(anchor: Burg): string {
   return `Greater ${anchor.name}`;
 }
+
+// Bridge for classic JS in public/ (main.js zoom hook, general.js tooltip).
+declare global {
+  var Megalopolis: {
+    find: typeof findMegalopolises;
+    memberIds: typeof groupedMemberIds;
+    name: typeof megalopolisName;
+    SPLIT_ZOOM: number;
+  };
+}
+if (typeof window !== "undefined") {
+  window.Megalopolis = {
+    find: findMegalopolises,
+    memberIds: groupedMemberIds,
+    name: megalopolisName,
+    SPLIT_ZOOM: MEGALOPOLIS_SPLIT_ZOOM
+  };
+}

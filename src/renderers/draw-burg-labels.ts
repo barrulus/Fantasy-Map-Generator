@@ -1,5 +1,6 @@
 import { select } from "d3";
 import type { Burg } from "../generators/burgs-generator";
+import { findMegalopolises, megalopolisName } from "../generators/megalopolis";
 
 declare global {
   var drawBurgLabels: () => void;
@@ -25,6 +26,10 @@ const burgLabelsRenderer = (): void => {
     return;
   }
 
+  const megas = findMegalopolises(pack.burgs, pack.cells.burg);
+  const megaIds = new Set<number>();
+  for (const m of megas.values()) for (const b of m.members) megaIds.add(b.i);
+
   for (const { name } of options.burgs.groups as BurgGroup[]) {
     const burgsInGroup = pack.burgs.filter(b => b.group === name && !b.removed);
     if (!burgsInGroup.length) continue;
@@ -47,11 +52,30 @@ const burgLabelsRenderer = (): void => {
       .attr("text-rendering", "optimizeSpeed")
       .attr("id", d => `burgLabel${d.i}`)
       .attr("data-id", d => d.i!)
+      .attr("class", d => (megaIds.has(d.i!) ? "megalopolis-member" : null))
       .attr("x", d => d.x)
       .attr("y", d => d.y)
       .attr("dx", `${dx}em`)
       .attr("dy", "0em")
       .text(d => d.name!);
+
+    // Composite "Greater X" labels for megalopolises anchored in this group; the
+    // invokeActiveZooming hook swaps them with member labels by zoom.
+    const composites = [...megas.values()].filter(m => m.anchor.group === name);
+    labelGroup
+      .selectAll("text.megalopolis-composite")
+      .data(composites)
+      .enter()
+      .append("text")
+      .attr("class", "megalopolis-composite")
+      .attr("data-cell", m => m.cell)
+      .attr("data-id", m => m.anchor.i)
+      .attr("x", m => m.anchor.x!)
+      .attr("y", m => m.anchor.y!)
+      .attr("dx", `${dx}em`)
+      .attr("dy", "0em")
+      .style("display", "none")
+      .text(m => megalopolisName(m.anchor));
   }
 
   TIME && console.timeEnd("drawBurgLabels");

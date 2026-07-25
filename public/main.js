@@ -670,6 +670,18 @@ function invokeActiveZooming() {
         if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) return; // GPU owns burg labels
         if (!tiers) return; // TS bundle not loaded yet; leave the shells alone
 
+        // Megalopolis composite swap (SVG path only): below the split zoom show one
+        // composite icon+label per multi-burg cell and hide the individual members.
+        if (window.Megalopolis) {
+          const compositeMode = scale < window.Megalopolis.SPLIT_ZOOM;
+          document
+            .querySelectorAll("#burgIcons .megalopolis-member, #burgLabels .megalopolis-member")
+            .forEach(el => (el.style.display = compositeMode ? "none" : ""));
+          document
+            .querySelectorAll("#burgIcons .megalopolis-composite, #burgLabels .megalopolis-composite")
+            .forEach(el => (el.style.display = compositeMode ? "" : "none"));
+        }
+
         // Non-capital burg labels yield to surviving state-label obstacles. #states is earlier in
         // DOM order than #burgLabels, so `labels.selectAll("g").each` (document order) always
         // processes and publishes the states branch's obstacles before we get here in the SAME

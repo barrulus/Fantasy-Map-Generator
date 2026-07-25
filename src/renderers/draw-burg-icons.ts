@@ -1,5 +1,6 @@
 import { select } from "d3";
 import type { Burg } from "../generators/burgs-generator";
+import { COMPOSITE_ICON_SCALE, findMegalopolises, RING_ICON_SCALE } from "../generators/megalopolis";
 
 declare global {
   var drawBurgIcons: () => void;
@@ -24,6 +25,10 @@ const burgIconsRenderer = (): void => {
     return;
   }
 
+  const megas = findMegalopolises(pack.burgs, pack.cells.burg);
+  const megaIds = new Set<number>();
+  for (const m of megas.values()) for (const b of m.members) megaIds.add(b.i);
+
   for (const { name } of options.burgs.groups as BurgGroup[]) {
     const burgsInGroup = pack.burgs.filter(b => b.group === name && !b.removed);
     if (!burgsInGroup.length) continue;
@@ -33,8 +38,30 @@ const burgIconsRenderer = (): void => {
 
     const icon = iconsGroup.dataset.icon || "#icon-circle";
     iconsGroup.innerHTML = burgsInGroup
-      .map(b => `<use id="burg${b.i}" data-id="${b.i}" href="${icon}" x="${b.x}" y="${b.y}"></use>`)
+      .map(
+        b =>
+          `<use id="burg${b.i}" data-id="${b.i}" href="${icon}" x="${b.x}" y="${b.y}"${megaIds.has(b.i) ? ' class="megalopolis-member"' : ""}></use>`
+      )
       .join("");
+
+    // Composite icons (enlarged anchor + ring) for megalopolises anchored in this
+    // group; the invokeActiveZooming hook swaps them with member icons by zoom.
+    const composites = [...megas.values()].filter(m => m.anchor.group === name);
+    if (composites.length) {
+      const size = parseFloat(getComputedStyle(iconsGroup).fontSize) || 2;
+      iconsGroup.innerHTML += composites
+        .map(m => {
+          const cSize = size * COMPOSITE_ICON_SCALE;
+          const half = cSize / 2;
+          return (
+            `<g class="megalopolis-composite" data-cell="${m.cell}" style="display:none">` +
+            `<use data-id="${m.anchor.i}" href="${icon}" x="${m.anchor.x}" y="${m.anchor.y}" width="${cSize}" height="${cSize}" transform="translate(${-half + size / 2},${-half + size / 2})"></use>` +
+            `<circle data-id="${m.anchor.i}" cx="${m.anchor.x}" cy="${m.anchor.y}" r="${(size * RING_ICON_SCALE) / 2}" fill="none" stroke="#fff" stroke-width="${size * 0.12}"></circle>` +
+            `</g>`
+          );
+        })
+        .join("");
+    }
 
     const portsInGroup = burgsInGroup.filter(b => b.port);
     if (!portsInGroup.length) continue;

@@ -389,7 +389,13 @@ function updateCellInfo(point, i, g) {
     ? `${pack.religions[cells.religion[i]].name} (${cells.religion[i]})`
     : "no";
   infoPopulation.innerHTML = getFriendlyPopulation(i);
-  infoBurg.innerHTML = cells.burg[i] ? pack.burgs[cells.burg[i]].name + " (" + cells.burg[i] + ")" : "no";
+  if (cells.burg[i]) {
+    const coLocated = pack.burgs.filter(b => b.i && !b.removed && b.cell === i);
+    infoBurg.textContent =
+      coLocated.length > 1 && window.Megalopolis
+        ? `${window.Megalopolis.name(pack.burgs[cells.burg[i]])} — ${coLocated.length} burgs (${coLocated.map(b => b.name).join(", ")})`
+        : pack.burgs[cells.burg[i]].name + " (" + cells.burg[i] + ")";
+  } else infoBurg.textContent = "no";
   infoFeature.innerHTML = f ? (pack.features[f].group || pack.features[f].type) + " (" + f + ")" : "n/a";
   infoBiome.innerHTML = biomesData.name[cells.biome[i]];
   infoGood.innerHTML = cells.good[i] ? Goods.get(cells.good[i]).name + " (" + cells.good[i] + ")" : "no";
