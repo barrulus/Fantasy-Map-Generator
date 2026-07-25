@@ -93,7 +93,7 @@ World data is mainly stored in typed arrays within `cells` object in both `grid`
 - `pack.cells.t`: `number[]` - distance field. `1, 2, ...` - land cells, `-1, -2, ...` - water cells, `0` - unmarked cell. `Uint8Array`
 - `pack.cells.s`: `number[]` - cells score. Scoring is used to define best cells to place a burg. `Uint16Array`
 - `pack.cells.biome`: `number[]` - cells biome index. `Uint8Array`
-- `pack.cells.burg`: `number[]` - cells burg index. `Uint16Array`
+- `pack.cells.burg`: `number[]` - id of the cell's **primary ground burg** (`0` = none). `Uint32Array` (fork: supports >65535 burgs). A cell may host additional burgs: secondary ground burgs and flying burgs are listed only in `pack.burgs` (each burg's `cell` field is authoritative) and never own this slot. Invariant: a cell has at least one ground burg iff this value is non-zero. Slot transitions go through `groundSlotOnPlacement` / `cellSlotAfterRemoval` in `src/generators/burgs-generator.ts`
 - `pack.cells.culture`: `number[]` - cells culture index. `Uint16Array`
 - `pack.cells.state`: `number[]` - cells state index. `Uint16Array`
 - `pack.cells.province`: `number[]` - cells province index. `Uint16Array`
@@ -140,7 +140,7 @@ Burgs (settlements) data is stored as an array of objects with strict element or
 
 - `i`: `number` - burg id, always equal to the array index
 - `name`: `string` - burg name
-- `cell`: `number` - burg cell id. One cell can have only one burg
+- `cell`: `number` - burg cell id. A cell can host multiple burgs; `pack.cells.burg` tracks only the primary ground burg (fork extension — upstream allows one burg per cell)
 - `x`: `number` - x axis coordinate, rounded to two decimals
 - `y`: `number` - y axis coordinate, rounded to two decimals
 - `culture`: `number` - burg culture id
