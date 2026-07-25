@@ -216,9 +216,15 @@ function collectStatistics(): void {
 
     provinces[p].area! += cells.area[i];
     provinces[p].rural! += cells.pop[i];
-    if (!cells.burg[i]) continue;
-    provinces[p].urban! += burgs[cells.burg[i]].population ?? 0;
-    provinces[p].burgs!.push(cells.burg[i]);
+  }
+
+  // burg-driven so co-located burgs are all counted (cells.burg only holds the primary)
+  for (const b of burgs) {
+    if (!b.i || b.removed || b.flying) continue;
+    const p = cells.province[b.cell];
+    if (!p) continue;
+    provinces[p].urban! += b.population ?? 0;
+    provinces[p].burgs!.push(b.i);
   }
 
   provinces.forEach(p => {

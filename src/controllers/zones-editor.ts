@@ -175,8 +175,11 @@ function zonesEditorAddLines(): void {
   const lines = filteredZones.map(({ i, name, type, cells, color, hidden }) => {
     const area = getArea(sum(cells.map(c => pack.cells.area[c])));
     const rural = sum(cells.map(c => pack.cells.pop[c])) * populationRate;
+    const zoneCells = new Set(cells);
     const urban =
-      sum(cells.map(c => pack.cells.burg[c]).map(b => pack.burgs[b]?.population ?? 0)) * populationRate * urbanization;
+      sum(pack.burgs.filter(b => b.i && !b.removed && zoneCells.has(b.cell)).map(b => b.population ?? 0)) *
+      populationRate *
+      urbanization;
     const population = rn(rural + urban);
     const populationTip = `Total population: ${si(population)}; Rural population: ${si(rural)}; Urban population: ${si(urban)}. Click to change`;
     const focused = select<SVGElement, unknown>("#deftemp").select(`#fog #focusZone${i}`).size();
@@ -528,9 +531,7 @@ function changePopulation(zone: Zone): void {
 
   const burgs = pack.burgs.filter(b => !b.removed && landCells.includes(b.cell));
   const rural = rn(sum(landCells.map(i => pack.cells.pop[i])) * populationRate);
-  const urban = rn(
-    sum(landCells.map(i => pack.cells.burg[i]).map(b => pack.burgs[b]?.population ?? 0)) * populationRate * urbanization
-  );
+  const urban = rn(sum(burgs.map(b => b.population ?? 0)) * populationRate * urbanization);
   const total = rural + urban;
   const l = (n: number): string => Number(n).toLocaleString();
 

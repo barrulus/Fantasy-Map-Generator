@@ -490,7 +490,12 @@ function getRiverInfo(id) {
 
 function getCellPopulation(i) {
   const rural = pack.cells.pop[i] * populationRate;
-  const urban = pack.cells.burg[i] ? pack.burgs[pack.cells.burg[i]].population * populationRate * urbanization : 0;
+  // slot set => at least one ground burg here; sum them all (secondary burgs don't own the slot)
+  const urban = pack.cells.burg[i]
+    ? pack.burgs.reduce((s, b) => s + (b.cell === i && b.i && !b.removed && !b.flying ? b.population : 0), 0) *
+      populationRate *
+      urbanization
+    : 0;
   return [rural, urban];
 }
 
