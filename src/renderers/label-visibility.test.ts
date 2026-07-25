@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type LabelBox, type MapViewport, selectVisibleLabels } from "./label-visibility";
+import { type LabelBox, liftedAnchorY, type MapViewport, selectVisibleLabels } from "./label-visibility";
+import { effectiveLabelPx } from "./labeling/label-sizing";
 import { groupMinZoom, groupRank, groupRestPx, groupStartPx } from "./labeling/tier-table";
 
 const VP: MapViewport = { x0: 0, y0: 0, x1: 1000, y1: 1000 };
@@ -51,6 +52,18 @@ describe("selectVisibleLabels — megalopolis maxZoom swap", () => {
     const boxes = [box({ id: 1, maxZoom: 4 })];
     expect(ids(selectVisibleLabels(boxes, 5, VP, { hideLabels: false }))).toEqual([]);
     expect(ids(selectVisibleLabels(boxes, 2, VP, { hideLabels: false }))).toEqual([1]);
+  });
+
+  it("stackAbove lifts the anchor point by the box's own label height (composite over capital)", () => {
+    const base = box({ id: 1, startPx: 32, restPx: 15, iconDiameter: 1 });
+    const stacked = box({ id: 2, startPx: 32, restPx: 15, iconDiameter: 1, stackAbove: true });
+    const scale = 3;
+    const baseY = liftedAnchorY(base, scale);
+    const stackedY = liftedAnchorY(stacked, scale);
+    expect(stackedY).toBeLessThan(baseY); // higher on screen
+    // lifted by ~1.15 label heights: effectiveLabelPx(3, 32, 15) converted to map units
+    const px = effectiveLabelPx(scale, 32, 15);
+    expect(baseY - stackedY).toBeCloseTo((px * 1.15) / scale, 5);
   });
 
   it("applies minZoomHard even when hideLabels gating is off (grouped members must swap out)", () => {

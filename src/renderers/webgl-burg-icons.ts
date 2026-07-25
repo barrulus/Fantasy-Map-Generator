@@ -1,4 +1,4 @@
-import { findMegalopolises, groupedMemberIds, MEGALOPOLIS_SPLIT_ZOOM } from "../generators/megalopolis";
+import { findMegalopolises, MEGALOPOLIS_SPLIT_ZOOM } from "../generators/megalopolis";
 import {
   type BurgQuadtree,
   buildBurgInstances,
@@ -153,7 +153,9 @@ export async function rebuildBurgGL(): Promise<void> {
   }
   if (megas.size) {
     const composite = buildBurgInstances(burgs, renders, fallback, {
-      suppress: groupedMemberIds(megas),
+      // suppress anchors too: the enlarged composite instance REPLACES the anchor's
+      // normal icon (drawing both doubled the anchor below the split zoom)
+      suppress: megaBurgIds,
       composites: buildCompositeSpecs(megas, renders, atlas.ringTileIndex, fallback)
     });
     compositeCount = composite.count;

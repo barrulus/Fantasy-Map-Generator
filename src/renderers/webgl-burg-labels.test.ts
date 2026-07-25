@@ -83,6 +83,26 @@ describe("buildLabelBoxes", () => {
     expect(buildLabelBoxes(burgs, { hamlet: style({ group: "hamlet" }) }, METRICS, GEOM)).toEqual([]);
   });
 
+  it("megalopolis with a CAPITAL anchor: capital label never swaps out; composite stacks above it", () => {
+    const cellsBurg = new Uint32Array(10);
+    cellsBurg[5] = 1;
+    const grouped = [
+      {},
+      { i: 1, name: "Ab", group: "capital", capital: 1, cell: 5, x: 100, y: 200, population: 5 },
+      { i: 2, name: "bA", group: "capital", cell: 5, x: 102, y: 202, population: 3 }
+    ] as any;
+    const megas = findMegalopolises(grouped, cellsBurg);
+    const out = buildLabelBoxes(grouped, { capital: style({ minZoom: 1 }) }, METRICS, GEOM, megas);
+
+    const capitalBox = out.find(b => b.id === 1 && b.maxZoom === undefined)!;
+    const memberBox = out.find(b => b.id === 2)!;
+    const compositeBox = out.find(b => b.maxZoom !== undefined)!;
+
+    expect(capitalBox.minZoomHard).toBeUndefined(); // capitals are never hidden
+    expect(memberBox.minZoomHard).toBe(MEGALOPOLIS_SPLIT_ZOOM); // non-capital members still swap
+    expect(compositeBox.stackAbove).toBe(true); // composite rides above the capital label
+  });
+
   it("megalopolis: members swap out below the split zoom and a composite 'Greater X' box swaps in", () => {
     const cellsBurg = new Uint32Array(10);
     cellsBurg[5] = 1;
@@ -103,6 +123,7 @@ describe("buildLabelBoxes", () => {
     expect(memberBox.minZoomHard).toBe(MEGALOPOLIS_SPLIT_ZOOM);
     expect(anchorBox.minZoom).toBe(1);
     expect(memberBox.minZoom).toBe(1);
+    expect(compositeBox.stackAbove).toBeUndefined(); // non-capital anchor: composite replaces, no stacking
     expect(compositeBox.id).toBe(1);
     expect(compositeBox.name).toBe("Greater Ab");
     expect(compositeBox.minZoom).toBe(MEGALOPOLIS_MIN_ZOOM); // capitals pattern: appears with the capital tier

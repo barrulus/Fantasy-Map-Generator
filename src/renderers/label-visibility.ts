@@ -17,6 +17,7 @@ export interface LabelBox {
   // preferences or the capital collision exemption.
   minZoomHard?: number; // suppress below this scale (megalopolis members/anchors swap out)
   maxZoom?: number; // suppress at/beyond this scale (megalopolis composite labels swap out)
+  stackAbove?: boolean; // lift by one own-label height: composite riding above a capital label
   startPx: number; // screen px at scale 1
   restPx: number; // asymptotic resting screen px as scale grows
   iconDiameter: number; // map-unit diameter of this box's tier's burg icon
@@ -32,7 +33,11 @@ export interface LabelBox {
  */
 export function liftedAnchorY(box: LabelBox, scale: number): number {
   if (!(scale > 0)) return box.y;
-  return box.y - labelIconOffsetPx(box.iconDiameter, scale) / scale;
+  let y = box.y - labelIconOffsetPx(box.iconDiameter, scale) / scale;
+  // A stacking box (megalopolis composite over a never-hidden capital label) rides one of its
+  // own label heights higher; composite and capital share a tier, so own-height ≈ capital-height.
+  if (box.stackAbove) y -= (effectiveLabelPx(scale, box.startPx, box.restPx) * 1.15) / scale;
+  return y;
 }
 
 export interface MapViewport {

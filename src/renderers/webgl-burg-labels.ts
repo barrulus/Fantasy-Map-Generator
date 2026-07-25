@@ -45,7 +45,9 @@ export function buildLabelBoxes(
     if (!b || !b.i || b.removed || !b.name) continue;
     const s = styles[b.group as string];
     if (!s) continue;
-    const grouped = groupedIds.has(b.i);
+    // Grouped burgs swap out below the split — EXCEPT capitals, which are never
+    // hidden; their composite stacks above them instead (see the megas loop below).
+    const grouped = groupedIds.has(b.i) && !b.capital;
     out.push({
       id: b.i,
       x: b.x! + (b.labelDx || 0),
@@ -82,6 +84,7 @@ export function buildLabelBoxes(
         d: s.fontSize,
         minZoom: MEGALOPOLIS_MIN_ZOOM, // capitals pattern: appear with the capital tier, not at any zoom
         maxZoom: MEGALOPOLIS_SPLIT_ZOOM,
+        stackAbove: m.anchor.capital ? true : undefined, // capital label stays; ride above it
         startPx: s.startPx,
         restPx: s.restPx,
         iconDiameter: s.iconDiameter,

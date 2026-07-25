@@ -28,7 +28,8 @@ const burgLabelsRenderer = (): void => {
 
   const megas = findMegalopolises(pack.burgs, pack.cells.burg);
   const megaIds = new Set<number>();
-  for (const m of megas.values()) for (const b of m.members) megaIds.add(b.i);
+  // capitals are never hidden — their composite stacks above instead of replacing
+  for (const m of megas.values()) for (const b of m.members) if (!b.capital) megaIds.add(b.i);
 
   for (const { name } of options.burgs.groups as BurgGroup[]) {
     const burgsInGroup = pack.burgs.filter(b => b.group === name && !b.removed);
@@ -73,7 +74,7 @@ const burgLabelsRenderer = (): void => {
       .attr("x", m => m.anchor.x!)
       .attr("y", m => m.anchor.y!)
       .attr("dx", `${dx}em`)
-      .attr("dy", "0em")
+      .attr("dy", m => (m.anchor.capital ? "-1.2em" : "0em")) // ride above a never-hidden capital label
       .style("display", "none")
       .text(m => megalopolisName(m.anchor));
   }
