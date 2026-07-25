@@ -98,8 +98,11 @@ describe("buildLabelBoxes", () => {
     const memberBox = out.find(b => b.id === 2)!;
     const compositeBox = out.find(b => b.maxZoom !== undefined)!;
 
-    expect(anchorBox.minZoom).toBe(MEGALOPOLIS_SPLIT_ZOOM); // raised from 1 to the split
-    expect(memberBox.minZoom).toBe(MEGALOPOLIS_SPLIT_ZOOM);
+    // structural swap bound is HARD (ignores the hideLabels gate); tier minZoom stays soft
+    expect(anchorBox.minZoomHard).toBe(MEGALOPOLIS_SPLIT_ZOOM);
+    expect(memberBox.minZoomHard).toBe(MEGALOPOLIS_SPLIT_ZOOM);
+    expect(anchorBox.minZoom).toBe(1);
+    expect(memberBox.minZoom).toBe(1);
     expect(compositeBox.id).toBe(1);
     expect(compositeBox.name).toBe("Greater Ab");
     expect(compositeBox.minZoom).toBe(MEGALOPOLIS_MIN_ZOOM); // capitals pattern: appears with the capital tier

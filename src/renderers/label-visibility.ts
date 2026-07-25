@@ -11,6 +11,11 @@ export interface LabelBox {
   halfHEm: number; // half-extents in em, so they track the size actually drawn
   d: number; // authored map units per em
   minZoom: number;
+  // Structural megalopolis-swap bounds — enforced UNCONDITIONALLY, unlike minZoom which is
+  // behind the hideLabels gate. A grouped member must never render below the split zoom (its
+  // composite stands in), and a composite must never render at/past it — regardless of tier
+  // preferences or the capital collision exemption.
+  minZoomHard?: number; // suppress below this scale (megalopolis members/anchors swap out)
   maxZoom?: number; // suppress at/beyond this scale (megalopolis composite labels swap out)
   startPx: number; // screen px at scale 1
   restPx: number; // asymptotic resting screen px as scale grows
@@ -81,8 +86,10 @@ export function selectVisibleLabels(
   const candidates: { b: LabelBox; ay: number; px: number; hwMap: number; hhMap: number }[] = [];
   for (const b of boxes) {
     if (gate && scale < b.minZoom) continue;
-    // maxZoom is not behind the hideLabels gate: a composite label must swap for
-    // its members at the split zoom regardless of tier-gating preferences.
+    // The megalopolis swap bounds are not behind the hideLabels gate: members must
+    // yield to their composite below the split zoom (and vice versa) regardless of
+    // tier-gating preferences — capitals included.
+    if (b.minZoomHard !== undefined && scale < b.minZoomHard) continue;
     if (b.maxZoom !== undefined && scale >= b.maxZoom) continue;
     // Anchor lifted above the icon so culling/collision reflect where the label is actually drawn.
     const ay = liftedAnchorY(b, scale);

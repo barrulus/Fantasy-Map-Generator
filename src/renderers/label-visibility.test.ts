@@ -52,6 +52,14 @@ describe("selectVisibleLabels — megalopolis maxZoom swap", () => {
     expect(ids(selectVisibleLabels(boxes, 5, VP, { hideLabels: false }))).toEqual([]);
     expect(ids(selectVisibleLabels(boxes, 2, VP, { hideLabels: false }))).toEqual([1]);
   });
+
+  it("applies minZoomHard even when hideLabels gating is off (grouped members must swap out)", () => {
+    // capital-rank member (order 0, collision-exempt) — exactly the overprint case
+    const boxes = [box({ id: 1, order: 0, minZoom: 1, minZoomHard: 4 })];
+    expect(ids(selectVisibleLabels(boxes, 2, VP, { hideLabels: false }))).toEqual([]);
+    expect(ids(selectVisibleLabels(boxes, 5, VP, { hideLabels: false }))).toEqual([1]);
+    expect(ids(selectVisibleLabels(boxes, 2, VP, { hideLabels: true }))).toEqual([]);
+  });
 });
 
 describe("selectVisibleLabels — size never culls", () => {

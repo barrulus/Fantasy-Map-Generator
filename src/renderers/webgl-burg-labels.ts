@@ -55,7 +55,9 @@ export function buildLabelBoxes(
       halfWEm: advanceOf(b.name) / 2 + geom.originXEm,
       halfHEm: geom.cellEm / 2,
       d: s.fontSize,
-      minZoom: grouped ? Math.max(s.minZoom, MEGALOPOLIS_SPLIT_ZOOM) : s.minZoom,
+      minZoom: s.minZoom,
+      // hard bound: grouped burgs never label below the split, even with tier gating off
+      minZoomHard: grouped ? MEGALOPOLIS_SPLIT_ZOOM : undefined,
       startPx: s.startPx,
       restPx: s.restPx,
       iconDiameter: s.iconDiameter,
