@@ -1,6 +1,12 @@
 import { type Quadtree, quadtree } from "d3-quadtree";
 import type { Burg } from "../generators/burgs-generator";
-import { findMegalopolises, type Megalopolis, MEGALOPOLIS_SPLIT_ZOOM, megalopolisName } from "../generators/megalopolis";
+import {
+  findMegalopolises,
+  type Megalopolis,
+  MEGALOPOLIS_MIN_ZOOM,
+  MEGALOPOLIS_SPLIT_ZOOM,
+  megalopolisName
+} from "../generators/megalopolis";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
 import { type FontGeometry, type GlyphMetric, layoutLabel } from "./label-layout";
 import { type LabelBox, liftedAnchorY, type MapViewport, selectVisibleLabels } from "./label-visibility";
@@ -72,7 +78,7 @@ export function buildLabelBoxes(
         halfWEm: advanceOf(name) / 2 + geom.originXEm,
         halfHEm: geom.cellEm / 2,
         d: s.fontSize,
-        minZoom: 0,
+        minZoom: MEGALOPOLIS_MIN_ZOOM, // capitals pattern: appear with the capital tier, not at any zoom
         maxZoom: MEGALOPOLIS_SPLIT_ZOOM,
         startPx: s.startPx,
         restPx: s.restPx,

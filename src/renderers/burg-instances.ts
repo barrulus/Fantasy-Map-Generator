@@ -1,6 +1,11 @@
 import { type Quadtree, quadtree } from "d3-quadtree";
 import type { Burg } from "../generators/burgs-generator";
-import { COMPOSITE_ICON_SCALE, type Megalopolis, RING_ICON_SCALE } from "../generators/megalopolis";
+import {
+  COMPOSITE_ICON_SCALE,
+  MEGALOPOLIS_MIN_ZOOM,
+  type Megalopolis,
+  RING_ICON_SCALE
+} from "../generators/megalopolis";
 
 export interface GroupRender {
   tileIndex: number; // atlas tile for this group's baked symbol
@@ -16,6 +21,7 @@ export interface CompositeInstanceSpec {
   size: number;
   tileIndex: number;
   anchorId: number;
+  minZoom: number; // GPU tier gate — composites follow the capital tier
 }
 
 export function buildBurgInstances(
@@ -47,7 +53,7 @@ export function buildBurgInstances(
     data[o + 1] = c.y;
     data[o + 2] = c.size;
     data[o + 3] = c.tileIndex;
-    data[o + 4] = 0; // composite instances are visible at any zoom (buffer choice gates them)
+    data[o + 4] = c.minZoom; // upper bound comes from the buffer swap at the split zoom
     ids.push(c.anchorId);
     n++;
   }
@@ -69,7 +75,8 @@ export function buildCompositeSpecs(
       y: m.anchor.y!,
       size: g.size * COMPOSITE_ICON_SCALE,
       tileIndex: g.tileIndex,
-      anchorId: m.anchor.i
+      anchorId: m.anchor.i,
+      minZoom: MEGALOPOLIS_MIN_ZOOM
     });
     if (ringTileIndex >= 0)
       specs.push({
@@ -77,7 +84,8 @@ export function buildCompositeSpecs(
         y: m.anchor.y!,
         size: g.size * RING_ICON_SCALE,
         tileIndex: ringTileIndex,
-        anchorId: m.anchor.i
+        anchorId: m.anchor.i,
+        minZoom: MEGALOPOLIS_MIN_ZOOM
       });
   }
   return specs;

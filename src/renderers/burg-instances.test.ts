@@ -6,7 +6,7 @@ import {
   type GroupRender,
   hitTestBurg
 } from "./burg-instances";
-import { findMegalopolises } from "../generators/megalopolis";
+import { findMegalopolises, MEGALOPOLIS_MIN_ZOOM } from "../generators/megalopolis";
 
 const groups: Record<string, GroupRender> = {
   city: { tileIndex: 0, size: 4, minZoom: 4 },
@@ -61,7 +61,7 @@ describe("megalopolis composite instances", () => {
     const burgs = [null, { i: 1, x: 10, y: 10, group: "city" }, { i: 2, x: 11, y: 11, group: "hamlet" }] as any;
     const { count, ids, data } = buildBurgInstances(burgs, groups, undefined, {
       suppress: new Set([2]),
-      composites: [{ x: 10, y: 10, size: 6.4, tileIndex: 0, anchorId: 1 }]
+      composites: [{ x: 10, y: 10, size: 6.4, tileIndex: 0, anchorId: 1, minZoom: 3 }]
     });
     expect(count).toBe(2); // burg 1 + composite; burg 2 suppressed
     expect(ids).toEqual([1, 1]); // composite carries the anchor id
@@ -70,7 +70,7 @@ describe("megalopolis composite instances", () => {
     expect(composite[1]).toBe(10);
     expect(composite[2]).toBeCloseTo(6.4, 5); // Float32 rounding
     expect(composite[3]).toBe(0);
-    expect(composite[4]).toBe(0); // composite always visible (minZoom 0)
+    expect(composite[4]).toBe(3); // capital-tier gate carried through
   });
 
   it("buildCompositeSpecs emits an enlarged anchor icon plus a ring per megalopolis", () => {
@@ -82,7 +82,7 @@ describe("megalopolis composite instances", () => {
     );
     const specs = buildCompositeSpecs(megas, groups, 9);
     expect(specs).toHaveLength(2);
-    expect(specs[0]).toEqual({ x: 10, y: 10, size: 4 * 1.6, tileIndex: 0, anchorId: 1 });
-    expect(specs[1]).toEqual({ x: 10, y: 10, size: 4 * 2.2, tileIndex: 9, anchorId: 1 });
+    expect(specs[0]).toEqual({ x: 10, y: 10, size: 4 * 1.6, tileIndex: 0, anchorId: 1, minZoom: MEGALOPOLIS_MIN_ZOOM });
+    expect(specs[1]).toEqual({ x: 10, y: 10, size: 4 * 2.2, tileIndex: 9, anchorId: 1, minZoom: MEGALOPOLIS_MIN_ZOOM });
   });
 });

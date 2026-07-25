@@ -672,14 +672,16 @@ function invokeActiveZooming() {
 
         // Megalopolis composite swap (SVG path only): below the split zoom show one
         // composite icon+label per multi-burg cell and hide the individual members.
+        // Composites follow the capital tier gate (MIN_ZOOM), like capital labels.
         if (window.Megalopolis) {
           const compositeMode = scale < window.Megalopolis.SPLIT_ZOOM;
+          const compositeVisible = compositeMode && scale >= window.Megalopolis.MIN_ZOOM;
           document
             .querySelectorAll("#burgIcons .megalopolis-member, #burgLabels .megalopolis-member")
             .forEach(el => (el.style.display = compositeMode ? "none" : ""));
           document
             .querySelectorAll("#burgIcons .megalopolis-composite, #burgLabels .megalopolis-composite")
-            .forEach(el => (el.style.display = compositeMode ? "" : "none"));
+            .forEach(el => (el.style.display = compositeVisible ? "" : "none"));
         }
 
         // Non-capital burg labels yield to surviving state-label obstacles. #states is earlier in

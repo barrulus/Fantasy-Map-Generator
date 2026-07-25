@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findMegalopolises, MEGALOPOLIS_SPLIT_ZOOM } from "../generators/megalopolis";
+import { findMegalopolises, MEGALOPOLIS_MIN_ZOOM, MEGALOPOLIS_SPLIT_ZOOM } from "../generators/megalopolis";
 import type { FontGeometry, GlyphMetric } from "./label-layout";
 import type { LabelBox } from "./label-visibility";
 import type { GroupStyle } from "./labeling/label-style";
@@ -102,6 +102,7 @@ describe("buildLabelBoxes", () => {
     expect(memberBox.minZoom).toBe(MEGALOPOLIS_SPLIT_ZOOM);
     expect(compositeBox.id).toBe(1);
     expect(compositeBox.name).toBe("Greater Ab");
+    expect(compositeBox.minZoom).toBe(MEGALOPOLIS_MIN_ZOOM); // capitals pattern: appears with the capital tier
     expect(compositeBox.maxZoom).toBe(MEGALOPOLIS_SPLIT_ZOOM);
     expect(compositeBox.order).toBe(0); // capital-tier priority: never collision-dropped
     expect(compositeBox.population).toBe(8);

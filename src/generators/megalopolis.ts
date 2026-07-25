@@ -1,3 +1,4 @@
+import { groupMinZoom } from "../renderers/labeling/tier-table";
 import type { Burg } from "./burgs-generator";
 
 // A megalopolis is DERIVED, never stored: all non-removed GROUND burgs sharing
@@ -9,6 +10,9 @@ import type { Burg } from "./burgs-generator";
 
 // Scale threshold: below -> one composite icon/label; at/above -> individual members.
 export const MEGALOPOLIS_SPLIT_ZOOM = 4;
+// Composites follow the capital tier's gate: they appear where capital icons/labels
+// appear (groupMinZoom("capital")) and swap out for members at the split zoom.
+export const MEGALOPOLIS_MIN_ZOOM = groupMinZoom("capital");
 export const COMPOSITE_ICON_SCALE = 1.6;
 export const RING_ICON_SCALE = 2.2;
 
@@ -65,6 +69,7 @@ declare global {
     memberIds: typeof groupedMemberIds;
     name: typeof megalopolisName;
     SPLIT_ZOOM: number;
+    MIN_ZOOM: number;
   };
 }
 if (typeof window !== "undefined") {
@@ -72,6 +77,7 @@ if (typeof window !== "undefined") {
     find: findMegalopolises,
     memberIds: groupedMemberIds,
     name: megalopolisName,
-    SPLIT_ZOOM: MEGALOPOLIS_SPLIT_ZOOM
+    SPLIT_ZOOM: MEGALOPOLIS_SPLIT_ZOOM,
+    MIN_ZOOM: MEGALOPOLIS_MIN_ZOOM
   };
 }
