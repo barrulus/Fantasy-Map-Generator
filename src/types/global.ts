@@ -2,11 +2,49 @@ import type { Selection } from "d3";
 import type { ThreeDOptions } from "../data/view-3d-options";
 import type { GoodsModule } from "../generators/goods-generator";
 import type { MarketsModule } from "../generators/markets-generator";
-import type { NameBase } from "../generators/names-generator";
 import type { ProductionModule } from "../generators/production-generator";
 import type { PackedGraph } from "./PackedGraph";
 
 declare global {
+  var MOBILE: boolean;
+
+  /**
+   * Migrated helpers, reachable ONLY as `window.X` — deliberately not `var`, so that bare `X`
+   * in a bundled module is a compile error. src/ imports what it calls; these entries exist so
+   * the owning module can register the bridge and classic public/ code can keep calling it.
+   * When the last classic caller of one is gone, delete the entry and its `window.X =` line.
+   */
+  interface Window {
+    // called by a generator that cannot import a renderer (the generator is the smell, not this)
+    drawBurgIcon: typeof import("../renderers/draw-burg-icons").drawBurgIcon;
+    removeBurgIcon: typeof import("../renderers/draw-burg-icons").removeBurgIcon;
+    drawBurgLabel: typeof import("../renderers/draw-burg-labels").drawBurgLabel;
+    removeBurgLabel: typeof import("../renderers/draw-burg-labels").removeBurgLabel;
+    redrawGlacier: typeof import("../renderers/draw-ice").redrawGlacier;
+    redrawIceberg: typeof import("../renderers/draw-ice").redrawIceberg;
+    tip: typeof import("../components/tooltips").tip;
+    clearMainTip: typeof import("../components/tooltips").clearMainTip;
+    showDataTip: typeof import("../components/tooltips").showDataTip;
+    showElementLockTip: typeof import("../components/tooltips").showElementLockTip;
+    lock: typeof import("../utils/preferences").lock;
+    unlock: typeof import("../utils/preferences").unlock;
+    stored: typeof import("../utils/preferences").stored;
+    applyDefaultViewboxEvents: typeof import("../components/viewbox-events").applyDefaultViewboxEvents;
+    bindTopLayerEvents: typeof import("../components/viewbox-events").bindTopLayerEvents;
+    redrawLegend: typeof import("../renderers/draw-legend").redrawLegend;
+    fitLegendBox: typeof import("../renderers/draw-legend").fitLegendBox;
+    clearLegend: typeof import("../renderers/draw-legend").clearLegend;
+    fog: typeof import("../renderers/overlays/fogging").fog;
+    unfog: typeof import("../renderers/overlays/fogging").unfog;
+    showInfo: typeof import("../components/app-info").showInfo;
+    applyOption: typeof import("../utils").applyOption;
+    closeDialogs: typeof import("../components/dialog/dialog-helpers").closeDialogs;
+    confirmationDialog: typeof import("../components/dialog/dialog-helpers").confirmationDialog;
+    downloadFile: typeof import("../utils").downloadFile;
+    uploadFile: typeof import("../utils").uploadFile;
+    getPrecipitation: typeof import("../utils").getPrecipitation;
+  }
+
   var seed: string;
   var pack: PackedGraph;
   var grid: any;
@@ -19,7 +57,6 @@ declare global {
   var DEBUG: { stateLabels?: boolean; [key: string]: boolean | undefined };
   var options: Options;
 
-  var heightmapTemplates: any;
   var Goods: GoodsModule;
   var Production: ProductionModule;
   var Markets: MarketsModule;
@@ -27,7 +64,6 @@ declare global {
   var urbanDensity: number;
   var urbanization: number;
   var distanceScale: number;
-  var nameBases: NameBase[];
 
   var pointsInput: HTMLInputElement;
   var culturesInput: HTMLInputElement;
@@ -61,10 +97,9 @@ declare global {
     }[]
   ) => Set<string>;
 
-  // Global variables defined in main.js / versioning.js
+  // Global variables defined in main.js
   var viewX: number;
   var viewY: number;
-  var VERSION: string;
 
   var rivers: Selection<SVGElement, unknown, null, undefined>;
   var oceanLayers: Selection<SVGGElement, unknown, null, undefined>;
@@ -100,8 +135,6 @@ declare global {
   var applyRouteLineStyle: (el: Element, fallback: unknown, presetStyle: unknown) => void;
   var readPresetAttrs: (el: Element, attrs: string[]) => Record<string, string>;
   var debug: Selection<SVGElement, unknown, null, undefined>;
-  var elSelected: Selection<SVGElement, unknown, HTMLElement, any>;
-
   // SVG layer selections reassigned on map load (main.js)
   var scaleBar: Selection<SVGGElement, unknown, null, undefined>;
   var ocean: Selection<SVGGElement, unknown, null, undefined>;
@@ -127,21 +160,6 @@ declare global {
   var icons: Selection<SVGGElement, unknown, null, undefined>;
   var ruler: Selection<SVGGElement, unknown, null, undefined>;
   var fogging: Selection<SVGGElement, unknown, null, undefined>;
-  var biomesData: {
-    i: number[];
-    name: string[];
-    color: string[];
-    biomesMatrix: Uint8Array[];
-    habitability: number[];
-    iconsDensity: number[];
-    icons: string[][];
-    cost: number[];
-    // statistics computed by the biomes editor
-    cells?: number[];
-    area?: number[];
-    rural?: number[];
-    urban?: number[];
-  };
   var notes: any[];
   var style: {
     burgLabels: { [key: string]: { [key: string]: string } };
@@ -153,7 +171,7 @@ declare global {
   var mapId: number;
   var getArea: (rawArea: number) => number;
 
-  // Pagination/sort helpers defined in public/modules/ui/editors.js
+  // Pagination/sort helpers defined in src/components/dialog/pagination.ts
   var sortDataByActiveHeader: <T>(
     headers: HTMLElement | null,
     data: T[],
@@ -170,6 +188,9 @@ declare global {
     onGoto: (page: number) => void
   ) => void;
   var bindEditorSortReset: (headerEl: HTMLElement | null, onSort: () => void) => void;
+
+  // Dialog fit-content gutter fix, defined in src/components/dialog/fit-content.ts
+  var fitContent: () => string;
   var getAreaUnit: (squareMark?: string) => string;
   var getPrecipitation: (prec: number) => string;
 
@@ -179,29 +200,12 @@ declare global {
     set: (key: string, value: Blob) => Promise<void>;
   };
   var Dropbox: any; // dropbox-sdk global, loaded on demand from libs/dropbox-sdk.min.js
-  var rulers: any; // Rulers instance (classic)
-  var Rulers: any;
-  var Ruler: any;
-  var Opisometer: any;
-  var Planimeter: any;
-  var RouteOpisometer: any;
   var mapHistory: { created: number; [key: string]: unknown }[];
   var customPresetPrefix: string;
 
-  type VersionComparison = { isEqual: boolean; isNewer: boolean; isOlder: boolean };
-  var compareVersions: (
-    version1: string,
-    version2: string,
-    options?: { major?: boolean; minor?: boolean; patch?: boolean }
-  ) => VersionComparison;
-  var parseMapVersion: (version: string) => string;
-  var isValidVersion: (versionString: string) => boolean;
-
-  var getCellPopulation: (i: number) => [number, number];
   var getCurrentPreset: () => void;
   var focusOn: () => void;
   var fitMapToScreen: () => void;
-  var cleanupData: () => void;
   var regenerateMap: (reason?: string) => void;
   var generateMapOnLoad: () => void;
   var addCustomColorScheme: (scheme: string) => void;
@@ -210,8 +214,6 @@ declare global {
   var toggleRelief: () => void;
   var toggleZones: () => void;
   var calculateFriendlyGridSize: () => void;
-  var recalculatePopulation: () => void;
-  var findAll: (x: number, y: number, radius: number) => number[];
   // heightmap editor globals
   var color: (value: number) => string;
   var edits: any; // heightmap edit history: Uint8Array[] with an extra .n cursor
@@ -226,7 +228,6 @@ declare global {
   var drawRoutes: () => void;
   var drawZones: () => void;
   var drawGrid: () => void;
-  var regenerateEmblems: () => void;
   var toggleEmblems: (event?: MouseEvent) => void;
   var shiftCompass: () => void;
 
@@ -254,15 +255,12 @@ declare global {
   var $: (selector: any) => any;
   var scale: number;
   var changeFont: () => void;
-  var getFriendlyHeight: (coords: [number, number]) => string;
   var addLakesInDeepDepressions: () => void;
   var openNearSeaLakes: () => void;
   var calculateMapCoordinates: () => void;
   var calculateTemperatures: () => void;
   var reGraph: () => void;
-  var createDefaultRuler: () => void;
   var showStatistics: () => void;
-  var closeDialogs: (except?: string) => void;
   var drawLayers: () => void;
   var drawPrecipitation: () => void;
   var drawCoordinates: () => void;
@@ -272,18 +270,26 @@ declare global {
   var changeCellsDensity: (value: string) => void;
   var getCellsDensityColor: (cells: number) => string;
   var showExportPane: () => void;
-  var getHeight: (h: number) => string;
-  var getLatitude: (y: number, precision?: number) => number;
-  var getLongitude: (x: number, precision?: number) => number;
-  var getFileName: (name?: string) => string;
   var customization: number;
-  var speak: (text: string) => void;
-  var uploadFile: (el: HTMLInputElement, callback: (data: string) => void) => void;
-  var downloadFile: (content: string | Blob, name: string, type?: string) => void;
   var zoomTo: (x: number, y: number, zoom: number, duration: number) => void;
+  var panMap: (x: number, y: number) => void;
+  var setMapZoom: (value: number) => void;
+  var changeMapZoom: (factor: number) => void;
   var modules: Record<string, boolean>;
 
   // Legacy UI globals
+  var toggleOptions: (event?: Event) => void;
+  var hideOptions: (event?: Event) => void;
+  var toggleTexture: (event?: Event) => void;
+  var toggleHeight: (event?: Event) => void;
+  var toggleLakes: (event?: Event) => void;
+  var toggleGrid: (event?: Event) => void;
+  var toggleCoordinates: (event?: Event) => void;
+  var toggleCompass: (event?: Event) => void;
+  var toggleTemperature: (event?: Event) => void;
+  var togglePrecipitation: (event?: Event) => void;
+  var toggleScaleBar: (event?: Event) => void;
+  var toggleVignette: (event?: Event) => void;
   var turnButtonOn: (buttonId: string) => void;
   var turnButtonOff: (buttonId: string) => void;
   var toggleGoods: (event?: MouseEvent) => void;
@@ -292,28 +298,12 @@ declare global {
   var toggleTrade: (event?: MouseEvent) => void;
   var isCtrlClick: (event: MouseEvent) => boolean;
   var editStyle: (layer: string, group?: string) => void;
-  var fitContent: () => number;
-  var applySorting: (header: HTMLElement) => void;
   var capitalize: (str: string) => string;
   var rn: (value: number, decimals?: number) => number;
-  var confirmationDialog: (options: { title: string; message: string; confirm: string; onConfirm: () => void }) => void;
   var openURL: (url: string) => void;
-  var openPicker: (color: string, callback: (color: string) => void, options?: any) => void;
-  var clearLegend: () => void;
-  var drawLegend: (title: string, data: any[]) => void;
-  var clearMainTip: () => void;
-  var showMainTip: () => void;
-  var moveCircle: (x: number, y: number, r?: number) => void;
-  var removeCircle: () => void;
-  var restoreDefaultEvents: () => void;
   var findCell: (x: number, y: number, radius?: number) => number | undefined;
-  var refreshAllEditors: () => void;
   var toggleCells: () => void;
   var drawGoods: () => void;
-  var regenerateGoods: () => void;
-  var regenerateMarkets: () => void;
-  var regenerateEconomy: () => void;
-  var regenerateProduction: () => void;
   var legend: any;
 
   // Helpers defined in classic public/ scripts (not yet migrated to src/). Migrated counterparts
@@ -321,7 +311,6 @@ declare global {
   // Provinces, Burgs, COA, COArenderer) are used directly instead.
   var drawCultures: () => void;
   var drawReligions: () => void;
-  var drawBiomes: () => void;
   var drawStates: () => void;
   var drawBorders: () => void;
   var drawProvinces: () => void;
@@ -341,16 +330,9 @@ declare global {
   var toggleRoutes: (event?: MouseEvent) => void;
   var toggleRivers: (event?: MouseEvent) => void;
   var toggleIce: (event?: MouseEvent) => void;
-  var toggleAddRiver: () => void;
   var toggleMarkers: (event?: MouseEvent) => void;
   var drawMarkers: () => void;
-  var regenerateMarkers: () => void;
-  var configMarkersGeneration: () => void;
 
-  var clicked: () => void;
-  var unselect: () => void;
-  var selectIcon: (initial: string, callback: (value: string) => void) => void;
-  var sortLines: (headerElement: HTMLElement) => void;
   var tinymce:
     | {
         _setBaseUrl: (url: string) => void;
@@ -360,18 +342,8 @@ declare global {
       }
     | undefined;
 
-  var highlightElement: (element: Element | null, duration?: number) => void;
-  var applySortingByHeader: (headerId: string) => void;
-  var fog: (id: string, path: string) => void;
-  var unfog: (id?: string) => void;
-  var highlightEmblemElement: (type: string, el: any) => void;
-  var l: (n: number) => string;
-
   var aleaPRNG: (seed: string | number) => () => number;
   var heightmapColorSchemes: Record<string, unknown>;
-  var precreatedHeightmaps: Record<string, { name: string }>;
-  var lock: (option: string) => void;
-  var applyOption: (select: HTMLElement, value: string, text?: string) => void;
   var regeneratePrompt: (options?: { seed?: string; graph?: any }) => void;
 
   var cults: Selection<SVGGElement, unknown, null, undefined>;

@@ -527,7 +527,7 @@ class RoutesModule {
     function getLandPathCost(current: number, next: number) {
       if (pack.cells.h[next] < 20) return Infinity;
 
-      const habitability = biomesData.habitability[pack.cells.biome[next]];
+      const habitability = pack.biomes[pack.cells.biome[next]].habitability;
       if (!habitability) return Infinity;
 
       const distanceCost = distanceSquared(pack.cells.p[current], pack.cells.p[next]);
@@ -1571,6 +1571,11 @@ class RoutesModule {
     }
 
     return routes;
+  }
+
+  regenerate(): void {
+    const lockedRoutes = pack.routes.filter(route => route.lock).map((route, index) => ({ ...route, i: index }));
+    this.generate(lockedRoutes);
   }
 
   generate(lockedRoutes: Route[] = []) {

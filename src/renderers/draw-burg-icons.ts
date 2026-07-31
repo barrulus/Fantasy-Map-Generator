@@ -4,8 +4,6 @@ import { COMPOSITE_ICON_SCALE, findMegalopolises, RING_ICON_SCALE } from "../gen
 
 declare global {
   var drawBurgIcons: () => void;
-  var drawBurgIcon: (burg: Burg) => void;
-  var removeBurgIcon: (burgId: number) => void;
 }
 
 interface BurgGroup {
@@ -165,5 +163,11 @@ function createIconGroups(): void {
 }
 
 window.drawBurgIcons = burgIconsRenderer;
+
+export { drawBurgIconRenderer as drawBurgIcon, removeBurgIconRenderer as removeBurgIcon };
+
+// burgs-generator still draws icons directly; it cannot import upwards, so the bridge stays
 window.drawBurgIcon = drawBurgIconRenderer;
 window.removeBurgIcon = removeBurgIconRenderer;
+
+export { burgIconsRenderer as drawBurgIcons };

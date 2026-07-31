@@ -1,3 +1,4 @@
+import { tip } from "@/components/tooltips";
 import type { Burg } from "../generators/burgs-generator";
 import type { DemandCategory } from "../generators/goods-generator";
 import { findMegalopolises, megalopolisName } from "../generators/megalopolis";

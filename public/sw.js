@@ -44,7 +44,6 @@ registerRoute(
   ({request, url}) =>
     request.destination === "script" &&
     !url.pathname.endsWith("min.js") &&
-    !url.pathname.includes("versioning.js") &&
     !url.pathname.includes("google"),
   new NetworkFirst({
     networkTimeoutSeconds: 10,

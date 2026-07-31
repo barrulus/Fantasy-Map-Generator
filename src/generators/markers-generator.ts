@@ -1,6 +1,19 @@
 import { mean } from "d3";
 import type { PackedGraph } from "@/types/PackedGraph";
-import { capitalize, convertTemperature, gauss, generateDate, getAdjective, last, P, ra, rand, rn, rw } from "../utils";
+import {
+  capitalize,
+  convertTemperature,
+  gauss,
+  generateDate,
+  getAdjective,
+  getFriendlyHeight,
+  last,
+  P,
+  ra,
+  rand,
+  rn,
+  rw
+} from "../utils";
 
 declare global {
   var Markers: MarkersModule;
@@ -68,7 +81,6 @@ class MarkersModule {
         return true;
       }
       const id = `marker${i}`;
-      document.getElementById(id)?.remove();
       const index = notes.findIndex(note => note.id === id);
       if (index !== -1) notes.splice(index, 1);
       return false;
@@ -530,7 +542,7 @@ class MarkersModule {
     notes.push({
       id,
       name,
-      legend: `${status} volcano. Height: ${getFriendlyHeight(cells.p[cell])}.`
+      legend: `${status} volcano. Height: ${getFriendlyHeight(cells.p[cell], pack, grid)}.`
     });
   }
 
@@ -1115,7 +1127,7 @@ class MarkersModule {
     const culture = cells.c[cell].map(c => cells.culture[c]).find(c => c)!;
     const religion = cells.religion[cell];
     const name = `${Names.getCulture(culture)} Mountain`;
-    const height = getFriendlyHeight(cells.p[cell]);
+    const height = getFriendlyHeight(cells.p[cell], pack, grid);
     const legend = `A sacred mountain of ${religions[religion].name}. Height: ${height}.`;
     notes.push({ id, name, legend });
   }
@@ -1578,7 +1590,7 @@ class MarkersModule {
   }
 
   private listRifts({ cells }: PackedGraph) {
-    return cells.i.filter(i => !this.occupied[i] && cells.pop[i] <= 3 && biomesData.habitability[cells.biome[i]]);
+    return cells.i.filter(i => !this.occupied[i] && cells.pop[i] <= 3 && pack.biomes[cells.biome[i]].habitability);
   }
 
   private addRift(id: string, _cell: number) {
@@ -1648,9 +1660,35 @@ class MarkersModule {
   }
 
   private addEncounter(id: string, cell: number) {
-    const name = "Random encounter";
-    const encounterSeed = cell; // use just cell Id to not overwhelm the Vercel KV database
-    const legend = `<div>You have encountered a character.</div><iframe src="https://deorum.vercel.app/encounter/${encounterSeed}" width="375" height="600" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>`;
+    if (typeof navigator === "undefined" || navigator.onLine !== false) {
+      const name = "Random encounter";
+      const encounterSeed = cell;
+      const legend = `<div>You have encountered a character.</div><iframe src="https://deorum.vercel.app/encounter/${encounterSeed}" width="375" height="600" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>`;
+      notes.push({ id, name, legend });
+      return;
+    }
+
+    const { cells } = pack;
+    const cultureName = Names.getCulture(cells.culture[cell]);
+    const biomeName = (pack.biomes[cells.biome[cell]]?.name || "wilderness").toLowerCase();
+
+    const kinds = [
+      { subject: "Bandits", verb: "have set an ambush" },
+      { subject: "Wild beasts", verb: "have been sighted" },
+      { subject: "A lone traveler", verb: "was seen wandering" },
+      { subject: "Cultists", verb: "gather in secret" },
+      { subject: "A pilgrim", verb: "walks the road" },
+      { subject: "Refugees", verb: "have made camp" },
+      { subject: "Smugglers", verb: "move under cover of night" },
+      { subject: "A hermit", verb: "dwells alone" },
+      { subject: "Mercenaries", verb: "ride through" },
+      { subject: "Poachers", verb: "have been active" }
+    ];
+    const { subject, verb } = ra(kinds);
+
+    const name = `${subject} of ${cultureName}`;
+    const legend = `${subject} ${verb} in the ${biomeName} of ${cultureName} lands.`;
+
     notes.push({ id, name, legend });
   }
 }

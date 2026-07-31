@@ -137,7 +137,9 @@ fogging
   .attr("filter", "url(#splotch)");
 
 // assign events separately as not a viewbox child
-scaleBar.on("mousemove", () => tip("Click to open Units Editor")).on("click", () => window.Controllers.UnitsEditor.open());
+scaleBar
+  .on("mousemove", () => tip("Click to open Units Editor"))
+  .on("click", () => window.Controllers.UnitsEditor.open());
 legend
   .on("mousemove", () => tip("Drag to change the position. Click to hide the legend"))
   .on("click", () => clearLegend());
@@ -148,10 +150,8 @@ var pack = {}; // packed graph and data
 var seed;
 let mapId;
 let mapHistory = [];
-let elSelected;
 let modules = {};
 let notes = [];
-let rulers = new Rulers();
 let customization = 0;
 
 // global options; in v2.0 to be used for all UI settings
@@ -179,8 +179,6 @@ let options = {
 // global style object; in v2.0 to be used for all map styles and render settings
 let style = { burgLabels: {}, burgIcons: {}, anchors: {}, routes: {} };
 
-let biomesData = Biomes.getDefault();
-let nameBases = Names.getNameBases(); // cultures-related data
 let color = d3.scaleSequential(d3.interpolateSpectral); // default color scheme
 const lineGen = d3.line().curve(d3.curveBasis); // d3 line generator with default curve interpolation
 
@@ -391,7 +389,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     hideLoading();
     await checkLoadParameters();
   }
-  restoreDefaultEvents(); // apply default viewbox events
+  applyDefaultViewboxEvents();
   initiateAutosave();
   initTourPromptButton();
 });
@@ -636,6 +634,19 @@ function zoomTo(x, y, z = 8, d = 2000) {
 // Reset zoom to initial
 function resetZoom(d = 1000) {
   svg.transition().duration(d).call(zoom.transform, d3.zoomIdentity);
+}
+
+// Bundled UI modules call these wrappers instead of using the legacy d3 selection directly
+function panMap(x, y) {
+  zoom.translateBy(svg, x, y);
+}
+
+function setMapZoom(value) {
+  zoom.scaleTo(svg, value);
+}
+
+function changeMapZoom(factor) {
+  zoom.scaleBy(svg, factor);
 }
 
 // active zooming feature
@@ -947,12 +958,6 @@ function invokeActiveZooming() {
       el.setAttribute("x", rn(x - zoomedSize / 2, 1));
       el.setAttribute("y", rn(y - zoomedSize, 1));
     });
-
-  // rescale rulers to have always the same size
-  if (ruler.style("display") !== "none") {
-    const size = rn((10 / scale ** 0.3) * 2, 2);
-    ruler.selectAll("text").attr("font-size", size);
-  }
 }
 
 // add drag to upload logic, pull request from @evyatron
@@ -1034,10 +1039,10 @@ async function generate(options) {
 
     reGraph();
     Features.markupPack();
-    createDefaultRuler();
+    Measurers.createDefaultRuler();
 
     Rivers.generate();
-    Biomes.define();
+    Biomes.generate();
     Features.defineGroups();
 
     Ice.generate();
@@ -1647,7 +1652,7 @@ function rankCells() {
 
   for (const i of cells.i) {
     if (cells.h[i] < 20) continue; // no population in water
-    let score = biomesData.habitability[cells.biome[i]]; // base suitability derived from biome habitability
+    let score = pack.biomes[cells.biome[i]].habitability; // base suitability derived from biome habitability
     if (!score) continue; // uninhabitable biomes has 0 suitability
 
     if (meanFlux) score += normalize(cells.fl[i] + cells.conf[i], meanFlux, maxFlux) * 250; // big rivers and confluences are valued

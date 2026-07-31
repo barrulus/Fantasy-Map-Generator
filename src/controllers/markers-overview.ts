@@ -1,5 +1,12 @@
+import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { applySorting, applySortingByHeader } from "@/components/dialog/sorting";
+import { clearMainTip } from "@/components/tooltips";
+import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
 import type { Marker } from "@/generators/markers-generator";
+import { drawMarkers, setMarkersFilter } from "@/renderers/draw-markers";
+import { highlightElement } from "@/renderers/overlays/highlight";
+import { downloadFile, getFileName, getLatitude, getLongitude } from "@/utils";
 import { ensureEl } from "../utils";
 
 function open(): void {
@@ -40,7 +47,10 @@ function renderDialog(): void {
         ></div>
       </div>
       <div id="markersBody" class="table"></div>
-      <div>
+      <div id="markersFilters" style="display:flex; gap:.2em; padding:0.5em 0; flex-direction:column; font-size:smaller">
+        <select id="markersFilterState" data-tip="Show only markers located in the selected state"></select>
+        <select id="markersFilterCulture" data-tip="Show only markers located in the selected culture"></select>
+        <select id="markersFilterType" data-tip="Show only markers of the selected type"></select>
         <label for="markersSearch" data-tip="Filter by type">Search: <input id="markersSearch" type="search" /></label>
       </div>
       <div id="markersFooter" class="totalLine">
@@ -74,23 +84,70 @@ function renderDialog(): void {
   ensureEl("markersOverviewRefresh").addEventListener("click", addLines);
   ensureEl("markersRegenerate").addEventListener("click", regenerateMarkers);
   ensureEl("markerTypeSelector").addEventListener("click", toggleMarkerTypeMenu);
-  ensureEl("markersAddFromOverview").addEventListener("click", toggleAddMarker);
-  ensureEl("markersGenerationConfig").addEventListener("click", configMarkersGeneration);
+  ensureEl("markersAddFromOverview").addEventListener("click", () => void Controllers.MarkerCreator.toggle());
+  ensureEl("markersGenerationConfig").addEventListener("click", () => void Controllers.MarkersSettings.open());
   ensureEl("markersRemoveAll").addEventListener("click", triggerRemoveAll);
   ensureEl("markersExport").addEventListener("click", exportMarkers);
   ensureEl("markersSearch").addEventListener("input", addLines);
+  ensureEl("markersFilterState").addEventListener("change", addLines);
+  ensureEl("markersFilterCulture").addEventListener("change", addLines);
+  ensureEl("markersFilterType").addEventListener("change", addLines);
 
   populateMarkerTypeMenu();
+  populateFilters();
+}
+
+// remembered filter selections, kept out of the DOM so they survive the dialog being rebuilt on each open
+const filterState = { search: "", state: "", culture: "", type: "" };
+
+// fill a <select> with a leading placeholder option, restoring `selected` when that option still exists
+function fillSelect(
+  select: HTMLSelectElement,
+  placeholder: string,
+  options: { value: string; label: string }[],
+  selected = ""
+): void {
+  select.innerHTML = "";
+  select.add(new Option(placeholder, ""));
+  for (const { value, label } of options) select.add(new Option(label, value));
+  if (selected && options.some(option => option.value === selected)) select.value = selected;
+}
+
+// populate the state / culture / type filter dropdowns from current pack data
+function populateFilters(): void {
+  const states = pack.states
+    .filter(state => !state.removed)
+    .map(state => ({ value: String(state.i), label: state.fullName || state.name }));
+  fillSelect(ensureEl<HTMLSelectElement>("markersFilterState"), "All states", states, filterState.state);
+
+  const cultures = pack.cultures
+    .filter(culture => !culture.removed)
+    .map(culture => ({ value: String(culture.i), label: culture.name }));
+  fillSelect(ensureEl<HTMLSelectElement>("markersFilterCulture"), "All cultures", cultures, filterState.culture);
+
+  const types = [...new Set(pack.markers.map(marker => marker.type))]
+    .sort()
+    .map(type => ({ value: type, label: type }));
+  fillSelect(ensureEl<HTMLSelectElement>("markersFilterType"), "All types", types, filterState.type);
+
+  ensureEl<HTMLInputElement>("markersSearch").value = filterState.search;
 }
 
 function closeMarkersOverview(): void {
   document.getElementById("addMarker")?.classList.remove("pressed");
   document.getElementById("markerAdd")?.classList.remove("pressed");
-  restoreDefaultEvents();
+  applyDefaultViewboxEvents();
   clearMainTip();
 
   $("#markersOverview").dialog("destroy");
   ensureEl("markersOverview").remove();
+}
+
+function regenerateMarkers(): void {
+  Markers.regenerate();
+  if (layerIsOn("toggleMarkers")) drawMarkers();
+  populateFilters();
+  addLines();
 }
 
 function populateMarkerTypeMenu(): void {
@@ -126,13 +183,41 @@ function handleLineClick(ev: MouseEvent): void {
 function addLines(): void {
   let markers: Marker[] = pack.markers;
 
-  const searchText = ensureEl<HTMLInputElement>("markersSearch").value.toLowerCase().trim();
+  const searchRaw = ensureEl<HTMLInputElement>("markersSearch").value;
+  const stateFilter = ensureEl<HTMLSelectElement>("markersFilterState").value;
+  const cultureFilter = ensureEl<HTMLSelectElement>("markersFilterCulture").value;
+  const typeFilter = ensureEl<HTMLSelectElement>("markersFilterType").value;
+
+  // remember selections so they persist across dialog close/reopen until the user changes them
+  filterState.search = searchRaw;
+  filterState.state = stateFilter;
+  filterState.culture = cultureFilter;
+  filterState.type = typeFilter;
+
+  const searchText = searchRaw.toLowerCase().trim();
   if (searchText) {
     markers = markers.filter(marker => {
       const type = (marker.type || "").toLowerCase();
       return type.includes(searchText);
     });
   }
+
+  if (stateFilter !== "") {
+    const stateId = +stateFilter;
+    markers = markers.filter(marker => pack.cells.state[marker.cell] === stateId);
+  }
+
+  if (cultureFilter !== "") {
+    const cultureId = +cultureFilter;
+    markers = markers.filter(marker => pack.cells.culture[marker.cell] === cultureId);
+  }
+
+  if (typeFilter !== "") {
+    markers = markers.filter(marker => marker.type === typeFilter);
+  }
+
+  const anyFilterActive = Boolean(searchText) || stateFilter !== "" || cultureFilter !== "" || typeFilter !== "";
+  syncMapToFilter(markers, anyFilterActive);
 
   const lines = markers
     .map(({ i, type, icon, pinned, lock }) => {
@@ -163,6 +248,20 @@ function addLines(): void {
   ensureEl("markersFooterTotal").innerText = String(pack.markers.length);
 
   applySorting(ensureEl("markersHeader"));
+}
+
+// last filter set pushed to the renderer, so we only redraw the map when the visible set actually changes
+let lastFilterSignature = "";
+
+// mirror the overview filter onto the map: render only matching markers, or all markers when no filter is active
+function syncMapToFilter(filteredMarkers: Marker[], anyFilterActive: boolean): void {
+  const ids = anyFilterActive ? filteredMarkers.map(marker => marker.i) : null;
+  const signature = ids ? ids.join(",") : "";
+  if (signature === lastFilterSignature) return;
+  lastFilterSignature = signature;
+
+  setMarkersFilter(ids);
+  if (layerIsOn("toggleMarkers")) drawMarkers();
 }
 
 function invertPin(): void {
@@ -245,8 +344,7 @@ function toggleMarkerTypeMenu(): void {
 }
 
 function toggleAddMarker(): void {
-  ensureEl("markersAddFromOverview").classList.toggle("pressed");
-  ensureEl("addMarker").click();
+  void Controllers.MarkerCreator.toggle();
 }
 
 function changeMarkerType(): void {
@@ -283,20 +381,25 @@ function removeAllMarkers(): void {
 }
 
 function exportMarkers(): void {
-  const headers = "Id,Type,Icon,Name,Note,X,Y,Latitude,Longitude\n";
+  const headers = "Id,Type,Icon,Name,Note,State,Culture,X,Y,Latitude,Longitude\n";
   const quote = (s: string) => `"${s.replaceAll('"', '""')}"`;
 
   const body = pack.markers.map(marker => {
-    const { i, type, icon, x, y } = marker;
+    const { i, type, icon, x, y, cell } = marker;
 
     const note = notes.find(note => note.id === `marker${i}`);
     const name = note ? quote(note.name) : "Unknown";
     const legend = note ? quote(note.legend) : "";
 
-    const lat = getLatitude(y, 2);
-    const lon = getLongitude(x, 2);
+    const state = pack.states[pack.cells.state[cell]];
+    const culture = pack.cultures[pack.cells.culture[cell]];
+    const stateName = state ? quote(state.fullName || state.name) : "";
+    const cultureName = culture ? quote(culture.name) : "";
 
-    return [i, type, icon, name, legend, x, y, lat, lon].join(",");
+    const lat = getLatitude(y, mapCoordinates, graphHeight, 2);
+    const lon = getLongitude(x, mapCoordinates, graphWidth, 2);
+
+    return [i, type, icon, name, legend, stateName, cultureName, x, y, lat, lon].join(",");
   });
 
   const data = headers + body.join("\n");

@@ -175,5 +175,11 @@ function migrateLabelOverrides(): void {
 window.migrateLabelOverrides = migrateLabelOverrides;
 
 window.drawBurgLabels = burgLabelsRenderer;
+
+export { drawBurgLabelRenderer as drawBurgLabel, removeBurgLabelRenderer as removeBurgLabel };
+
+// burgs-generator still draws labels directly; it cannot import upwards, so the bridge stays
 window.drawBurgLabel = drawBurgLabelRenderer;
 window.removeBurgLabel = removeBurgLabelRenderer;
+
+export { burgLabelsRenderer as drawBurgLabels };

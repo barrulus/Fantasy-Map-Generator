@@ -255,7 +255,7 @@ function drawLayers() {
   if (layerIsOn("toggleBurgIcons")) drawBurgIcons();
   if (layerIsOn("toggleMilitary")) drawMilitary();
   if (layerIsOn("toggleMarkers")) drawMarkers();
-  if (layerIsOn("toggleRulers")) rulers.draw();
+  if (layerIsOn("toggleRulers")) drawMeasurers();
   // scale bar
   // vignette
   if (window.LayerHost) window.LayerHost.reconcile();
@@ -298,22 +298,6 @@ function toggleBiomes(event) {
     biomes.selectAll("path").remove();
     turnButtonOff("toggleBiomes");
   }
-}
-
-function drawBiomes() {
-  TIME && console.time("drawBiomes");
-
-  const cells = pack.cells;
-  const bodyPaths = new Array(biomesData.i.length - 1);
-  const isolines = getIsolines(pack, cellId => cells.biome[cellId], { fill: true, waterGap: true });
-  Object.entries(isolines).forEach(([index, { fill, waterGap }]) => {
-    const color = biomesData.color[index];
-    bodyPaths.push(getGappedFillPaths("biome", fill, waterGap, color, index));
-  });
-
-  ensureEl("biomes").innerHTML = bodyPaths.join("");
-
-  TIME && console.timeEnd("drawBiomes");
 }
 
 function togglePrecipitation(event) {
@@ -1000,7 +984,7 @@ function toggleRulers(event) {
   if (!layerIsOn("toggleRulers")) {
     turnButtonOn("toggleRulers");
     if (event && isCtrlClick(event)) editStyle("ruler");
-    rulers.draw();
+    drawMeasurers();
     ruler.style("display", null);
   } else {
     if (event && isCtrlClick(event)) return editStyle("ruler");

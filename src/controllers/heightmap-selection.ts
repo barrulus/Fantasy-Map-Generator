@@ -1,3 +1,8 @@
+import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { heightmapTemplates } from "@/data/heightmap-templates";
+import { precreatedHeightmaps } from "@/data/precreated-heightmaps";
+import { applyOption } from "@/utils";
+import { lock } from "@/utils/preferences";
 import { drawHeights, ensureEl, generateGrid, generateSeed, shouldRegenerateGrid } from "../utils";
 
 const PREVIEW_CELLS_DESIRED = 10000;

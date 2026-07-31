@@ -1,4 +1,7 @@
 import { drag, type Selection, select } from "d3";
+import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { clearMainTip, tip } from "@/components/tooltips";
+import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
 import { type Burg, cellSlotAfterRemoval, groundSlotOnPlacement } from "../generators/burgs-generator";
 import { findMegalopolises, megalopolisName } from "../generators/megalopolis";
@@ -6,11 +9,14 @@ import {
   convertTemperature,
   destroyDialogIfExists,
   ensureEl,
+  getHeight,
   getPointer,
   getTemperatureLikeness,
+  openURL,
   parseTransform,
   rand,
-  rn
+  rn,
+  speak
 } from "../utils";
 import type { PromptOptions } from "../utils/commonUtils";
 
@@ -426,7 +432,7 @@ function changeName(): void {
 }
 
 function generateNameRandom(): void {
-  const base = rand(nameBases.length - 1);
+  const base = rand(Names.nameBases.length - 1);
   ensureEl<HTMLInputElement>("burgName").value = Names.getBase(base);
   changeName();
 }
@@ -729,7 +735,7 @@ function toggleRelocateBurg(): void {
     }
   } else {
     clearMainTip();
-    restoreDefaultEvents();
+    applyDefaultViewboxEvents();
     if (layerIsOn("toggleCells") && toggler.dataset.forced) {
       toggleCells();
       toggler.dataset.forced = "false";
@@ -845,13 +851,13 @@ function editBurgGroups(): void {
 }
 
 function closeBurgEditor(): void {
-  ensureEl("burgRelocate").classList.remove("pressed");
+  if (ensureEl("burgRelocate").classList.contains("pressed")) toggleRelocateBurg();
   select<SVGTextElement, unknown>("#burgLabels")
     .selectAll<SVGTextElement, unknown>("text")
-    .call(drag<SVGTextElement, unknown>().on("drag", null))
+    .on(".drag", null)
     .classed("draggable", false);
   burgLabels.selectAll("text.gpu-proxy").remove();
-  unselect();
+  selected = null;
   $("#burgEditor").dialog("destroy");
   ensureEl("burgEditor").remove();
 }
