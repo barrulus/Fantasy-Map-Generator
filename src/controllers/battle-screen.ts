@@ -1,4 +1,9 @@
 import { mean, select, sum } from "d3";
+import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { applySorting, applySortingByHeader } from "@/components/dialog/sorting";
+import { tip } from "@/components/tooltips";
+import { drawMarker } from "@/renderers/draw-markers";
+import { moveRegiment } from "@/renderers/draw-military";
 import type { Marker } from "../generators/markers-generator";
 import type { Regiment } from "../generators/military-generator";
 import { capitalize, ensureEl, getAdjective, last, list, minmax, P, Pint, rand, rn, wiki } from "../utils";
@@ -692,7 +697,7 @@ function generateBattleName(type: "culture" | "random"): void {
   const place =
     type === "culture"
       ? Names.getCulture(pack.cells.culture[b.cell], undefined, undefined, "")
-      : Names.getBase(rand(nameBases.length - 1));
+      : Names.getBase(rand(Names.nameBases.length - 1));
   b.place = place;
   ensureEl<HTMLInputElement>("battleNamePlace").value = place;
   b.name = defineBattleName();

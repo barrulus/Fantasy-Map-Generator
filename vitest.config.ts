@@ -1,9 +1,16 @@
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["src/**/*.test.ts"],
-    setupFiles: ["./src/test-setup.ts"],
+    root: "./src",
+    setupFiles: ["./test-setup.ts"],
     environment: "jsdom"
+  },
+  // keep in sync with vite.config.ts, or an `@/…` import resolves in the app but not under test
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url))
+    }
   }
 });

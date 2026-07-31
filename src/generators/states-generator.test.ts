@@ -71,8 +71,9 @@ function buildPack() {
     { i: 2, name: "Sky", capital: 2, center: 12, culture: 1, type: "Generic", expansionism: 1 }
   ];
   const cultures = [{ center: 0 }, { center: 0 }];
-  (globalThis as any).pack = { cells, burgs, states, cultures, features: [0, { type: "island" }] };
-  (globalThis as any).biomesData = { cost: new Array(13).fill(10) };
+  // Upstream v1.139.7 moved biome cost from the biomesData global into pack.biomes[].cost
+  const biomes = Array.from({ length: 13 }, () => ({ cost: 10 }));
+  (globalThis as any).pack = { cells, burgs, states, cultures, biomes, features: [0, { type: "island" }] };
 }
 
 describe("createStates", () => {
@@ -154,12 +155,12 @@ describe("StatesModule.collectTaxes", () => {
       states: [],
       burgs: [],
       markets: [],
-      deals: []
+      deals: [],
+      biomes: []
     } as any;
-    // Stub Names/COA/biomesData not needed for this test
+    // Stub Names/COA data not needed for this test
     globalThis.Names = { getCultureShort: () => "X", getState: () => "X" } as any;
     globalThis.COA = { generate: () => ({}), getShield: () => "" } as any;
-    globalThis.biomesData = { cost: [] } as any;
     globalThis.FlatQueue = class {
       length = 0;
       pop() {

@@ -1,3 +1,8 @@
+import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { tip } from "@/components/tooltips";
+import { VERSION } from "@/services/versioning";
+import { getFileName } from "@/utils";
+
 type ExportJsonType = "Full" | "Minimal" | "PackCells" | "GridCells";
 
 const typeMap = {
@@ -39,9 +44,8 @@ function getFullDataJson(): string {
     mapCoordinates,
     pack: packData,
     grid: gridData,
-    biomesData,
     notes,
-    nameBases
+    nameBases: Names.nameBases
   });
 }
 
@@ -50,6 +54,7 @@ function getMinimalDataJson(): string {
   const settings = getSettings();
   const packData = {
     features: pack.features,
+    biomes: pack.biomes,
     cultures: pack.cultures,
     burgs: pack.burgs,
     states: pack.states,
@@ -61,9 +66,17 @@ function getMinimalDataJson(): string {
     markets: pack.markets,
     deals: pack.deals,
     routes: pack.routes,
-    zones: pack.zones
+    zones: pack.zones,
+    measurers: pack.measurers
   };
-  return JSON.stringify({ info, settings, mapCoordinates, pack: packData, biomesData, notes, nameBases });
+  return JSON.stringify({
+    info,
+    settings,
+    mapCoordinates,
+    pack: packData,
+    notes,
+    nameBases: Names.nameBases
+  });
 }
 
 function getPackDataJson(): string {
@@ -169,6 +182,7 @@ function getPackCellsData() {
       c: pack.vertices.c[vertexId]
     })),
     features: pack.features,
+    biomes: pack.biomes,
     cultures: pack.cultures,
     burgs: pack.burgs,
     states: pack.states,
@@ -180,7 +194,8 @@ function getPackCellsData() {
     markets: pack.markets,
     deals: pack.deals,
     routes: pack.routes,
-    zones: pack.zones
+    zones: pack.zones,
+    measurers: pack.measurers
   };
 }
 

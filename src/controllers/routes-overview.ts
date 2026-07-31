@@ -1,6 +1,11 @@
 import { mean, select } from "d3";
+import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { applySortingByHeader } from "@/components/dialog/sorting";
+import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
 import type { Route } from "@/generators/routes-generator";
+import { highlightElement } from "@/renderers/overlays/highlight";
+import { downloadFile, getFileName } from "@/utils";
 import { destroyDialogIfExists, ensureEl, rn } from "../utils";
 
 const routesPage = { page: 1 };

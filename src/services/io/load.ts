@@ -1,6 +1,13 @@
 import { select } from "d3";
+import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { clearMainTip, tip } from "@/components/tooltips";
+import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
+import { clearLegend } from "@/renderers/draw-legend";
+import { drawMeasurers } from "@/renderers/draw-measurers";
 import { Services } from "@/services";
-import { calculateVoronoi, ensureEl, last, link, minmax, parseError, rn } from "@/utils";
+import { declareFont } from "@/services/fonts";
+import { cleanupData, compareVersions, isValidVersion, parseMapVersion, VERSION } from "@/services/versioning";
+import { applyOption, calculateVoronoi, ensureEl, last, link, minmax, parseError, rn } from "@/utils";
 
 async function quickLoad(): Promise<void> {
   const blob = await ldb.get("lastMap");
@@ -298,7 +305,6 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
       select("#viewbox").attr("shape-rendering") || "geometricPrecision";
     if (data[2]) mapCoordinates = JSON.parse(data[2]);
     if (data[4]) notes = JSON.parse(data[4]);
-    if (data[33]) rulers.fromString(data[33]);
     if (data[34]) {
       const usedFonts = JSON.parse(data[34]);
       usedFonts.forEach((usedFont: (typeof fonts)[number]) => {
@@ -312,20 +318,6 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
       });
     }
 
-    {
-      const biomes = data[3].split("|");
-      biomesData = Biomes.getDefault();
-      biomesData.color = biomes[0].split(",");
-      biomesData.habitability = biomes[1].split(",").map(h => +h);
-      biomesData.name = biomes[2].split(",");
-      // push custom biomes if any
-      for (let i = biomesData.i.length; i < biomesData.name.length; i++) {
-        biomesData.i.push(biomesData.i.length);
-        biomesData.iconsDensity.push(0);
-        biomesData.icons.push([]);
-        biomesData.cost.push(50);
-      }
-    }
     svg.remove();
     document.body.insertAdjacentHTML("afterbegin", data[5]);
     // Reselect with the global d3 v5 (not the bundled d3 v7 `select`): the global
@@ -413,6 +405,24 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
     }
     reGraph();
     Features.markupPack();
+    if (data[3]?.startsWith("[")) {
+      type LoadedBiome = (typeof pack.biomes)[number] & {
+        cells?: number;
+        area?: number;
+        rural?: number;
+        urban?: number;
+      };
+      const loadedBiomes: LoadedBiome[] = JSON.parse(data[3]);
+      for (const biome of loadedBiomes) {
+        delete biome.cells;
+        delete biome.area;
+        delete biome.rural;
+        delete biome.urban;
+      }
+      pack.biomes = loadedBiomes;
+    } else {
+      pack.biomes = [];
+    }
     pack.features = JSON.parse(data[12]);
     pack.cultures = JSON.parse(data[13]);
     pack.states = JSON.parse(data[14]);
@@ -441,6 +451,7 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
       ? Uint16Array.from(data[27].split(","), Number)
       : new Uint16Array(pack.cells.i.length);
     // data[28] had deprecated cells.crossroad
+    // data[33] had deprecated rulers, now replaced by pack.measurers
     pack.cells.routes = data[36] ? JSON.parse(data[36]) : {};
     pack.ice = data[39] ? JSON.parse(data[39]) : [];
     pack.cells.good = data[40] ? Uint16Array.from(data[40].split(","), Number) : new Uint16Array(pack.cells.i.length);
@@ -448,14 +459,15 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
     pack.markets = data[42] ? JSON.parse(data[42]) : [];
     pack.deals = data[43] ? JSON.parse(data[43]) : [];
     pack.cells.market = data[44] ? Uint16Array.from(data[44].split(","), Number) : new Uint16Array(pack.cells.i.length);
+    pack.measurers = data[46] ? JSON.parse(data[46]) : [];
 
     if (data[31]) {
       const namesDL = data[31].split("/");
       namesDL.forEach((d, i) => {
         const e = d.split("|");
         if (!e.length) return;
-        const b = e[5].split(",").length > 2 || !nameBases[i] ? e[5] : nameBases[i].b;
-        nameBases[i] = { name: e[0], i, min: +e[1], max: +e[2], d: e[3], m: +e[4], b };
+        const b = e[5].split(",").length > 2 || !Names.nameBases[i] ? e[5] : Names.nameBases[i].b;
+        Names.nameBases[i] = { name: e[0], i, min: +e[1], max: +e[2], d: e[3], m: +e[4], b };
       });
     }
 
@@ -530,7 +542,7 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
     {
       // dynamically import and run auto-update script
       const { resolveVersionConflicts } = await import("./auto-update");
-      resolveVersionConflicts(mapVersion!);
+      resolveVersionConflicts(mapVersion!, data);
     }
 
     // add custom heightmap color scheme if any
@@ -794,9 +806,9 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
     // remove href from emblems, to trigger rendering on load
     select("#emblems").selectAll("use").attr("href", null);
     // draw data layers (not kept in svg)
-    if (rulers && layerIsOn("toggleRulers")) rulers.draw();
+    if (layerIsOn("toggleRulers")) drawMeasurers();
     if (layerIsOn("toggleGrid")) drawGrid();
-    if (typeof window.restoreDefaultEvents === "function") restoreDefaultEvents();
+    if (typeof window.applyDefaultViewboxEvents === "function") applyDefaultViewboxEvents();
     focusOn(); // based on searchParams focus on point, cell or burg
     invokeActiveZooming();
     fitMapToScreen();

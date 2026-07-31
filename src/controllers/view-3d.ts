@@ -1,3 +1,4 @@
+import { tip } from "@/components/tooltips";
 import { timeOfDayPresets } from "@/data/view-3d-options";
 import { ensureEl } from "@/utils";
 

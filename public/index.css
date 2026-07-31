@@ -1876,13 +1876,21 @@ div.editorLine {
 }
 
 #ruler {
-  cursor: move;
+  cursor: pointer;
   fill: none;
+}
+
+#ruler.editable {
+  cursor: move;
 }
 
 #ruler .rulerPoints {
   stroke: #4e5a69;
   fill: yellow;
+  cursor: pointer;
+}
+
+#ruler.editable .rulerPoints {
   cursor: grab;
 }
 
@@ -2415,6 +2423,7 @@ svg.button {
 
 #chat-widget-container {
   user-select: none;
+  z-index: 99 !important;
 }
 
 #chat-widget-minimized {

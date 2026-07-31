@@ -6,7 +6,6 @@ import { buildCoastlinePath, fractalizeCoastline } from "./coastline-fractal";
 declare global {
   var drawFeatures: () => void;
   var simplify: (points: [number, number][], tolerance: number, highestQuality?: boolean) => [number, number][];
-  var getFeaturePath: (feature: Feature) => string;
 }
 
 interface FeaturesHtml {
@@ -89,4 +88,5 @@ function featurePathRenderer(feature: Feature): string {
 }
 
 window.drawFeatures = featuresRenderer;
-window.getFeaturePath = featurePathRenderer;
+
+export { featurePathRenderer as getFeaturePath, featuresRenderer as drawFeatures };

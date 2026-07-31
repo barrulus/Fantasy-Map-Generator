@@ -1,3 +1,4 @@
+import { applySorting, applySortingByHeader } from "@/components/dialog/sorting";
 import type { Burg } from "../generators/burgs-generator";
 import type { Deal } from "../generators/markets-generator";
 import type { Point } from "../generators/voronoi";

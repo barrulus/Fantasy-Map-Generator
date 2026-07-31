@@ -1,7 +1,22 @@
 import type { Selection } from "d3";
 import { select } from "d3";
+import { tip } from "@/components/tooltips";
 import { unifyClonedMapStack } from "@/renderers/layer-host";
-import { connectVertices, ensureEl, getBase64, getCoordinates, getGridPolygon, rn, unique } from "@/utils";
+import { drawScaleBar, fitScaleBar } from "@/renderers/draw-scalebar";
+import { getUsedFonts, loadFontsAsDataURI } from "@/services/fonts";
+import {
+  connectVertices,
+  downloadFile,
+  ensureEl,
+  getBase64,
+  getCellPopulation,
+  getCoordinates,
+  getFileName,
+  getFriendlyHeight,
+  getGridPolygon,
+  rn,
+  unique
+} from "@/utils";
 
 type MapSelection = Selection<SVGSVGElement, unknown, null, undefined>;
 
@@ -571,11 +586,11 @@ function saveGeoJsonCells(): void {
   const json: { type: string; features: unknown[] } = { type: "FeatureCollection", features: [] };
 
   const getPopulation = (i: number) => {
-    const [r, u] = getCellPopulation(i);
+    const [r, u] = getCellPopulation(i, pack);
     return rn(r + u);
   };
 
-  const getHeight = (i: number) => parseInt(getFriendlyHeight(cells.p[i]), 10);
+  const getHeight = (i: number) => parseInt(getFriendlyHeight(cells.p[i], pack, grid), 10);
 
   function getCellCoordinates(cellVertices: number[]) {
     const coordinates = cellVertices.map(vertex => {

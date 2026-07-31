@@ -1,7 +1,13 @@
 import { pack as packLayout, select, stratify } from "d3";
+import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { applyLineHighlighting } from "@/components/dialog/highlighting";
+import { applySortingByHeader } from "@/components/dialog/sorting";
+import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
 import { findMegalopolises, groupedMemberIds, megalopolisName } from "../generators/megalopolis";
-import { convertTemperature, ensureEl, getPointer, getTemperatureLikeness, rn, si } from "../utils";
+import { drawBurgLabels } from "@/renderers/draw-burg-labels";
+import { downloadFile, getFileName, getHeight, getLatitude, getLongitude, uploadFile } from "@/utils";
+import { convertTemperature, ensureEl, getTemperatureLikeness, rn, si } from "../utils";
 
 type Filters = { stateId?: number | null; cultureId?: number | null };
 
@@ -129,6 +135,12 @@ function renderDialog(): void {
     </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", HTML);
   applySortingByHeader("burgsHeader");
+  applyLineHighlighting("burgsOverview", ({ target, cellId }) => {
+    const burgId = pack.cells.burg[cellId];
+    if (burgId) return burgId;
+    const burg = target.closest<SVGElement>("#burgLabels [data-id], #burgIcons [data-id]");
+    return burg ? Number(burg.dataset.id) : undefined;
+  });
 
   ensureEl("burgsOverviewRefresh").addEventListener("click", refreshBurgsEditor);
   ensureEl("burgsGroupsEditorButton").addEventListener("click", () => Controllers.BurgGroupEditor.open());
@@ -137,8 +149,8 @@ function renderDialog(): void {
   ensureEl("burgsFilterCulture").addEventListener("change", resetAndRefresh);
   ensureEl("burgsSearch").addEventListener("input", resetAndRefresh);
   ensureEl("regenerateBurgNames").addEventListener("click", regenerateNames);
-  ensureEl("addNewBurg").addEventListener("click", enterAddBurgMode);
-  ensureEl("addNewSkyBurg").addEventListener("click", enterAddSkyBurgMode);
+  ensureEl("addNewBurg").addEventListener("click", () => void Controllers.BurgCreator.toggle());
+  ensureEl("addNewSkyBurg").addEventListener("click", () => void Controllers.BurgCreator.toggleSky());
   ensureEl("burgsExport").addEventListener("click", downloadBurgsData);
   ensureEl("burgNamesImport").addEventListener("click", renameBurgsInBulk);
   ensureEl("burgsListToLoad").addEventListener("change", function (this: HTMLInputElement) {
@@ -177,7 +189,7 @@ function gotoPage(page: number): void {
 }
 
 function closeBurgsOverview(): void {
-  exitAddBurgMode();
+  if (document.getElementById("addBurgTool")?.classList.contains("pressed")) void Controllers.BurgCreator.stop();
   $("#burgsOverview").dialog("destroy");
   ensureEl("burgsOverview").remove();
 }
@@ -482,68 +494,10 @@ function regenerateNames(): void {
 
       el.querySelector<HTMLInputElement>(".burgName")!.value = name;
       pack.burgs[burg].name = el.dataset.name = name;
-      select("#burgLabels").select(`[data-id='${burg}']`).text(name);
-      if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
     });
-}
 
-function enterAddBurgMode(this: HTMLElement): void {
-  if (this.classList.contains("pressed")) {
-    exitAddBurgMode();
-    return;
-  }
-  customization = 3;
-  this.classList.add("pressed");
-  tip("Click on the map to create a new burg. Hold Shift to add multiple", true, "warn");
-  select<SVGGElement, unknown>("#viewbox").style("cursor", "crosshair").on("click", addBurgOnClick);
-}
-
-function addBurgOnClick(this: SVGGElement, event: any): void {
-  const point = getPointer(event, this);
-  const cell = findCell(point[0], point[1])!;
-
-  if (pack.cells.h[cell] < 20) {
-    tip("You cannot place state into the water. Please click on a land cell", false, "error");
-    return;
-  }
-
-  Burgs.add(point as [number, number]); // add new burg
-
-  if (event.shiftKey === false) {
-    exitAddBurgMode();
-    burgsOverviewAddLines();
-  }
-}
-
-function enterAddSkyBurgMode(this: HTMLElement): void {
-  if (this.classList.contains("pressed")) {
-    exitAddBurgMode();
-    return;
-  }
-  customization = 3;
-  this.classList.add("pressed");
-  tip("Click anywhere on the map to create a flying sky-city. Hold Shift to add multiple", true, "warn");
-  select<SVGGElement, unknown>("#viewbox").style("cursor", "crosshair").on("click", addSkyBurgOnClick);
-}
-
-function addSkyBurgOnClick(this: SVGGElement, event: any): void {
-  const point = getPointer(event, this);
-
-  Burgs.add(point as [number, number], { flying: true } as any);
-
-  if (event.shiftKey === false) {
-    exitAddBurgMode();
-    burgsOverviewAddLines();
-  }
-}
-
-function exitAddBurgMode(): void {
-  customization = 0;
-  restoreDefaultEvents();
-  clearMainTip();
-  ensureEl("addBurgTool").classList.remove("pressed");
-  ensureEl("addNewBurg").classList.remove("pressed");
-  ensureEl("addNewSkyBurg").classList.remove("pressed");
+  if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
+  else if (layerIsOn("toggleLabels")) drawBurgLabels();
 }
 
 function showBurgsChart(): void {
@@ -747,8 +701,8 @@ function downloadBurgsData(): void {
     // add geography data
     data += `${b.x},`;
     data += `${b.y},`;
-    data += `${getLatitude(b.y, 2)},`;
-    data += `${getLongitude(b.x, 2)},`;
+    data += `${getLatitude(b.y, mapCoordinates, graphHeight, 2)},`;
+    data += `${getLongitude(b.x, mapCoordinates, graphWidth, 2)},`;
     data += `${parseInt(getHeight(pack.cells.h[b.cell]), 10)},`;
     data += `${(b as any).flying ? ((b as any).altitude ?? "") : ""},`;
     const temperature = grid.cells.temp[pack.cells.g[b.cell]];

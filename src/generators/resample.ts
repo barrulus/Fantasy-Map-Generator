@@ -1,5 +1,6 @@
 import { mean, quadtree } from "d3";
 import { clipPolyline } from "lineclip";
+import { Measurers } from "@/generators/measurers-generator";
 import type { PackedGraph } from "../types/PackedGraph";
 import {
   findAllCellsInRadius,
@@ -13,9 +14,7 @@ import {
 import type { River } from "./river-generator";
 import type { Point } from "./voronoi";
 
-declare global {
-  var Resample: Resampler;
-}
+declare global {}
 
 interface ResamplerProcessOptions {
   projection: (x: number, y: number) => [number, number];
@@ -89,6 +88,7 @@ class Resampler {
     inverse: (x: number, y: number) => [number, number],
     scale: number
   ) {
+    pack.biomes = parentMap.pack.biomes;
     pack.cells.biome = new Uint8Array(pack.cells.i.length);
     pack.cells.fl = new Uint16Array(pack.cells.i.length);
     pack.cells.s = new Int16Array(pack.cells.i.length);
@@ -135,7 +135,7 @@ class Resampler {
       const burg = pack.burgs[market.centerBurgId];
       return Boolean(burg && !burg.removed);
     });
-    regenerateEconomy();
+    Production.regenerateEconomy();
   }
 
   private restoreRivers(
@@ -448,7 +448,7 @@ class Resampler {
     reGraph();
     Features.markupPack();
     Ice.generate();
-    createDefaultRuler();
+    Measurers.createDefaultRuler();
 
     this.restoreCellData(parentMap, inverse, scale);
     this.restoreRivers(riversData, projection, scale);
@@ -467,4 +467,4 @@ class Resampler {
   }
 }
 
-window.Resample = new Resampler();
+export const Resample = new Resampler();
