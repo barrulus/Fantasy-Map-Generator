@@ -74,7 +74,6 @@ function buildPack() {
   // Upstream v1.139.7 moved biome cost from the biomesData global into pack.biomes[].cost
   const biomes = Array.from({ length: 13 }, () => ({ cost: 10 }));
   (globalThis as any).pack = { cells, burgs, states, cultures, biomes, features: [0, { type: "island" }] };
-  (globalThis as any).biomesData = { cost: new Array(13).fill(10) };
 }
 
 describe("createStates", () => {

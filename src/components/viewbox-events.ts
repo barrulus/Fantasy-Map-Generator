@@ -5,6 +5,7 @@ import { dragLegendBox } from "@/renderers/draw-legend";
 import { debounce } from "@/utils/commonUtils";
 import { getPointer } from "@/utils";
 import { handleMouseMove } from "./map-tooltip";
+import { isMapPlacementActive } from "./map-placement";
 
 const onMouseMove = debounce(handleMouseMove, 100);
 
@@ -86,8 +87,10 @@ const GREAT_EDITORS: Record<string, Opener> = {
 function onClick(event: MouseEvent): void {
   // An active tool mode (add burg, relocate, zone paint, ...) owns map clicks: its handler
   // replaces the #viewbox listener, but this default dispatcher stays bound on #viewboxTop
-  // and would steal the click.
-  if (customization) return;
+  // and would steal the click. `customization` guards legacy tool modes; `isMapPlacementActive()`
+  // guards the newer toggleMapPlacement-based tools (add-burg, add-sky-burg, ...), which never
+  // set `customization`.
+  if (customization || isMapPlacementActive()) return;
 
   // WebGL burgs have no per-burg DOM, so hit-test the click against the burg quadtree.
   const layerHost = (window as any).LayerHost;

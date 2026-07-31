@@ -4,6 +4,12 @@ import { clearMainTip, tip } from "./tooltips";
 import { applyDefaultViewboxEvents } from "./viewbox-events";
 
 let cleanupActivePlacement: (() => void) | undefined;
+let placementActive = false;
+
+/** Whether a map-placement tool (add-burg, add-sky-burg, ...) is currently active. */
+export function isMapPlacementActive(): boolean {
+  return placementActive;
+}
 
 /** Toggle a map-placement tool, replacing any other active placement tool. */
 export function toggleMapPlacement(
@@ -22,6 +28,7 @@ export function toggleMapPlacement(
   stopMapPlacement();
   button.classList.add("pressed");
   cleanupActivePlacement = onStop;
+  placementActive = true;
   select<SVGGElement, unknown>("#viewbox").style("cursor", "crosshair").on("click", onClick);
   tip(message, true, type);
   return true;
@@ -31,6 +38,7 @@ export function toggleMapPlacement(
 export function stopMapPlacement(): void {
   cleanupActivePlacement?.();
   cleanupActivePlacement = undefined;
+  placementActive = false;
   ensureEl("addFeature")
     .querySelectorAll("button.pressed")
     .forEach(button => {
