@@ -32,10 +32,7 @@ function addOnClick(event: MouseEvent): void {
     tip("You cannot place a burg in the water. Please click on a land cell", false, "error");
     return;
   }
-  if (pack.cells.burg[cell]) {
-    tip("There is already a burg in this cell. Please select a free cell", false, "error");
-    return;
-  }
+  // Fork: multiple burgs may share a cell (megalopolis slots) — no occupied-cell rejection.
 
   Burgs.add(point);
   refreshEditors();
