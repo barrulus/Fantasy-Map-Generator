@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { findMegalopolises, MEGALOPOLIS_MIN_ZOOM } from "../generators/megalopolis";
 import {
   buildBurgInstances,
   buildBurgQuadtree,
@@ -6,7 +7,6 @@ import {
   type GroupRender,
   hitTestBurg
 } from "./burg-instances";
-import { findMegalopolises, MEGALOPOLIS_MIN_ZOOM } from "../generators/megalopolis";
 
 const groups: Record<string, GroupRender> = {
   city: { tileIndex: 0, size: 4, minZoom: 4 },
@@ -42,6 +42,12 @@ describe("burg hit-test", () => {
   const sizes = { city: 4, hamlet: 2 } as Record<string, number>;
   const qt = buildBurgQuadtree(burgs);
 
+  it("leaves burgs of a hidden group out of the index (an unpainted icon isn't clickable)", () => {
+    const hiddenHamlet: Record<string, GroupRender> = { ...groups, hamlet: { ...groups.hamlet, hidden: true } };
+    expect(hitTestBurg(buildBurgQuadtree(burgs, hiddenHamlet), 301, 301, 10, sizes)).toBeNull();
+    expect(hitTestBurg(buildBurgQuadtree(burgs, hiddenHamlet), 101, 101, 10, sizes)).toBe(1);
+  });
+
   it("returns the burg under the cursor within its on-screen radius", () => {
     expect(hitTestBurg(qt, 101, 101, 10, sizes)).toBe(1);
   });
@@ -73,11 +79,28 @@ describe("megalopolis composite instances", () => {
     expect(composite[4]).toBe(3); // capital-tier gate carried through
   });
 
+  it("skips burgs whose group is hidden", () => {
+    // The Skyburgs layer toggle sets display:none on #burgIcons > g#skyburg-*; GPU icons are
+    // built from pack.burgs, so the hidden flag is the only thing that can cull them.
+    const withHidden: Record<string, GroupRender> = {
+      ...groups,
+      skyburg: { tileIndex: 2, size: 3, minZoom: 4, hidden: true }
+    };
+    const burgs = [{}, { i: 1, x: 10, y: 20, group: "city" }, { i: 2, x: 30, y: 40, group: "skyburg" }] as any;
+    const { count, ids } = buildBurgInstances(burgs, withHidden);
+    expect(count).toBe(1);
+    expect(ids).toEqual([1]);
+  });
+
   it("buildCompositeSpecs emits an enlarged anchor icon plus a ring per megalopolis", () => {
     const cellsBurg = new Uint32Array(10);
     cellsBurg[5] = 1;
     const megas = findMegalopolises(
-      [{ i: 0 }, { i: 1, cell: 5, x: 10, y: 10, group: "city", population: 2 }, { i: 2, cell: 5, x: 11, y: 11, group: "hamlet", population: 1 }] as any,
+      [
+        { i: 0 },
+        { i: 1, cell: 5, x: 10, y: 10, group: "city", population: 2 },
+        { i: 2, cell: 5, x: 11, y: 11, group: "hamlet", population: 1 }
+      ] as any,
       cellsBurg
     );
     const specs = buildCompositeSpecs(megas, groups, 9);

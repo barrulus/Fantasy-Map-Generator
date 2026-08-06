@@ -11,12 +11,25 @@ export interface GroupStyle {
   fill: string;
   halo: string;
   haloWidth: number;
-  hidden: boolean; // display:none — read here, consumed by the GL painter in phase 3
+  hidden: boolean; // switched off by a layer toggle (see isGroupSwitchedOff) — NOT the zoom gate
   iconDiameter: number; // map-unit diameter of this tier's burg icon (sibling #burgIcons > g#{id})
 }
 
 const DEFAULT_FONT_SIZE = 4;
 const DEFAULT_ICON_DIAMETER = 1;
+
+/**
+ * True when a layer toggle has switched this group shell off (the Skyburgs layer sets it on
+ * `#burgIcons`/`#burgLabels > g#skyburg-*`).
+ *
+ * Deliberately an explicit attribute rather than the shell's `display`: invokeActiveZooming also
+ * hides shells via the `.hidden` class as the per-tier ZOOM gate, and the GL renderers do that
+ * gating themselves on the GPU (GroupRender.minZoom / LabelBox.minZoom). Reading display here
+ * would make a rebuild bake the current zoom's tier culling into the buffers permanently.
+ */
+export function isGroupSwitchedOff(el: Element): boolean {
+  return el.getAttribute("data-layer-off") === "true";
+}
 
 /**
  * Read the sibling `#burgIcons > g#{id}` element's computed font-size, which the icon atlas
@@ -73,7 +86,7 @@ export function readBurgLabelStyles(root: ParentNode = document): Record<string,
       // silently disabled the halo entirely, and a small capital label needs it to stay readable
       // painted over a big state name).
       haloWidth: +(el.getAttribute("stroke-width") || 0.5),
-      hidden: (el.getAttribute("style") || "").includes("display:none") || getComputedStyle(el).display === "none",
+      hidden: isGroupSwitchedOff(el),
       iconDiameter: readIconDiameter(el.id, root)
     };
   }

@@ -2,9 +2,9 @@ import { type Quadtree, quadtree } from "d3-quadtree";
 import type { Burg } from "../generators/burgs-generator";
 import {
   findMegalopolises,
-  type Megalopolis,
   MEGALOPOLIS_MIN_ZOOM,
   MEGALOPOLIS_SPLIT_ZOOM,
+  type Megalopolis,
   megalopolisName
 } from "../generators/megalopolis";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
@@ -44,7 +44,7 @@ export function buildLabelBoxes(
   for (const b of burgs) {
     if (!b || !b.i || b.removed || !b.name) continue;
     const s = styles[b.group as string];
-    if (!s) continue;
+    if (!s || s.hidden) continue; // hidden = the group's shell is display:none (e.g. Skyburgs layer off)
     // Grouped burgs swap out below the split — EXCEPT capitals, which are never
     // hidden; their composite stacks above them instead (see the megas loop below).
     const grouped = groupedIds.has(b.i) && !b.capital;
@@ -71,7 +71,7 @@ export function buildLabelBoxes(
   if (megas) {
     for (const m of megas.values()) {
       const s = styles[m.anchor.group as string];
-      if (!s) continue;
+      if (!s || s.hidden) continue;
       const name = megalopolisName(m.anchor);
       out.push({
         id: m.anchor.i,

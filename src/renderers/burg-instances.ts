@@ -11,6 +11,7 @@ export interface GroupRender {
   tileIndex: number; // atlas tile for this group's baked symbol
   size: number; // rendered icon diameter in map units (group font-size)
   minZoom: number; // groupMinZoom() from the shared tier table (src/renderers/labeling/tier-table.ts) — GPU cull threshold
+  hidden?: boolean; // group switched off by a layer toggle (Skyburgs) — cull; NOT the zoom gate
 }
 
 export const INSTANCE_STRIDE = 5; // x, y, size, tileIndex, minZoom
@@ -38,6 +39,7 @@ export function buildBurgInstances(
     if (!b || !b.i || b.removed) continue; // skip index-0 placeholder + removed
     if (opts?.suppress?.has(b.i)) continue; // megalopolis members hidden in composite mode
     const g = groups[b.group as string] || fallback;
+    if (g.hidden) continue; // the group's layer is switched off; the GL canvas must match
     const o = n * INSTANCE_STRIDE;
     data[o] = b.x!;
     data[o + 1] = b.y!;
@@ -70,6 +72,7 @@ export function buildCompositeSpecs(
   const specs: CompositeInstanceSpec[] = [];
   for (const m of megas.values()) {
     const g = groups[m.anchor.group as string] || fallback;
+    if (g.hidden) continue;
     specs.push({
       x: m.anchor.x!,
       y: m.anchor.y!,
@@ -93,11 +96,13 @@ export function buildCompositeSpecs(
 
 export type BurgQuadtree = Quadtree<Burg>;
 
-export function buildBurgQuadtree(burgs: Burg[]): BurgQuadtree {
+// `groups` is optional so the index can be built before the atlas exists; when given, burgs in a
+// hidden group are left out — an unpainted icon must not be clickable either.
+export function buildBurgQuadtree(burgs: Burg[], groups?: Record<string, GroupRender>): BurgQuadtree {
   return quadtree<Burg>()
     .x(b => b.x!)
     .y(b => b.y!)
-    .addAll(burgs.filter(b => b && b.i && !b.removed));
+    .addAll(burgs.filter(b => b && b.i && !b.removed && !groups?.[b.group as string]?.hidden));
 }
 
 // hitX/hitY in MAP coords; tolerance = max(icon radius in map units, a min screen-px radius / scale)

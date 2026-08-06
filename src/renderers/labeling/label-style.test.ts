@@ -71,11 +71,24 @@ describe("readBurgLabelStyles", () => {
     expect(s.hamlet.haloWidth).toBeGreaterThan(0);
   });
 
-  it("records a display:none group as hidden", () => {
-    mount(shell("capital", { "data-size": "4", style: "display:none" }) + shell("hamlet", { "data-size": "1" }));
+  it("records a layer-switched-off group as hidden", () => {
+    mount(shell("capital", { "data-size": "4", "data-layer-off": "true" }) + shell("hamlet", { "data-size": "1" }));
     const s = readBurgLabelStyles();
     expect(s.capital.hidden).toBe(true);
     expect(s.hamlet.hidden).toBe(false);
+  });
+
+  it("does NOT treat the per-tier zoom gate as hidden", () => {
+    // invokeActiveZooming adds .hidden (display:none !important) to shells below their min-zoom.
+    // The GL renderers gate by zoom themselves, so baking that into a rebuild would cull whole
+    // tiers until the next rebuild — labels/icons vanishing until the layer is toggled.
+    mount(
+      shell("hamlet", { "data-size": "1", class: "hidden" }) +
+        shell("city", { "data-size": "2", style: "display:none" })
+    );
+    const s = readBurgLabelStyles();
+    expect(s.hamlet.hidden).toBe(false);
+    expect(s.city.hidden).toBe(false);
   });
 
   it("returns an empty map when there are no shells", () => {

@@ -829,17 +829,25 @@ function toggleRoutes(event) {
 
 function toggleSkyburgs() {
   const SKYBURG_GROUPS = "#skyburg-capital, #skyburg, #skyburg-mid, #skyburg-small";
+  // data-layer-off is what the GPU renderers read: `display` on these shells is also the per-tier
+  // zoom gate (invokeActiveZooming's .hidden class), so it can't tell "layer off" from "zoomed out".
+  const setOff = off => {
+    for (const sel of [burgIcons, burgLabels]) {
+      sel.selectAll(SKYBURG_GROUPS).style("display", off ? "none" : null).attr("data-layer-off", off ? "true" : null);
+    }
+    routes.select("#airroutes").style("display", off ? "none" : null);
+  };
   if (!layerIsOn("toggleSkyburgs")) {
     turnButtonOn("toggleSkyburgs");
-    burgIcons.selectAll(SKYBURG_GROUPS).style("display", null);
-    burgLabels.selectAll(SKYBURG_GROUPS).style("display", null);
-    routes.select("#airroutes").style("display", null);
+    setOff(false);
   } else {
-    burgIcons.selectAll(SKYBURG_GROUPS).style("display", "none");
-    burgLabels.selectAll(SKYBURG_GROUPS).style("display", "none");
-    routes.select("#airroutes").style("display", "none");
+    setOff(true);
     turnButtonOff("toggleSkyburgs");
   }
+  // GPU burgs are built from pack.burgs, not from the group shells, so display:none alone
+  // doesn't reach them — rebuild both buffers to re-read the groups' visibility.
+  if (window.burgWebglActive && window.burgWebglActive()) window.scheduleRebuildBurgGL();
+  if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) window.scheduleRebuildBurgLabelGL();
 }
 
 function drawRoutes() {
@@ -951,11 +959,18 @@ function toggleLabels(event) {
     $("#labels").fadeIn();
     // don't redraw labels as they are not stored in data yet
     if (labels.selectAll("text").size() === 0) drawLabels();
+    // ...but that text-count guard only ever sees the STATE labels when the GPU owns burg labels,
+    // so burg labels would never be rebuilt after the toggle-off cleared their canvas — they'd
+    // reappear only on the next zoom frame. Rebuild them explicitly (cheap: no SVG text emitted).
+    else if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) drawBurgLabels();
     if (event && isCtrlClick(event)) editStyle("labels");
+    if (window.LayerHost) window.LayerHost.reconcile();
   } else {
     if (event && isCtrlClick(event)) return editStyle("labels");
     turnButtonOff("toggleLabels");
     $("#labels").fadeOut();
+    // burg labels are GPU-drawn: fading #labels leaves the canvas painted, so wipe it too
+    if (window.LayerHost) window.LayerHost.reconcile();
   }
 }
 

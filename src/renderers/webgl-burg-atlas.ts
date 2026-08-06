@@ -1,9 +1,12 @@
+import { isGroupSwitchedOff } from "./labeling/label-style";
+
 const TILE = 64; // px per tile (atlas raster resolution)
 const COLS = 8; // 8x8 = up to 64 group tiles
 
 export interface AtlasTile {
   tileIndex: number;
   size: number; // map-unit diameter (group font-size)
+  hidden: boolean; // group switched off by a layer toggle (Skyburgs) — not the per-tier zoom gate
 }
 export interface BurgAtlas {
   canvas: HTMLCanvasElement;
@@ -58,7 +61,7 @@ export async function buildBurgAtlas(): Promise<BurgAtlas> {
       const fontSize = parseFloat(getComputedStyle(g).fontSize) || 2; // map-unit diameter
       const col = idx % COLS;
       const row = Math.floor(idx / COLS);
-      tiles[g.id] = { tileIndex: idx, size: fontSize };
+      tiles[g.id] = { tileIndex: idx, size: fontSize, hidden: isGroupSwitchedOff(g) };
       try {
         const img = await loadImage(symbolSVG(symbolId, fill, stroke, sw));
         ctx.drawImage(img, col * TILE, row * TILE, TILE, TILE);

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   _resetLayers,
   createTopOverlay,
@@ -284,6 +284,80 @@ describe("onFrameLayers", () => {
     onFrameLayers();
     expect(drawnA).toBe(1);
     expect(drawnB).toBe(0);
+  });
+
+  it("clears a layer once when it stops being visible", () => {
+    let visible = true;
+    let cleared = 0;
+    registerLayer({
+      id: "a",
+      renderer: "webgl",
+      visible: () => visible,
+      draw: () => {},
+      clear: () => {
+        cleared++;
+      }
+    });
+    onFrameLayers();
+    expect(cleared).toBe(0);
+
+    visible = false;
+    onFrameLayers();
+    expect(cleared).toBe(1); // stale pixels wiped on the falling edge
+
+    onFrameLayers();
+    expect(cleared).toBe(1); // and not re-cleared every frame while it stays off
+  });
+
+  it("does not clear a layer that was never drawn", () => {
+    let cleared = 0;
+    registerLayer({
+      id: "a",
+      renderer: "webgl",
+      visible: () => false,
+      draw: () => {},
+      clear: () => {
+        cleared++;
+      }
+    });
+    onFrameLayers();
+    expect(cleared).toBe(0);
+  });
+});
+
+describe("reconcileLayers clears hidden webgl layers", () => {
+  beforeEach(() => {
+    _resetLayers();
+    document.body.innerHTML = "";
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.id = "map";
+    const vb = document.createElementNS(NS, "g");
+    vb.id = "viewbox";
+    svg.appendChild(vb);
+    document.body.appendChild(svg);
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("wipes a layer that has just been toggled off, without waiting for a zoom frame", () => {
+    let visible = true;
+    let cleared = 0;
+    registerLayer({
+      id: "labels",
+      renderer: "webgl",
+      visible: () => visible,
+      draw: () => {},
+      clear: () => {
+        cleared++;
+      }
+    });
+    onFrameLayers(); // layer drew at least once
+    visible = false;
+    reconcileLayers();
+    expect(cleared).toBe(1);
   });
 });
 

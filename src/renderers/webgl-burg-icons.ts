@@ -85,7 +85,7 @@ function groupRenders(): Record<string, GroupRender> {
   const out: Record<string, GroupRender> = {};
   if (!atlas) return out;
   for (const [name, t] of Object.entries(atlas.tiles)) {
-    out[name] = { tileIndex: t.tileIndex, size: t.size, minZoom: groupMinZoom(name) };
+    out[name] = { tileIndex: t.tileIndex, size: t.size, minZoom: groupMinZoom(name), hidden: t.hidden };
   }
   return out;
 }
@@ -167,7 +167,7 @@ export async function rebuildBurgGL(): Promise<void> {
     compositeIds = [];
   }
 
-  burgQuadtree = buildBurgQuadtree(burgs);
+  burgQuadtree = buildBurgQuadtree(burgs, renders);
   (window as any).__burgGLids = ids;
   drawBurgGL();
   (window as any).LayerHost?.reconcile(); // position the canvas at its z-slot once instances are ready
@@ -285,7 +285,7 @@ export function moveBurgGL(id: number, x: number, y: number): void {
   patch(instanceBuf, fullIds);
   if (compositeCount) patch(compositeBuf, compositeIds);
   // burg.x/y already reflect the new position — rebuild the hit-test index from truth.
-  burgQuadtree = buildBurgQuadtree((window as any).pack.burgs);
+  burgQuadtree = buildBurgQuadtree((window as any).pack.burgs, groupRenders());
   drawBurgGL();
 }
 

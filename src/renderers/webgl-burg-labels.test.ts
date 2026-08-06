@@ -67,6 +67,12 @@ describe("buildLabelBoxes", () => {
     expect(b.order).toBe(0);
   });
 
+  it("emits nothing for a group whose shell is display:none", () => {
+    // The Skyburgs layer toggle hides #burgLabels > g#skyburg-* with display:none; the GPU
+    // renderer must honour that or the labels stay painted with the layer off.
+    expect(buildLabelBoxes(burgs, { capital: style({ hidden: true }) }, METRICS, GEOM)).toHaveLength(0);
+  });
+
   it("carries the tier's icon diameter through from the style", () => {
     const b = buildLabelBoxes(burgs, { capital: style({ iconDiameter: 3.5 }) }, METRICS, GEOM)[0];
     expect(b.iconDiameter).toBeCloseTo(3.5, 10);

@@ -107,6 +107,7 @@ export function getWebglLayers(): MapLayer[] {
 /** Test-only: clear the registry between tests. */
 export function _resetLayers(): void {
   webglLayers.length = 0;
+  wasVisible.clear();
 }
 
 /**
@@ -157,6 +158,10 @@ export function syncTopOverlayGeometry(): void {
  * layer's z-slot and whether the WebGL renderer is active. Idempotent.
  */
 export function reconcileLayers(): void {
+  // A layer toggle reconciles immediately; wipe anything just switched off rather than leaving
+  // its last frame on screen until the next pan/zoom (which may never come).
+  clearHiddenLayers();
+
   const svg = document.getElementById("map");
   const viewbox = document.getElementById("viewbox");
   if (!svg || !viewbox) return;
@@ -218,11 +223,29 @@ function syncTopTransform(viewbox: Element, viewboxTop: Element): void {
   else viewboxTop.removeAttribute("transform");
 }
 
+// Which layers painted last time we looked. A WebGL layer owns an absolutely-positioned canvas
+// that is never transformed with the map, so pixels left behind when a layer goes invisible stay
+// frozen in screen space — visible with the layer switched off, and sliding over the map on pan.
+// Nothing else calls the registered clear() hook, so the falling edge has to be detected here.
+const wasVisible = new Set<string>();
+
+/** Clear any webgl layer that painted before but is no longer visible. Idempotent. */
+function clearHiddenLayers(): void {
+  for (const layer of webglLayers) {
+    if (layer.visible()) {
+      wasVisible.add(layer.id);
+    } else if (wasVisible.delete(layer.id)) {
+      layer.clear();
+    }
+  }
+}
+
 /** Called every frame from zoomRaf: mirror the viewbox transform to #viewboxTop and draw webgl layers. */
 export function onFrameLayers(): void {
   const vb = document.getElementById("viewbox");
   const vt = document.getElementById("viewboxTop");
   if (vb && vt) syncTopTransform(vb, vt);
+  clearHiddenLayers();
   for (const layer of webglLayers) {
     if (layer.visible()) layer.draw();
   }
