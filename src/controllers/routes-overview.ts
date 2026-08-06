@@ -1,13 +1,25 @@
 import { mean, select } from "d3";
 import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
 import { applySortingByHeader, bindEditorSortReset, sortDataByActiveHeader } from "@/components/dialog/sorting";
-import { initEditorTable, renderEditorPagination, type TableView } from "@/components/dialog/table";
+import {
+  type EditorColumn,
+  initColumnVisibility,
+  initEditorTable,
+  renderEditorPagination,
+  type TableView
+} from "@/components/dialog/table";
 import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
 import type { Route } from "@/generators/routes-generator";
 import { highlightElement } from "@/renderers/overlays/highlight";
 import { downloadFile, getFileName } from "@/utils";
 import { destroyDialogIfExists, ensureEl, rn } from "../utils";
+
+const ROUTE_COLUMNS: EditorColumn[] = [
+  { key: "name", label: "Name", hideable: false },
+  { key: "group", label: "Group" },
+  { key: "length", label: "Length" }
+];
 
 const ROUTES_SORT_ACCESSORS = {
   name: (route: Route) => route.name || "",
@@ -60,17 +72,18 @@ function renderDialog(): void {
 
   const html = /* html */ `<div id="routesOverview" class="dialog stable">
     <div id="routesHeader" class="header" style="grid-template-columns: 17em 8em 8em">
-      <div data-tip="Click to sort by route name" class="sortable alphabetically" data-sortby="name">Route&nbsp;</div>
-      <div data-tip="Click to sort by route group" class="sortable alphabetically" data-sortby="group">Group&nbsp;</div>
-      <div data-tip="Click to sort by route length" class="sortable icon-sort-number-down" data-sortby="length">Length&nbsp;</div>
+      <div data-tip="Click to sort by route name" class="sortable alphabetically" data-sortby="name" data-col="name">Route&nbsp;</div>
+      <div data-tip="Click to sort by route group" class="sortable alphabetically" data-sortby="group" data-col="group">Group&nbsp;</div>
+      <div data-tip="Click to sort by route length" class="sortable icon-sort-number-down" data-sortby="length" data-col="length">Length&nbsp;</div>
     </div>
     <div id="routesBody" class="table"></div>
     <div id="routesFooter" class="totalLine">
       <div data-tip="Routes number" style="margin-left: 4px">Routes:&nbsp;<span id="routesFooterNumber">0</span></div>
-      <div data-tip="Average length" style="margin-left: 12px">Average length:&nbsp;<span id="routesFooterLength">0</span></div>
+      <div data-tip="Average length" style="margin-left: 12px" data-col="length">Average length:&nbsp;<span id="routesFooterLength">0</span></div>
     </div>
     <div id="routesBottom">
       <button id="routesOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
+      <button id="routesToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="routesCreateNew" data-tip="Create a new route selecting route cells" class="icon-map-pin"></button>
       <button id="routesExport" data-tip="Save routes-related data as a text file (.csv)" class="icon-download"></button>
       <button id="routesLockAll" data-tip="Lock or unlock all routes" class="icon-lock"></button>
@@ -85,6 +98,12 @@ function renderDialog(): void {
 
   // add listeners — dropped together with the dialog HTML on close
   ensureEl("routesOverviewRefresh").on("click", routesTable.refresh);
+  initColumnVisibility({
+    button: ensureEl("routesToggleColumns"),
+    dialogId: "routesOverview",
+    storageKey: "routes",
+    columns: ROUTE_COLUMNS
+  });
   ensureEl("routesCreateNew").on("click", createNewRoute);
   ensureEl("routesExport").on("click", downloadRoutesData);
   ensureEl("routesLockAll").on("click", toggleLockAll);
@@ -117,9 +136,9 @@ function renderRoutesPage(view: TableView<Route>): void {
         data-length="${route.length}"
       >
         <span data-tip="Locate the route" class="icon-target"></span>
-        <div data-tip="Route name" style="width: 15em; margin-left: 0.4em;">${route.name}</div>
-        <div data-tip="Route group" style="width: 8em;">${route.group}</div>
-        <div data-tip="Route length" style="width: 6em;">${length}</div>
+        <div data-tip="Route name" style="width: 15em; margin-left: 0.4em;" data-col="name">${route.name}</div>
+        <div data-tip="Route group" style="width: 8em;" data-col="group">${route.group}</div>
+        <div data-tip="Route length" style="width: 6em;" data-col="length">${length}</div>
         <span data-tip="Edit route" class="icon-pencil"></span>
         <span class="locks pointer ${
           route.lock ? "icon-lock" : "icon-lock-open inactive"

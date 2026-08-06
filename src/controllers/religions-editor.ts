@@ -2,7 +2,13 @@ import { drag, easeSinIn, select, transition } from "d3";
 import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { applySortingByHeader, bindEditorSortReset, sortDataByActiveHeader } from "@/components/dialog/sorting";
-import { initEditorTable, renderEditorPagination, type TableView } from "@/components/dialog/table";
+import {
+  type EditorColumn,
+  initColumnVisibility,
+  initEditorTable,
+  renderEditorPagination,
+  type TableView
+} from "@/components/dialog/table";
 import { clearMainTip, showMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
@@ -38,6 +44,17 @@ const RELIGIONS_SORT_ACCESSORS: Record<string, (r: Religion) => string | number>
   expansion: r => r.expansion || "",
   expansionism: r => r.expansionism || 0
 };
+
+const RELIGION_COLUMNS: EditorColumn[] = [
+  { key: "name", label: "Name", hideable: false },
+  { key: "type", label: "Type" },
+  { key: "form", label: "Form", mobileHidden: true },
+  { key: "deity", label: "Deity", mobileHidden: true },
+  { key: "area", label: "Area", mobileHidden: true },
+  { key: "population", label: "Population" },
+  { key: "expansion", label: "Expansion", mobileHidden: true },
+  { key: "expansionism", label: "Expansionism", mobileHidden: true }
+];
 
 function getFilteredReligions(): Religion[] {
   return pack.religions.filter(
@@ -76,14 +93,14 @@ function renderDialog(): void {
   destroyDialogIfExists("religionsEditor");
   const editorHtml = /* html */ `<div id="religionsEditor" class="dialog stable">
     <div id="religionsHeader" class="header" style="grid-template-columns: 13em 6em 7em 18em 6em 7em 6em 7em">
-      <div data-tip="Click to sort by religion name" class="sortable alphabetically" data-sortby="name">Religion&nbsp;</div>
-      <div data-tip="Click to sort by religion type" class="sortable alphabetically icon-sort-name-down" data-sortby="type">Type&nbsp;</div>
-      <div data-tip="Click to sort by religion form" class="sortable alphabetically" data-sortby="form">Form&nbsp;</div>
-      <div data-tip="Click to sort by supreme deity" class="sortable alphabetically hide" data-sortby="deity">Supreme Deity&nbsp;</div>
-      <div data-tip="Click to sort by religion area" class="sortable hide" data-sortby="area">Area&nbsp;</div>
-      <div data-tip="Click to sort by number of believers (religion area population)" class="sortable hide" data-sortby="population">Believers&nbsp;</div>
-      <div data-tip="Click to sort by potential extent type" class="sortable alphabetically hide" data-sortby="expansion">Potential&nbsp;</div>
-      <div data-tip="Click to sort by expansionism" class="sortable hide" data-sortby="expansionism">Expansion&nbsp;</div>
+      <div data-tip="Click to sort by religion name" class="sortable alphabetically" data-sortby="name" data-col="name">Religion&nbsp;</div>
+      <div data-tip="Click to sort by religion type" class="sortable alphabetically icon-sort-name-down" data-sortby="type" data-col="type">Type&nbsp;</div>
+      <div data-tip="Click to sort by religion form" class="sortable alphabetically" data-sortby="form" data-col="form">Form&nbsp;</div>
+      <div data-tip="Click to sort by supreme deity" class="sortable alphabetically hide" data-sortby="deity" data-col="deity">Supreme Deity&nbsp;</div>
+      <div data-tip="Click to sort by religion area" class="sortable hide" data-sortby="area" data-col="area">Area&nbsp;</div>
+      <div data-tip="Click to sort by number of believers (religion area population)" class="sortable hide" data-sortby="population" data-col="population">Believers&nbsp;</div>
+      <div data-tip="Click to sort by potential extent type" class="sortable alphabetically hide" data-sortby="expansion" data-col="expansion">Potential&nbsp;</div>
+      <div data-tip="Click to sort by expansionism" class="sortable hide" data-sortby="expansionism" data-col="expansionism">Expansion&nbsp;</div>
     </div>
     <div id="religionsBody" class="table" data-type="absolute"></div>
 
@@ -100,16 +117,17 @@ function renderDialog(): void {
       <div data-tip="Total number of folk religions" style="margin-left: 12px">
         Folk:&nbsp;<span id="religionsFolk">0</span>
       </div>
-      <div data-tip="Total land area" style="margin-left: 12px">
+      <div data-tip="Total land area" style="margin-left: 12px" data-col="area">
         Land Area:&nbsp;<span id="religionsFooterArea">0</span>
       </div>
-      <div data-tip="Total number of believers (population)" style="margin-left: 12px">
+      <div data-tip="Total number of believers (population)" style="margin-left: 12px" data-col="population">
         Believers:&nbsp;<span id="religionsFooterPopulation">0</span>
       </div>
     </div>
 
     <div id="religionsBottom">
       <button id="religionsEditorRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
+      <button id="religionsToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="religionsEditStyle" data-tip="Edit religions style in Style Editor" class="icon-adjust"></button>
       <button id="religionsLegend" data-tip="Toggle Legend box" class="icon-list-bullet"></button>
       <button id="religionsPercentage" data-tip="Toggle percentage / absolute values display mode" class="icon-percent"></button>
@@ -145,6 +163,12 @@ function renderDialog(): void {
   applyLineHighlighting("religionsEditor", ({ cellId }) => pack.cells.religion[cellId]);
 
   ensureEl("religionsEditorRefresh").on("click", refreshReligionsEditor);
+  initColumnVisibility({
+    button: ensureEl("religionsToggleColumns"),
+    dialogId: "religionsEditor",
+    storageKey: "religions",
+    columns: RELIGION_COLUMNS
+  });
   ensureEl("religionsEditStyle").on("click", () => editStyle("relig"));
   ensureEl("religionsLegend").on("click", toggleLegend);
   ensureEl("religionsPercentage").on("click", togglePercentageMode);
@@ -219,17 +243,17 @@ function religionsEditorAddLines(view: TableView<Religion>): void {
       >
         <svg width="9" height="9" class="placeholder"></svg>
         <input data-tip="Religion name. Click and type to change" class="religionName italic" style="width: 11em"
-          value="${r.name}" autocorrect="off" spellcheck="false" />
-        <select data-tip="Religion type" class="religionType placeholder" style="width: 5em">
+          value="${r.name}" autocorrect="off" spellcheck="false" data-col="name" />
+        <select data-tip="Religion type" class="religionType placeholder" style="width: 5em" data-col="type">
           ${getTypeOptions(r.type)}
         </select>
-        <input data-tip="Religion form" class="religionForm placeholder" style="width: 6em" value="" autocorrect="off" spellcheck="false" />
-        <span data-tip="Click to re-generate supreme deity" class="icon-arrows-cw placeholder hide"></span>
-        <input data-tip="Religion supreme deity" class="religionDeity placeholder hide" style="width: 17em" value="" autocorrect="off" spellcheck="false" />
-        <span data-tip="Religion area" style="padding-right: 4px" class="icon-map-o hide"></span>
-        <div data-tip="Religion area" class="religionArea hide" style="width: 6em">${si(area) + unit}</div>
-        <span data-tip="${populationTip}" class="icon-male hide"></span>
-        <div data-tip="${populationTip}" class="religionPopulation hide pointer" style="width: 5em">${si(
+        <input data-tip="Religion form" class="religionForm placeholder" style="width: 6em" value="" autocorrect="off" spellcheck="false" data-col="form" />
+        <span data-tip="Click to re-generate supreme deity" class="icon-arrows-cw placeholder hide" data-col="deity"></span>
+        <input data-tip="Religion supreme deity" class="religionDeity placeholder hide" style="width: 17em" value="" autocorrect="off" spellcheck="false" data-col="deity" />
+        <span data-tip="Religion area" style="padding-right: 4px" class="icon-map-o hide" data-col="area"></span>
+        <div data-tip="Religion area" class="religionArea hide" style="width: 6em" data-col="area">${si(area) + unit}</div>
+        <span data-tip="${populationTip}" class="icon-male hide" data-col="population"></span>
+        <div data-tip="${populationTip}" class="religionPopulation hide pointer" style="width: 5em" data-col="population">${si(
           population
         )}</div>
       </div>`;
@@ -251,19 +275,19 @@ function religionsEditorAddLines(view: TableView<Religion>): void {
     >
       <fill-box fill="${r.color}"></fill-box>
       <input data-tip="Religion name. Click and type to change" class="religionName" style="width: 11em"
-        value="${r.name}" autocorrect="off" spellcheck="false" />
-      <select data-tip="Religion type" class="religionType" style="width: 5em">
+        value="${r.name}" autocorrect="off" spellcheck="false" data-col="name" />
+      <select data-tip="Religion type" class="religionType" style="width: 5em" data-col="type">
         ${getTypeOptions(r.type)}
       </select>
       <input data-tip="Religion form" class="religionForm" style="width: 6em"
-        value="${r.form}" autocorrect="off" spellcheck="false" />
-      <span data-tip="Click to re-generate supreme deity" class="icon-arrows-cw hide"></span>
+        value="${r.form}" autocorrect="off" spellcheck="false" data-col="form" />
+      <span data-tip="Click to re-generate supreme deity" class="icon-arrows-cw hide" data-col="deity"></span>
       <input data-tip="Religion supreme deity" class="religionDeity hide" style="width: 17em"
-        value="${r.deity || ""}" autocorrect="off" spellcheck="false" />
-      <span data-tip="Religion area" style="padding-right: 4px" class="icon-map-o hide"></span>
-      <div data-tip="Religion area" class="religionArea hide" style="width: 6em">${si(area) + unit}</div>
-      <span data-tip="${populationTip}" class="icon-male hide"></span>
-      <div data-tip="${populationTip}" class="religionPopulation hide pointer" style="width: 5em">${si(
+        value="${r.deity || ""}" autocorrect="off" spellcheck="false" data-col="deity" />
+      <span data-tip="Religion area" style="padding-right: 4px" class="icon-map-o hide" data-col="area"></span>
+      <div data-tip="Religion area" class="religionArea hide" style="width: 6em" data-col="area">${si(area) + unit}</div>
+      <span data-tip="${populationTip}" class="icon-male hide" data-col="population"></span>
+      <div data-tip="${populationTip}" class="religionPopulation hide pointer" style="width: 5em" data-col="population">${si(
         population
       )}</div>
       ${getExpansionColumns(r)}
@@ -360,18 +384,18 @@ function getExpansionColumns(r: any): string {
     const folkTip =
       "Folk religions are not competitive and do not expand. Initially they cover all cells of their parent culture, but get ousted by organized religions when they expand";
     return /* html */ `
-      <span data-tip="${folkTip}" class="icon-resize-full-alt hide" style="padding-right: 2px"></span>
-      <span data-tip="${folkTip}" class="religionExtent hide" style="width: 5em">culture</span>
-      <span data-tip="${folkTip}" class="icon-resize-full hide"></span>
-      <input data-tip="${folkTip}" class="religionExpantion hide" disabled type="number" value='0' />`;
+      <span data-tip="${folkTip}" class="icon-resize-full-alt hide" style="padding-right: 2px" data-col="expansion"></span>
+      <span data-tip="${folkTip}" class="religionExtent hide" style="width: 5em" data-col="expansion">culture</span>
+      <span data-tip="${folkTip}" class="icon-resize-full hide" data-col="expansionism"></span>
+      <input data-tip="${folkTip}" class="religionExpantion hide" disabled type="number" value='0' data-col="expansionism" />`;
   }
 
   return /* html */ `
-    <span data-tip="Potential religion extent" class="icon-resize-full-alt hide" style="padding-right: 2px"></span>
-    <select data-tip="Potential religion extent" class="religionExtent hide" style="width: 5em">
+    <span data-tip="Potential religion extent" class="icon-resize-full-alt hide" style="padding-right: 2px" data-col="expansion"></span>
+    <select data-tip="Potential religion extent" class="religionExtent hide" style="width: 5em" data-col="expansion">
       ${getExtentOptions(r.expansion)}
     </select>
-    <span data-tip="Religion expansionism. Defines competitive size" class="icon-resize-full hide"></span>
+    <span data-tip="Religion expansionism. Defines competitive size" class="icon-resize-full hide" data-col="expansionism"></span>
     <input
       data-tip="Religion expansionism. Defines competitive size. Click to change, then click Recalculate to apply change"
       class="religionExpantion hide"
@@ -380,6 +404,7 @@ function getExpansionColumns(r: any): string {
       max="99"
       step=".1"
       value=${r.expansionism}
+      data-col="expansionism"
     />`;
 }
 
