@@ -87,14 +87,14 @@ function renderDialog(): void {
       <div data-tip="Click to sort by river basin" class="sortable alphabetically" data-sortby="basin" data-col="basin">Basin&nbsp;</div>
     </div>
     <div id="riversBody" class="table"></div>
+    <div id="riversFilters" class="editorFilters">
+      <label for="riversSearch" data-tip="Filter by name, type or basin">Search: <input id="riversSearch" type="search" /></label>
+    </div>
     <div id="riversFooter" class="totalLine">
       <div data-tip="Rivers number" style="margin-left: 4px">Rivers:&nbsp;<span id="riversFooterNumber">0</span></div>
       <div data-tip="Average discharge" style="margin-left: 12px" data-col="discharge">Average discharge:&nbsp;<span id="riversFooterDischarge">0</span></div>
       <div data-tip="Average length" style="margin-left: 12px" data-col="length">Length:&nbsp;<span id="riversFooterLength">0</span></div>
       <div data-tip="Average mouth width" style="margin-left: 12px" data-col="width">Width:&nbsp;<span id="riversFooterWidth">0</span></div>
-    </div>
-    <div id="riversFilters" class="editorFilters">
-      <label for="riversSearch" data-tip="Filter by name, type or basin">Search: <input id="riversSearch" type="search" /></label>
     </div>
     <div id="riversBottom" class="editorToolbar">
       <button id="riversOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>

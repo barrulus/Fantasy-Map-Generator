@@ -1442,15 +1442,17 @@ div.header > div:first-child {
   min-width: 100%;
 }
 
+/* fixed label column (a text node + control per label, both grid items) so controls line up across rows */
 .editorFilters label {
-  display: flex;
+  display: grid;
+  grid-template-columns: 5.5em 1fr;
   align-items: center;
-  gap: 0.3em;
+  column-gap: 0.3em;
 }
 
 .editorFilters input[type="search"],
 .editorFilters select {
-  flex: 1;
+  width: 100%;
   min-width: 3em;
 }
 

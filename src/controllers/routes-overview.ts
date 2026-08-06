@@ -77,12 +77,12 @@ function renderDialog(): void {
       <div data-tip="Click to sort by route length" class="sortable icon-sort-number-down" data-sortby="length" data-col="length">Length&nbsp;</div>
     </div>
     <div id="routesBody" class="table"></div>
+    <div id="routesFilters" class="editorFilters">
+      <label for="routesSearch" data-tip="Filter by name or group">Search: <input id="routesSearch" type="search" /></label>
+    </div>
     <div id="routesFooter" class="totalLine">
       <div data-tip="Routes number" style="margin-left: 4px">Routes:&nbsp;<span id="routesFooterNumber">0</span></div>
       <div data-tip="Average length" style="margin-left: 12px" data-col="length">Average length:&nbsp;<span id="routesFooterLength">0</span></div>
-    </div>
-    <div id="routesFilters" class="editorFilters">
-      <label for="routesSearch" data-tip="Filter by name or group">Search: <input id="routesSearch" type="search" /></label>
     </div>
     <div id="routesBottom" class="editorToolbar">
       <button id="routesOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
