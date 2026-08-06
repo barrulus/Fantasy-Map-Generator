@@ -103,7 +103,7 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("statesEditor");
-  const editorHtml = /* html */ `<div id="statesEditor" class="dialog stable">
+  const editorHtml = /* html */ `<div id="statesEditor" class="dialog stable editorDialog">
     <div id="statesHeader" class="header" style="grid-template-columns: 11em 8em 7em 7em 5em 6em 6em 7em 7em 6em 7em">
       <div data-tip="Click to sort by state name" class="sortable alphabetically" data-sortby="name" data-col="name">State&nbsp;</div>
       <div data-tip="Click to sort by state form name" class="sortable alphabetically" data-sortby="form" data-col="form">Form&nbsp;</div>
@@ -127,7 +127,7 @@ function renderDialog(): void {
       <div data-tip="Total population" style="margin-left: 12px" data-col="population">Population:&nbsp;<span id="statesFooterPopulation">0</span></div>
     </div>
 
-    <div id="statesBottom">
+    <div id="statesBottom" class="editorToolbar">
       <button id="statesEditorRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
       <button id="statesToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="statesEditStyle" data-tip="Edit states style in Style Editor" class="icon-adjust"></button>
@@ -136,7 +136,7 @@ function renderDialog(): void {
       <button id="statesChart" data-tip="Show states bubble chart" class="icon-chart-area"></button>
 
       <button id="statesRegenerate" data-tip="Show the regeneration menu and more data" class="icon-cog-alt"></button>
-      <div id="statesRegenerateButtons" style="display: none">
+      <div id="statesRegenerateButtons" class="editorToolbarPanel" style="display: none">
         <button id="statesRegenerateBack" data-tip="Hide the regeneration menu" class="icon-cog-alt"></button>
         <button id="statesRandomize" data-tip="Randomize states Expansion value and re-calculate states and provinces" class="icon-shuffle"></button>
         <div data-tip="Additional growth rate. Defines how many land cells remain neutral" style="display: inline-block">
@@ -154,7 +154,7 @@ function renderDialog(): void {
       </div>
 
       <button id="statesManually" data-tip="Manually re-assign states" class="icon-brush"></button>
-      <div id="statesManuallyButtons" style="display: none">
+      <div id="statesManuallyButtons" class="editorToolbarPanel" style="display: none">
         <div data-tip="Change brush size. Shortcuts: + / ] to increase; - / [ to decrease" style="margin-block: 0.3em;">
           <slider-input id="statesBrush" min="1" max="100" value="15">Brush size:</slider-input>
         </div>

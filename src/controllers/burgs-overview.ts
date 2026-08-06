@@ -73,7 +73,7 @@ function open(filters: Filters = { stateId: null, cultureId: null }): void {
 
 function renderDialog(): void {
   document.getElementById("burgsOverview")?.remove();
-  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable">
+  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable editorDialog">
       <div id="burgsHeader" class="header" style="grid-template-columns: 9em 7em 7.5em 7.2em 6.5em 8em 6.5em 6.5em 5.5em 6em">
         <div data-tip="Click to sort by burg name" class="sortable alphabetically" data-sortby="name" data-col="name">
           Burg
@@ -152,11 +152,7 @@ function renderDialog(): void {
         </div>
       </div>
       <div id="burgsBody" class="table"></div>
-      <div
-        id="burgsFilters"
-        data-tip="Apply a filter"
-        style="padding-block: 0.1em; display: flex; gap: 0.5em; width: 100%"
-      >
+      <div id="burgsFilters" data-tip="Apply a filter" class="editorFilters">
         <label for="burgsSearch" data-tip="Filter by name, province, state, culture, or group"
           >Search: <input id="burgsSearch" type="search"
         /></label>
@@ -186,7 +182,7 @@ function renderDialog(): void {
           Avg treasury:&nbsp;<span id="burgsFooterTreasury">0</span> 🟡
         </div>
       </div>
-      <div id="burgsBottom">
+      <div id="burgsBottom" class="editorToolbar">
         <button id="burgsOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
         <button id="burgsToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
         <button id="burgsGroupsEditorButton" data-tip="Edit burg groups" class="icon-cog"></button>

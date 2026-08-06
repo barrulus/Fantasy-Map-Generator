@@ -70,7 +70,7 @@ function open(): void {
 function renderDialog(): void {
   destroyDialogIfExists("routesOverview");
 
-  const html = /* html */ `<div id="routesOverview" class="dialog stable">
+  const html = /* html */ `<div id="routesOverview" class="dialog stable editorDialog">
     <div id="routesHeader" class="header" style="grid-template-columns: 17em 8em 8em">
       <div data-tip="Click to sort by route name" class="sortable alphabetically" data-sortby="name" data-col="name">Route&nbsp;</div>
       <div data-tip="Click to sort by route group" class="sortable alphabetically" data-sortby="group" data-col="group">Group&nbsp;</div>
@@ -81,14 +81,16 @@ function renderDialog(): void {
       <div data-tip="Routes number" style="margin-left: 4px">Routes:&nbsp;<span id="routesFooterNumber">0</span></div>
       <div data-tip="Average length" style="margin-left: 12px" data-col="length">Average length:&nbsp;<span id="routesFooterLength">0</span></div>
     </div>
-    <div id="routesBottom">
+    <div id="routesFilters" class="editorFilters">
+      <label for="routesSearch" data-tip="Filter by name or group">Search: <input id="routesSearch" type="search" /></label>
+    </div>
+    <div id="routesBottom" class="editorToolbar">
       <button id="routesOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
       <button id="routesToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="routesCreateNew" data-tip="Create a new route selecting route cells" class="icon-map-pin"></button>
       <button id="routesExport" data-tip="Save routes-related data as a text file (.csv)" class="icon-download"></button>
       <button id="routesLockAll" data-tip="Lock or unlock all routes" class="icon-lock"></button>
       <button id="routesRemoveAll" data-tip="Remove all unlocked routes (locked routes are kept)" class="icon-trash"></button>
-      <label for="routesSearch" data-tip="Filter by name or group" style="margin-left: 0.2em">Search: <input id="routesSearch" type="search" /></label>
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);

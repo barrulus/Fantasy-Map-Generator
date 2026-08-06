@@ -53,7 +53,7 @@ describe("initEditorTable", () => {
 });
 
 describe("mobile defaults", () => {
-  it("pages 250 items into 3 pages when not mobile, 10 pages of 25 when mobile", () => {
+  it("pages 250 items into 3 pages when not mobile, 13 pages of 20 when mobile", () => {
     (globalThis as Record<string, unknown>).MOBILE = false;
     const desktop = initEditorTable({ getData: () => items(250), onUpdate: () => {} });
     desktop.refresh();
@@ -62,8 +62,8 @@ describe("mobile defaults", () => {
     (globalThis as Record<string, unknown>).MOBILE = true;
     const mobile = initEditorTable({ getData: () => items(250), onUpdate: () => {} });
     mobile.refresh();
-    expect(mobile.view().totalPages).toBe(10);
-    expect(mobile.view().rows).toHaveLength(25);
+    expect(mobile.view().totalPages).toBe(13);
+    expect(mobile.view().rows).toHaveLength(20);
   });
 });
 

@@ -1,5 +1,5 @@
 export const EDITOR_PAGE_SIZE = 100;
-export const EDITOR_PAGE_SIZE_MOBILE = 25;
+export const EDITOR_PAGE_SIZE_MOBILE = 20;
 
 // MOBILE is a bare global set by main.js after ES modules evaluate, so it must be read lazily here, never at module scope
 const defaultPageSize = () => (typeof MOBILE !== "undefined" && MOBILE ? EDITOR_PAGE_SIZE_MOBILE : EDITOR_PAGE_SIZE);

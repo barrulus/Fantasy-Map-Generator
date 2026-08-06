@@ -91,7 +91,7 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("religionsEditor");
-  const editorHtml = /* html */ `<div id="religionsEditor" class="dialog stable">
+  const editorHtml = /* html */ `<div id="religionsEditor" class="dialog stable editorDialog">
     <div id="religionsHeader" class="header" style="grid-template-columns: 13em 6em 7em 18em 6em 7em 6em 7em">
       <div data-tip="Click to sort by religion name" class="sortable alphabetically" data-sortby="name" data-col="name">Religion&nbsp;</div>
       <div data-tip="Click to sort by religion type" class="sortable alphabetically icon-sort-name-down" data-sortby="type" data-col="type">Type&nbsp;</div>
@@ -125,7 +125,7 @@ function renderDialog(): void {
       </div>
     </div>
 
-    <div id="religionsBottom">
+    <div id="religionsBottom" class="editorToolbar">
       <button id="religionsEditorRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
       <button id="religionsToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="religionsEditStyle" data-tip="Edit religions style in Style Editor" class="icon-adjust"></button>
@@ -135,7 +135,7 @@ function renderDialog(): void {
       <button id="religionsExtinct" data-tip="Show/hide extinct religions (religions without cells)" class="icon-eye-off"></button>
 
       <button id="religionsManually" data-tip="Manually re-assign religions" class="icon-brush"></button>
-      <div id="religionsManuallyButtons" style="display: none">
+      <div id="religionsManuallyButtons" class="editorToolbarPanel" style="display: none">
         <div data-tip="Change brush size. Shortcuts: + or ] to increase; - or [ to decrease" style="margin-block: 0.3em;">
           <slider-input id="religionsBrush" min="1" max="100" value="15">Brush size:</slider-input>
         </div>
@@ -149,7 +149,10 @@ function renderDialog(): void {
       <button id="religionsAdd" data-tip="Add a new religion. Hold Shift to add multiple" class="icon-plus"></button>
       <button id="religionsExport" data-tip="Download religions-related data" class="icon-download"></button>
       <button id="religionsRecalculate" data-tip="Recalculate religions based on current values of growth-related attributes" class="icon-retweet"></button>
-      <span data-tip="Allow religion center, extent, and expansionism changes to take an immediate effect">
+      <span
+        data-tip="Allow religion center, extent, and expansionism changes to take an immediate effect"
+        class="editorToolbarPanel"
+      >
         <input id="religionsAutoChange" class="checkbox" type="checkbox" />
         <label for="religionsAutoChange" class="checkbox-label"><i>auto-apply changes</i></label>
       </span>

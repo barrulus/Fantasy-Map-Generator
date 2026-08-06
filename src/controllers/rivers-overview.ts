@@ -77,7 +77,7 @@ function open(): void {
 function renderDialog(): void {
   destroyDialogIfExists("riversOverview");
 
-  const html = /* html */ `<div id="riversOverview" class="dialog stable">
+  const html = /* html */ `<div id="riversOverview" class="dialog stable editorDialog">
     <div id="riversHeader" class="header" style="grid-template-columns: 9em 4em 7em 5em 5em 9em">
       <div data-tip="Click to sort by river name" class="sortable alphabetically" data-sortby="name" data-col="name">River&nbsp;</div>
       <div data-tip="Click to sort by river type name" class="sortable alphabetically" data-sortby="type" data-col="type">Type&nbsp;</div>
@@ -93,7 +93,10 @@ function renderDialog(): void {
       <div data-tip="Average length" style="margin-left: 12px" data-col="length">Length:&nbsp;<span id="riversFooterLength">0</span></div>
       <div data-tip="Average mouth width" style="margin-left: 12px" data-col="width">Width:&nbsp;<span id="riversFooterWidth">0</span></div>
     </div>
-    <div id="riversBottom">
+    <div id="riversFilters" class="editorFilters">
+      <label for="riversSearch" data-tip="Filter by name, type or basin">Search: <input id="riversSearch" type="search" /></label>
+    </div>
+    <div id="riversBottom" class="editorToolbar">
       <button id="riversOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
       <button id="riversToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="addNewRiver" data-tip="Automatically add river starting from clicked cell. Hold Shift to add multiple" class="icon-plus"></button>
@@ -101,7 +104,6 @@ function renderDialog(): void {
       <button id="riversBasinHighlight" data-tip="Toggle basin highlight mode" class="icon-sitemap"></button>
       <button id="riversExport" data-tip="Save rivers-related data as a text file (.csv)" class="icon-download"></button>
       <button id="riversRemoveAll" data-tip="Remove all rivers" class="icon-trash"></button>
-      <label for="riversSearch" data-tip="Filter by name, type or basin" style="margin-left: 0.2em">Search: <input id="riversSearch" type="search" /></label>
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);

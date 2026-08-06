@@ -94,7 +94,7 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("culturesEditor");
-  const editorHtml = /* html */ `<div id="culturesEditor" class="dialog stable">
+  const editorHtml = /* html */ `<div id="culturesEditor" class="dialog stable editorDialog">
     <div id="culturesHeader" class="header" style="grid-template-columns: 10em 7em 9em 4em 8em 5em 7em 8em">
       <div data-tip="Click to sort by culture name" class="sortable alphabetically" data-sortby="name" data-col="name">Culture&nbsp;</div>
       <div data-tip="Click to sort by type" class="sortable alphabetically" data-sortby="type" data-col="type">Type&nbsp;</div>
@@ -114,7 +114,7 @@ function renderDialog(): void {
       <div data-tip="Total population" style="margin-left: 12px" data-col="population">Population:&nbsp;<span id="culturesFooterPopulation">0</span></div>
     </div>
 
-    <div id="culturesBottom">
+    <div id="culturesBottom" class="editorToolbar">
       <button id="culturesEditorRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
       <button id="culturesToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="culturesEditStyle" data-tip="Edit cultures style in Style Editor" class="icon-adjust"></button>
@@ -122,7 +122,7 @@ function renderDialog(): void {
       <button id="culturesPercentage" data-tip="Toggle percentage / absolute values display mode" class="icon-percent"></button>
       <button id="culturesHeirarchy" data-tip="Show cultures hierarchy tree" class="icon-sitemap"></button>
       <button id="culturesManually" data-tip="Manually re-assign cultures" class="icon-brush"></button>
-      <div id="culturesManuallyButtons" style="display: none">
+      <div id="culturesManuallyButtons" class="editorToolbarPanel" style="display: none">
         <div data-tip="Change brush size. Shortcuts: + / ] to increase; - / [ to decrease" style="margin-block: 0.3em;">
           <slider-input id="culturesBrush" min="1" max="100" value="15">Brush size:</slider-input>
         </div>
@@ -135,7 +135,11 @@ function renderDialog(): void {
       <button id="culturesExport" data-tip="Download cultures-related data" class="icon-download"></button>
       <button id="culturesImport" data-tip="Upload cultures-related data" class="icon-upload"></button>
       <button id="culturesRecalculate" data-tip="Recalculate cultures based on current values of growth-related attributes" class="icon-retweet"></button>
-      <span data-tip="Allow culture centers, expansion and type changes to take an immediate effect" style="display: inline-flex">
+      <span
+        data-tip="Allow culture centers, expansion and type changes to take an immediate effect"
+        class="editorToolbarPanel"
+        style="display: inline-flex"
+      >
         <input id="culturesAutoChange" class="checkbox" type="checkbox" />
         <label for="culturesAutoChange" class="checkbox-label"><i>auto-apply changes</i></label>
       </span>
