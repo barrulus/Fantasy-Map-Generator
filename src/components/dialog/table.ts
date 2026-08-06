@@ -179,8 +179,13 @@ function bindColumnsPicker(
     button.insertAdjacentElement("afterend", popup);
     const positionPopup = () => {
       const rect = button.getBoundingClientRect();
-      popup.style.left = `${rect.left}px`;
-      popup.style.top = `${rect.bottom + 2}px`;
+      const margin = 4;
+      const { width: popupWidth, height: popupHeight } = popup.getBoundingClientRect();
+      const fitsBelow = rect.bottom + 2 + popupHeight <= window.innerHeight - margin;
+      const fitsAbove = rect.top - 2 - popupHeight >= margin;
+      const top = fitsBelow || !fitsAbove ? rect.bottom + 2 : rect.top - popupHeight - 2;
+      popup.style.top = `${Math.max(margin, Math.min(top, window.innerHeight - popupHeight - margin))}px`;
+      popup.style.left = `${Math.max(margin, Math.min(rect.left, window.innerWidth - popupWidth - margin))}px`;
     };
     positionPopup();
 
