@@ -135,15 +135,14 @@ function stretchRules(dialog: HTMLElement, dialogId: string, header: HTMLElement
     .map(t => Number.parseFloat(t));
   if (computed.some(Number.isNaN) || !computed.length) return "";
 
-  // some columns (e.g. states' type/expansionism) are hidden by an unrelated toggle, not our hidden set;
-  // their track still occupies grid space, so exclude it from the fill target or the scale undershoots
-  const trackedChildren = Array.from(header.children).filter(
-    child => !hidden.has((child as HTMLElement).dataset.col ?? "")
-  );
-  const actuallyVisible = trackedChildren.map(child => getComputedStyle(child).display !== "none");
-
   const body = dialog.querySelector<HTMLElement>(":scope > .table");
-  const sampleRow = body?.querySelector<HTMLElement>(":scope > .states");
+  // the first row is sometimes a sparser "neutral/unassigned" placeholder lacking the trailing action
+  // icons real rows carry (cultures/religions row 0); pick the richest row so reserved space isn't underestimated
+  const rows = body ? Array.from(body.querySelectorAll<HTMLElement>(":scope > .states")) : [];
+  const sampleRow = rows.reduce<HTMLElement | null>(
+    (best, row) => (!best || row.children.length > best.children.length ? row : best),
+    null
+  );
   if (!body || !sampleRow) return "";
 
   const scrollbarWidth = body.offsetWidth - body.clientWidth;
@@ -154,28 +153,47 @@ function stretchRules(dialog: HTMLElement, dialogId: string, header: HTMLElement
     Number.parseFloat(dialogStyle.paddingRight) -
     scrollbarWidth;
 
-  const visibleTotal = computed.reduce((sum, n, i) => sum + (actuallyVisible[i] ? n : 0), 0);
-  if (!(available > visibleTotal + 0.5)) return "";
-  const scale = available / visibleTotal;
+  // scale is applied to the body cells' OWN natural widths (below), not the header's declared track widths —
+  // the two drift apart (icon+value pairs routinely sum wider than their header track), so the denominator
+  // here must be the body's own total or the resulting scale overshoots and reintroduces the wrap
+  const rowRect = sampleRow.getBoundingClientRect();
+  const seen = new Set<string>();
+  const bodyCells: { tag: string; key: string; width: number }[] = [];
+  let firstTaggedLeft: number | null = null;
+  let lastTaggedRight = 0;
+  Array.from(sampleRow.children).forEach(child => {
+    const cell = child as HTMLElement;
+    const key = cell.dataset.col;
+    // some columns (e.g. states' type/expansionism) are hidden by an unrelated toggle, not our hidden set;
+    // exclude those too, or the scale denominator inflates and the columns we DO scale undershoot
+    if (!key || hidden.has(key) || getComputedStyle(cell).display === "none") return;
+    const rect = cell.getBoundingClientRect();
+    if (!rect.width) return;
+    if (firstTaggedLeft === null) firstTaggedLeft = rect.left;
+    lastTaggedRight = rect.right;
+    const signature = `${cell.tagName}:${key}`;
+    if (seen.has(signature)) return;
+    seen.add(signature);
+    bodyCells.push({ tag: cell.tagName.toLowerCase(), key, width: rect.width });
+  });
+  const bodyVisibleTotal = bodyCells.reduce((sum, c) => sum + c.width, 0);
+  if (!bodyVisibleTotal || firstTaggedLeft === null) return "";
+  // whitespace between adjacent inline-block columns is untouched by our width rules too — reserve it
+  const internalGaps = Math.max(0, lastTaggedRight - firstTaggedLeft - bodyVisibleTotal);
+  // everything outside the tagged span — leading icon, trailing action icons (edit/lock/trash, no data-col),
+  // the row's own padding/border, and the gaps next to the boundary — is untouched, so reserve it wholesale
+  const reserved = Math.max(0, firstTaggedLeft - rowRect.left) + Math.max(0, rowRect.right - lastTaggedRight);
+
+  const budget = available - reserved - internalGaps;
+  if (!(budget > bodyVisibleTotal + 0.5)) return "";
+  const scale = budget / bodyVisibleTotal;
 
   header.style.gridTemplateColumns = computed.map(px => `${(px * scale).toFixed(2)}px`).join(" ");
   // pin the body's own box to the measured available width, otherwise widening its cells widens its
   // max-content size too, which widens the dialog, which widens "available" — an unbounded feedback loop
   const rules: string[] = [`#${dialogId} > .table {width: ${available.toFixed(2)}px}`];
-
-  const seen = new Set<string>();
-  Array.from(sampleRow.children).forEach(child => {
-    const cell = child as HTMLElement;
-    const key = cell.dataset.col;
-    if (!key || hidden.has(key)) return;
-    const signature = `${cell.tagName}:${key}`;
-    if (seen.has(signature)) return;
-    seen.add(signature);
-    const width = cell.getBoundingClientRect().width;
-    if (!width) return;
-    rules.push(
-      `#${dialogId} .states ${cell.tagName.toLowerCase()}[data-col="${key}"] {width: ${(width * scale).toFixed(2)}px}`
-    );
+  bodyCells.forEach(({ tag, key, width }) => {
+    rules.push(`#${dialogId} .states ${tag}[data-col="${key}"] {width: ${(width * scale).toFixed(2)}px}`);
   });
   return rules.join("\n");
 }
