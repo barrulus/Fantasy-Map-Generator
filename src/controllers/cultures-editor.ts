@@ -9,6 +9,7 @@ import {
   initEditorTable,
   renderEditorHeader,
   renderEditorPagination,
+  setModeHiddenColumns,
   type TableView
 } from "@/components/dialog/table";
 import type { FillBoxElement } from "@/components/fill-box";
@@ -442,11 +443,7 @@ function culturesEditorAddLines(view: TableView<Culture>): void {
     .querySelectorAll("div > span.icon-lock-open")
     .forEach($el => void $el.on("click", updateLockStatus));
 
-  const $culturesHeader = ensureEl("culturesHeader");
-  const emblemsHeader = $culturesHeader.querySelector("div[data-sortby='emblems']") as HTMLElement;
-  // Don't force "inline-block" — it would override the user's hidden-column choice
-  if (selectShape) emblemsHeader.style.removeProperty("display");
-  else emblemsHeader.style.display = "none";
+  setModeHiddenColumns("culturesEditor", selectShape ? [] : ["emblems"]);
 
   if (ensureEl("culturesBody").dataset.type === "percentage") {
     ensureEl("culturesBody").dataset.type = "absolute";
