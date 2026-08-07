@@ -2,12 +2,27 @@ import { mean, select } from "d3";
 import { closeDialogs } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { applySortingByHeader, bindEditorSortReset, sortDataByActiveHeader } from "@/components/dialog/sorting";
-import { initEditorTable, renderEditorPagination, type TableView } from "@/components/dialog/table";
+import {
+  type EditorColumn,
+  initColumnVisibility,
+  initEditorTable,
+  renderEditorPagination,
+  type TableView
+} from "@/components/dialog/table";
 import { Controllers } from "@/controllers";
 import type { River } from "@/generators/river-generator";
 import { highlightElement } from "@/renderers/overlays/highlight";
 import { downloadFile, getFileName } from "@/utils";
 import { destroyDialogIfExists, ensureEl, rn } from "../utils";
+
+const RIVER_COLUMNS: EditorColumn[] = [
+  { key: "name", label: "Name", hideable: false },
+  { key: "type", label: "Type", mobileHidden: true },
+  { key: "discharge", label: "Discharge", mobileHidden: true },
+  { key: "length", label: "Length" },
+  { key: "width", label: "Width", mobileHidden: true },
+  { key: "basin", label: "Basin" }
+];
 
 function getRiversById(): Map<number, River> {
   return new Map<number, River>(pack.rivers.map((river: River) => [river.i, river]));
@@ -62,30 +77,33 @@ function open(): void {
 function renderDialog(): void {
   destroyDialogIfExists("riversOverview");
 
-  const html = /* html */ `<div id="riversOverview" class="dialog stable">
+  const html = /* html */ `<div id="riversOverview" class="dialog stable editorDialog">
     <div id="riversHeader" class="header" style="grid-template-columns: 9em 4em 7em 5em 5em 9em">
-      <div data-tip="Click to sort by river name" class="sortable alphabetically" data-sortby="name">River&nbsp;</div>
-      <div data-tip="Click to sort by river type name" class="sortable alphabetically" data-sortby="type">Type&nbsp;</div>
-      <div data-tip="Click to sort by discharge (flux in m3/s)" class="sortable icon-sort-number-down" data-sortby="discharge">Discharge&nbsp;</div>
-      <div data-tip="Click to sort by river length" class="sortable" data-sortby="length">Length&nbsp;</div>
-      <div data-tip="Click to sort by river mouth width" class="sortable" data-sortby="width">Width&nbsp;</div>
-      <div data-tip="Click to sort by river basin" class="sortable alphabetically" data-sortby="basin">Basin&nbsp;</div>
+      <div data-tip="Click to sort by river name" class="sortable alphabetically" data-sortby="name" data-col="name">River&nbsp;</div>
+      <div data-tip="Click to sort by river type name" class="sortable alphabetically" data-sortby="type" data-col="type">Type&nbsp;</div>
+      <div data-tip="Click to sort by discharge (flux in m3/s)" class="sortable icon-sort-number-down" data-sortby="discharge" data-col="discharge">Discharge&nbsp;</div>
+      <div data-tip="Click to sort by river length" class="sortable" data-sortby="length" data-col="length">Length&nbsp;</div>
+      <div data-tip="Click to sort by river mouth width" class="sortable" data-sortby="width" data-col="width">Width&nbsp;</div>
+      <div data-tip="Click to sort by river basin" class="sortable alphabetically" data-sortby="basin" data-col="basin">Basin&nbsp;</div>
     </div>
     <div id="riversBody" class="table"></div>
+    <div id="riversFilters" class="editorFilters">
+      <label for="riversSearch" data-tip="Filter by name, type or basin">Search: <input id="riversSearch" type="search" /></label>
+    </div>
     <div id="riversFooter" class="totalLine">
       <div data-tip="Rivers number" style="margin-left: 4px">Rivers:&nbsp;<span id="riversFooterNumber">0</span></div>
-      <div data-tip="Average discharge" style="margin-left: 12px">Average discharge:&nbsp;<span id="riversFooterDischarge">0</span></div>
-      <div data-tip="Average length" style="margin-left: 12px">Length:&nbsp;<span id="riversFooterLength">0</span></div>
-      <div data-tip="Average mouth width" style="margin-left: 12px">Width:&nbsp;<span id="riversFooterWidth">0</span></div>
+      <div data-tip="Average discharge" style="margin-left: 12px" data-col="discharge">Average discharge:&nbsp;<span id="riversFooterDischarge">0</span></div>
+      <div data-tip="Average length" style="margin-left: 12px" data-col="length">Length:&nbsp;<span id="riversFooterLength">0</span></div>
+      <div data-tip="Average mouth width" style="margin-left: 12px" data-col="width">Width:&nbsp;<span id="riversFooterWidth">0</span></div>
     </div>
-    <div id="riversBottom">
+    <div id="riversBottom" class="editorToolbar">
       <button id="riversOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
+      <button id="riversToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="addNewRiver" data-tip="Automatically add river starting from clicked cell. Hold Shift to add multiple" class="icon-plus"></button>
       <button id="riverCreateNew" data-tip="Create a new river selecting river cells" class="icon-map-pin"></button>
       <button id="riversBasinHighlight" data-tip="Toggle basin highlight mode" class="icon-sitemap"></button>
       <button id="riversExport" data-tip="Save rivers-related data as a text file (.csv)" class="icon-download"></button>
       <button id="riversRemoveAll" data-tip="Remove all rivers" class="icon-trash"></button>
-      <label for="riversSearch" data-tip="Filter by name, type or basin" style="margin-left: 0.2em">Search: <input id="riversSearch" type="search" /></label>
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
@@ -101,6 +119,12 @@ function renderDialog(): void {
 
   // add listeners — dropped together with the dialog HTML on close
   ensureEl("riversOverviewRefresh").on("click", riversTable.refresh);
+  initColumnVisibility({
+    button: ensureEl("riversToggleColumns"),
+    dialogId: "riversOverview",
+    storageKey: "rivers",
+    columns: RIVER_COLUMNS
+  });
   ensureEl("addNewRiver").on("click", () => void Controllers.RiverAutoCreator.toggle());
   ensureEl("riverCreateNew").on("click", createNewRiver);
   ensureEl("riversBasinHighlight").on("click", toggleBasinsHightlight);
@@ -142,12 +166,12 @@ function renderRiversPage(view: TableView<River>): void {
         data-basin="${basin}"
       >
         <span data-tip="Locate the river" class="icon-target"></span>
-        <div data-tip="River name" style="margin-left: 0.4em;" class="riverName">${r.name}</div>
-        <div data-tip="River type name" class="riverType">${r.type}</div>
-        <div data-tip="River discharge (flux power)" class="biomeArea">${discharge}</div>
-        <div data-tip="River length from source to mouth" class="biomeArea">${length}</div>
-        <div data-tip="River mouth width" class="biomeArea">${width}</div>
-        <input data-tip="River basin (name of the main stem)" class="stateName" value="${basin}" disabled />
+        <div data-tip="River name" style="margin-left: 0.4em;" class="riverName" data-col="name">${r.name}</div>
+        <div data-tip="River type name" class="riverType" data-col="type">${r.type}</div>
+        <div data-tip="River discharge (flux power)" class="biomeArea" data-col="discharge">${discharge}</div>
+        <div data-tip="River length from source to mouth" class="biomeArea" data-col="length">${length}</div>
+        <div data-tip="River mouth width" class="biomeArea" data-col="width">${width}</div>
+        <input data-tip="River basin (name of the main stem)" class="stateName" value="${basin}" disabled data-col="basin" />
         <span data-tip="Edit river" class="icon-pencil"></span>
         <span data-tip="Remove river" class="icon-trash-empty"></span>
       </div>`;

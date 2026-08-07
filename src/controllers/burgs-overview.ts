@@ -2,7 +2,13 @@ import { pack as packLayout, select, stratify } from "d3";
 import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { applySortingByHeader, bindEditorSortReset, sortDataByActiveHeader } from "@/components/dialog/sorting";
-import { initEditorTable, renderEditorPagination, type TableView } from "@/components/dialog/table";
+import {
+  type EditorColumn,
+  initColumnVisibility,
+  initEditorTable,
+  renderEditorPagination,
+  type TableView
+} from "@/components/dialog/table";
 import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
 import type { Burg } from "@/generators/burgs-generator";
@@ -27,6 +33,19 @@ const BURGS_SORT_ACCESSORS: Record<string, (b: Burg) => string | number> = {
   treasury: b => rn(b.treasury || 0, 2),
   features: b => (b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg")
 };
+
+const BURG_COLUMNS: EditorColumn[] = [
+  { key: "name", label: "Name", hideable: false },
+  { key: "province", label: "Province", mobileHidden: true },
+  { key: "state", label: "State" },
+  { key: "culture", label: "Culture", mobileHidden: true },
+  { key: "group", label: "Group", mobileHidden: true },
+  { key: "population", label: "Population" },
+  { key: "grossproduct", label: "Gross product", mobileHidden: true },
+  { key: "productpercapita", label: "Product per capita", mobileHidden: true },
+  { key: "treasury", label: "Treasury", mobileHidden: true },
+  { key: "features", label: "Features", mobileHidden: true }
+];
 
 const burgsTable = initEditorTable<Burg>({
   getData: () => sortDataByActiveHeader(ensureEl("burgsHeader"), getFilteredBurgs(), BURGS_SORT_ACCESSORS),
@@ -54,43 +73,86 @@ function open(filters: Filters = { stateId: null, cultureId: null }): void {
 
 function renderDialog(): void {
   document.getElementById("burgsOverview")?.remove();
-  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable">
+  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable editorDialog">
       <div id="burgsHeader" class="header" style="grid-template-columns: 9em 7em 7.5em 7.2em 6.5em 8em 6.5em 6.5em 5.5em 6em">
-        <div data-tip="Click to sort by burg name" class="sortable alphabetically" data-sortby="name">Burg</div>
-        <div data-tip="Click to sort by province name" class="sortable alphabetically" data-sortby="province">
+        <div data-tip="Click to sort by burg name" class="sortable alphabetically" data-sortby="name" data-col="name">
+          Burg
+        </div>
+        <div
+          data-tip="Click to sort by province name"
+          class="sortable alphabetically"
+          data-sortby="province"
+          data-col="province"
+        >
           Province
         </div>
-        <div data-tip="Click to sort by state name" class="sortable alphabetically" data-sortby="state">State</div>
-        <div data-tip="Click to sort by culture name" class="sortable alphabetically" data-sortby="culture">
+        <div
+          data-tip="Click to sort by state name"
+          class="sortable alphabetically"
+          data-sortby="state"
+          data-col="state"
+        >
+          State
+        </div>
+        <div
+          data-tip="Click to sort by culture name"
+          class="sortable alphabetically"
+          data-sortby="culture"
+          data-col="culture"
+        >
           Culture
         </div>
-        <div data-tip="Click to sort by culture group" class="sortable alphabetically" data-sortby="group">Group</div>
+        <div
+          data-tip="Click to sort by culture group"
+          class="sortable alphabetically"
+          data-sortby="group"
+          data-col="group"
+        >
+          Group
+        </div>
         <div
           data-tip="Click to sort by burg population"
           class="sortable icon-sort-number-down"
           data-sortby="population"
+          data-col="population"
         >
           Population
         </div>
-        <div data-tip="Click to sort by burg product" class="sortable" data-sortby="grossproduct">
+        <div
+          data-tip="Click to sort by burg product"
+          class="sortable"
+          data-sortby="grossproduct"
+          data-col="grossproduct"
+        >
           Product&nbsp;
         </div>
-        <div data-tip="Click to sort by burg wealth (gross product per capita)" class="sortable" data-sortby="productpercapita">
+        <div
+          data-tip="Click to sort by burg wealth (gross product per capita)"
+          class="sortable"
+          data-sortby="productpercapita"
+          data-col="productpercapita"
+        >
           Wealth&nbsp;
         </div>
-        <div data-tip="Click to sort by burg treasury" class="sortable" data-sortby="treasury">
+        <div
+          data-tip="Click to sort by burg treasury"
+          class="sortable"
+          data-sortby="treasury"
+          data-col="treasury"
+        >
           Treasury&nbsp;
         </div>
-        <div data-tip="Click to sort by burg features" class="sortable alphabetically" data-sortby="features">
+        <div
+          data-tip="Click to sort by burg features"
+          class="sortable alphabetically"
+          data-sortby="features"
+          data-col="features"
+        >
           Features&nbsp;
         </div>
       </div>
       <div id="burgsBody" class="table"></div>
-      <div
-        id="burgsFilters"
-        data-tip="Apply a filter"
-        style="padding-block: 0.1em; display: flex; gap: 0.5em; width: 100%"
-      >
+      <div id="burgsFilters" data-tip="Apply a filter" class="editorFilters">
         <label for="burgsSearch" data-tip="Filter by name, province, state, culture, or group"
           >Search: <input id="burgsSearch" type="search"
         /></label>
@@ -107,21 +169,22 @@ function renderDialog(): void {
         <div data-tip="Burgs displayed" style="margin-left: 5px">
           Burgs:&nbsp;<span id="burgsFooterBurgs">0 of 0</span>
         </div>
-        <div data-tip="Average population" style="margin-left: 12px">
+        <div data-tip="Average population" style="margin-left: 12px" data-col="population">
           Avg population:&nbsp;<span id="burgsFooterPopulation">0</span>
         </div>
-        <div data-tip="Average gross product" style="margin-left: 12px">
+        <div data-tip="Average gross product" style="margin-left: 12px" data-col="grossproduct">
           Avg product:&nbsp;<span id="burgsFooterGrossProduct">0</span> 🟡
         </div>
-        <div data-tip="Average wealth (product per capita)" style="margin-left: 12px">
+        <div data-tip="Average wealth (product per capita)" style="margin-left: 12px" data-col="productpercapita">
           Avg wealth:&nbsp;<span id="burgsFooterProductPerCapita">0</span> 🟡
         </div>
-        <div data-tip="Average treasury" style="margin-left: 12px">
+        <div data-tip="Average treasury" style="margin-left: 12px" data-col="treasury">
           Avg treasury:&nbsp;<span id="burgsFooterTreasury">0</span> 🟡
         </div>
       </div>
-      <div id="burgsBottom">
+      <div id="burgsBottom" class="editorToolbar">
         <button id="burgsOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
+        <button id="burgsToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
         <button id="burgsGroupsEditorButton" data-tip="Edit burg groups" class="icon-cog"></button>
         <button id="burgsChart" data-tip="Show burgs bubble chart" class="icon-chart-area"></button>
         <button
@@ -153,6 +216,13 @@ function renderDialog(): void {
     if (burgId) return burgId;
     const burg = target.closest<SVGElement>("#burgLabels [data-id], #burgIcons [data-id]");
     return burg ? Number(burg.dataset.id) : undefined;
+  });
+
+  initColumnVisibility({
+    button: ensureEl("burgsToggleColumns"),
+    dialogId: "burgsOverview",
+    storageKey: "burgs",
+    columns: BURG_COLUMNS
   });
 
   ensureEl("burgsOverviewRefresh").addEventListener("click", refreshBurgsEditor);
@@ -283,20 +353,20 @@ function renderBurgsPage(view: TableView<Burg>): void {
         data-features="${features}"
       >
         <span data-tip="Click to zoom into view" class="icon-dot-circled pointer"></span>
-        <input data-tip="Burg name" class="burgName" value="${b.name}" disabled />
-        <input data-tip="Burg province" value="${province}" disabled />
-        <input data-tip="Burg state" value="${state}" disabled />
-        <input data-tip="Dominant culture" value="${culture}" disabled />
-        <input data-tip="Burg group" value="${b.group}" disabled />
-        <span data-tip="Burg population" class="icon-male"></span>
-        <input data-tip="Burg population" value=${si(population)} style="width: 5em" disabled />
-        <span data-tip="Gross Product: local sale revenue minus purchased ingredient costs during the production.">🟡</span>
-        <input data-tip="Gross Product: local sale revenue minus purchased ingredient costs during the production." value=${grossProduct} style="width: 5em" disabled />
-        <span data-tip="Wealth: gross product divided by population">🟡</span>
-        <input data-tip="Wealth: gross product divided by population" value=${productPerCapita} style="width: 5em" disabled />
-        <span data-tip="Treasury: accumulated cash balance">🟡</span>
-        <input data-tip="Treasury: accumulated cash balance" value=${treasury} style="width: 5em" disabled />
-        <div style="width: 3em">
+        <input data-tip="Burg name" class="burgName" value="${b.name}" data-col="name" disabled />
+        <input data-tip="Burg province" value="${province}" data-col="province" disabled />
+        <input data-tip="Burg state" value="${state}" data-col="state" disabled />
+        <input data-tip="Dominant culture" value="${culture}" data-col="culture" disabled />
+        <input data-tip="Burg group" value="${b.group}" data-col="group" disabled />
+        <span data-tip="Burg population" class="icon-male" data-col="population"></span>
+        <input data-tip="Burg population" value=${si(population)} style="width: 5em" data-col="population" disabled />
+        <span data-tip="Gross Product: local sale revenue minus purchased ingredient costs during the production." data-col="grossproduct">🟡</span>
+        <input data-tip="Gross Product: local sale revenue minus purchased ingredient costs during the production." value=${grossProduct} style="width: 5em" data-col="grossproduct" disabled />
+        <span data-tip="Wealth: gross product divided by population" data-col="productpercapita">🟡</span>
+        <input data-tip="Wealth: gross product divided by population" value=${productPerCapita} style="width: 5em" data-col="productpercapita" disabled />
+        <span data-tip="Treasury: accumulated cash balance" data-col="treasury">🟡</span>
+        <input data-tip="Treasury: accumulated cash balance" value=${treasury} style="width: 5em" data-col="treasury" disabled />
+        <div style="width: 3em" data-col="features">
           <span
             data-tip="${b.capital ? " This burg is a state capital" : "This burg is a NOT state capital"}"
             class="icon-star-empty${b.capital ? "" : " inactive"}" style="padding: 0 1px;"></span>
