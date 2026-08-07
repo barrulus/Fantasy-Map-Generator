@@ -1473,9 +1473,41 @@ div.header > div:first-child {
   min-width: 20em;
 }
 
-/* stretched cell widths are computed, so a stray pixel must clip rather than wrap the trailing action icons */
+.editorDialog .header,
 .editorDialog .states {
+  display: grid;
+  grid-template-columns: var(--table-columns);
+  align-items: center;
+}
+
+.editorDialog .header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: auto;
+  background: var(--bg-main, #fff);
+  /* matches .states' border+padding box so header and row content boxes share a left edge; kept invisible since rows already draw the visible outline */
+  border: 1px solid transparent;
+  padding: 0 0.2em;
+}
+
+.editorDialog .header > div:first-child {
+  margin-left: 0;
+}
+
+/* cells take their track's width, not their own; min-width:0 lets long values shrink instead of widening the row.
+   flex keeps an icon and its value on one line instead of the value block stacking under the icon */
+.editorDialog .states > * {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  width: auto;
+  min-width: 0;
   white-space: nowrap;
+}
+
+.editorDialog > .table {
+  width: auto;
 }
 
 .editorToolbar {

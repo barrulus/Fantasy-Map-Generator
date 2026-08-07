@@ -2,12 +2,14 @@ import { drag, interpolateString, max, pack as packLayout, select, stratify } fr
 import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
 import { fitContent } from "@/components/dialog/fit-content";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
-import { applySortingByHeader, bindEditorSortReset, sortDataByActiveHeader } from "@/components/dialog/sorting";
+import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
 import {
   type EditorColumn,
   initColumnVisibility,
   initEditorTable,
+  renderEditorHeader,
   renderEditorPagination,
+  setModeHiddenColumns,
   type TableView
 } from "@/components/dialog/table";
 import type { FillBoxElement } from "@/components/fill-box";
@@ -46,38 +48,111 @@ import {
 
 let statesManualHistory: string[] = [];
 
-const STATES_SORT_ACCESSORS: Record<string, (s: State) => string | number> = {
-  name: s => s.name || "",
-  form: s => (s.i ? s.formName || "" : ""),
-  capital: s => (s.i ? pack.burgs[s.capital]?.name || "" : ""),
-  culture: s => (s.i ? pack.cultures[s.culture]?.name || "" : ""),
-  burgs: s => s.burgs || 0,
-  cells: s => s.cells || 0,
-  area: s => getArea(s.area || 0),
-  population: s => rn((s.rural || 0) * populationRate + (s.urban || 0) * populationRate * urbanization),
-  treasury: s => s.treasury || 0,
-  type: s => (s.i ? s.type || "" : ""),
-  expansionism: s => (s.i ? s.expansionism || 0 : 0)
-};
-
 function getFilteredStatesData(): State[] {
   return pack.states.filter(s => !s.removed);
 }
 
-const STATE_COLUMNS: EditorColumn[] = [
-  { key: "name", label: "Name", hideable: false },
-  { key: "form", label: "Form", mobileHidden: true },
-  { key: "capital", label: "Capital" },
-  { key: "culture", label: "Culture", mobileHidden: true },
-  { key: "burgs", label: "Burgs", mobileHidden: true },
-  { key: "cells", label: "Cells", mobileHidden: true },
-  { key: "area", label: "Area", mobileHidden: true },
-  { key: "population", label: "Population" },
-  { key: "treasury", label: "Treasury", mobileHidden: true }
+const STATE_COLUMNS: EditorColumn<State>[] = [
+  { key: "color", width: "1.2em", hideable: false },
+  {
+    key: "name",
+    label: "State",
+    width: "8em",
+    fill: true,
+    hideable: false,
+    tip: "Click to sort by state name",
+    sortBy: s => s.name || "",
+    sortType: "alpha"
+  },
+  { key: "emblem", width: "1.4em", hideable: false },
+  {
+    key: "form",
+    label: "Form",
+    width: "8em",
+    mobileHidden: true,
+    tip: "Click to sort by state form name",
+    sortBy: s => (s.i ? s.formName || "" : ""),
+    sortType: "alpha"
+  },
+  {
+    key: "capital",
+    label: "Capital",
+    width: "7em",
+    tip: "Click to sort by capital name",
+    sortBy: s => (s.i ? pack.burgs[s.capital]?.name || "" : ""),
+    sortType: "alpha"
+  },
+  {
+    key: "culture",
+    label: "Culture",
+    width: "7em",
+    mobileHidden: true,
+    tip: "Click to sort by state dominant culture",
+    sortBy: s => (s.i ? pack.cultures[s.culture]?.name || "" : ""),
+    sortType: "alpha"
+  },
+  {
+    key: "burgs",
+    label: "Burgs",
+    width: "5em",
+    mobileHidden: true,
+    tip: "Click to sort by state burgs count",
+    sortBy: s => s.burgs || 0
+  },
+  {
+    key: "cells",
+    label: "Cells",
+    width: "6em",
+    mobileHidden: true,
+    tip: "Click to sort by state cells count",
+    sortBy: s => s.cells || 0
+  },
+  {
+    key: "area",
+    label: "Area",
+    width: "6em",
+    mobileHidden: true,
+    defaultSort: "desc",
+    tip: "Click to sort by state area",
+    sortBy: s => getArea(s.area || 0)
+  },
+  {
+    key: "population",
+    label: "Population",
+    width: "7em",
+    tip: "Click to sort by state population",
+    sortBy: s => rn((s.rural || 0) * populationRate + (s.urban || 0) * populationRate * urbanization)
+  },
+  {
+    key: "treasury",
+    label: "Treasury",
+    width: "7em",
+    mobileHidden: true,
+    tip: "Click to sort by state treasury. Click on a value to view and edit taxes",
+    sortBy: s => s.treasury || 0
+  },
+  {
+    key: "type",
+    label: "Type",
+    width: "6em",
+    hideable: false,
+    tip: "Click to sort by state type",
+    sortBy: s => s.type || "",
+    sortType: "alpha"
+  },
+  {
+    key: "expansionism",
+    label: "Expansion",
+    width: "7em",
+    hideable: false,
+    tip: "Click to sort by state expansion value",
+    sortBy: s => s.expansionism || 0
+  },
+  { key: "actions", width: "6em", hideable: false }
 ];
 
 const statesTable = initEditorTable<State>({
-  getData: () => sortDataByActiveHeader(ensureEl("statesHeader"), getFilteredStatesData(), STATES_SORT_ACCESSORS),
+  getData: () => sortDataByColumns(ensureEl("statesHeader"), getFilteredStatesData(), STATE_COLUMNS),
   onUpdate: renderStatesPage
 });
 
@@ -107,21 +182,11 @@ function open(): void {
 function renderDialog(): void {
   destroyDialogIfExists("statesEditor");
   const editorHtml = /* html */ `<div id="statesEditor" class="dialog stable editorDialog">
-    <div id="statesHeader" class="header" style="grid-template-columns: 11em 8em 7em 7em 5em 6em 6em 7em 7em 6em 7em">
-      <div data-tip="Click to sort by state name" class="sortable alphabetically" data-sortby="name" data-col="name">State&nbsp;</div>
-      <div data-tip="Click to sort by state form name" class="sortable alphabetically" data-sortby="form" data-col="form">Form&nbsp;</div>
-      <div data-tip="Click to sort by capital name" class="sortable alphabetically" data-sortby="capital" data-col="capital">Capital&nbsp;</div>
-      <div data-tip="Click to sort by state dominant culture" class="sortable alphabetically hide" data-sortby="culture" data-col="culture">Culture&nbsp;</div>
-      <div data-tip="Click to sort by state burgs count" class="sortable hide" data-sortby="burgs" data-col="burgs">Burgs&nbsp;</div>
-      <div data-tip="Click to sort by state cells count" class="sortable hide" data-sortby="cells" data-col="cells">Cells&nbsp;</div>
-      <div data-tip="Click to sort by state area" class="sortable hide icon-sort-number-down" data-sortby="area" data-col="area">Area&nbsp;</div>
-      <div data-tip="Click to sort by state population" class="sortable hide" data-sortby="population" data-col="population">Population&nbsp;</div>
-      <div data-tip="Click to sort by state treasury. Click on a value to view and edit taxes" class="sortable hide" data-sortby="treasury" data-col="treasury">Treasury&nbsp;</div>
-      <div data-tip="Click to sort by state type" class="sortable alphabetically hidden show hide" data-sortby="type" data-col="type">Type&nbsp;</div>
-      <div data-tip="Click to sort by state expansion value" class="sortable hidden show hide" data-sortby="expansionism" data-col="expansionism">Expansion&nbsp;</div>
-    </div>
-
-    <div id="statesBodySection" class="table" data-type="absolute"></div>
+    <div id="statesBodySection" class="table" data-type="absolute">${renderEditorHeader({
+      id: "statesHeader",
+      columns: STATE_COLUMNS,
+      columnsButtonId: "statesToggleColumns"
+    })}</div>
 
     <div id="statesFooter" class="totalLine">
       <div data-tip="States number" style="margin-left: 5px">States:&nbsp;<span id="statesFooterStates">0</span></div>
@@ -132,7 +197,6 @@ function renderDialog(): void {
 
     <div id="statesBottom" class="editorToolbar">
       <button id="statesEditorRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
-      <button id="statesToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="statesEditStyle" data-tip="Edit states style in Style Editor" class="icon-adjust"></button>
       <button id="statesLegend" data-tip="Toggle Legend box" class="icon-list-bullet"></button>
       <button id="statesPercentage" data-tip="Toggle percentage / absolute values views" class="icon-percent"></button>
@@ -183,8 +247,7 @@ function renderDialog(): void {
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", editorHtml);
-  applySortingByHeader("statesHeader");
-  bindEditorSortReset(ensureEl("statesHeader"), statesTable.reset);
+  bindColumnSorting(ensureEl("statesHeader"), statesTable.reset);
   applyLineHighlighting("statesEditor", ({ cellId }) =>
     pack.cells.h[cellId] < 20 ? undefined : pack.cells.state[cellId]
   );
@@ -195,6 +258,8 @@ function renderDialog(): void {
     storageKey: "states",
     columns: STATE_COLUMNS
   });
+  // type/expansionism are owned by the regenerate-mode toggle, not the user's column picker
+  setModeHiddenColumns("statesEditor", ["type", "expansionism"]);
   ensureEl("statesEditStyle").on("click", () => editStyle("regions"));
   ensureEl("statesLegend").on("click", toggleLegend);
   ensureEl("statesPercentage").on("click", togglePercentageMode);
@@ -217,7 +282,9 @@ function renderDialog(): void {
   ensureEl("statesBodySection").on("click", event => {
     const $element = (event as MouseEvent).target as HTMLElement;
     const classList = $element.classList;
-    const stateId = Number(($element.parentNode as HTMLElement)?.dataset?.id);
+    const row = $element.closest(".states") as HTMLElement | null;
+    if (!row) return; // guards clicks originating in the generated header, which is now a sibling inside this container
+    const stateId = Number(row.dataset.id);
     if ($element.tagName === "FILL-BOX") stateChangeFill($element as FillBoxElement);
     else if (classList.contains("name")) editStateName(stateId);
     else if (classList.contains("coaIcon"))
@@ -237,7 +304,8 @@ function renderDialog(): void {
   ensureEl("statesBodySection").on("input", ev => {
     const $element = (ev as Event).target as HTMLInputElement;
     const classList = $element.classList;
-    const line = $element.parentNode as HTMLElement;
+    const line = $element.closest(".states") as HTMLElement | null;
+    if (!line) return;
     const state = +line.dataset.id!;
     if (classList.contains("stateCapital")) stateChangeCapitalName(state, line, $element.value);
   });
@@ -245,7 +313,8 @@ function renderDialog(): void {
   ensureEl("statesBodySection").on("change", ev => {
     const $element = (ev as Event).target as HTMLInputElement;
     const classList = $element.classList;
-    const line = $element.parentNode as HTMLElement;
+    const line = $element.closest(".states") as HTMLElement | null;
+    if (!line) return;
     const state = +line.dataset.id!;
     if (classList.contains("stateCulture")) stateChangeCulture(state, line, $element.value);
     else if (classList.contains("cultureType")) stateChangeType(state, line, $element.value);
@@ -269,7 +338,6 @@ function refreshStatesEditor(): void {
 // totals and footer span the full filtered set, not just the current page
 function renderStatesPage(view: TableView<State>): void {
   const unit = getAreaUnit();
-  const hidden = ensureEl("statesRegenerateButtons").style.display === "block" ? "" : "hidden"; // toggle regenerate columns
 
   let totalArea = 0;
   let totalPopulation = 0;
@@ -295,7 +363,7 @@ function renderStatesPage(view: TableView<State>): void {
     const treasuryTip = `Current treasury: 🟡 ${si(s.treasury)}. Sales Tax: ${rn((s.salesTax || 0) * 100, 1)}%. Poll Tax: ${rn((s.pollTax || 0) * 100, 1)}%. Click to view and edit taxes`;
 
     if (!s.i) {
-      // Neutral line
+      // Neutral line; must emit the same cells, in the same order, as a real state row
       lines += /* html */ `<div
         class="states"
         data-id=${s.i}
@@ -312,27 +380,40 @@ function renderStatesPage(view: TableView<State>): void {
         data-type=""
         data-expansionism=""
       >
-        <svg width="1em" height="1em" class="placeholder"></svg>
+        <svg width="1em" height="1em" class="placeholder" data-col="color"></svg>
         <input data-tip="Neutral lands name. Click to change" class="stateName name pointer italic" value="${
           s.name
         }" readonly data-col="name" />
-        <svg class="coaIcon placeholder"></svg>
+        <svg class="coaIcon placeholder" data-col="emblem"></svg>
         <input class="stateForm placeholder" value="none" data-col="form" />
-        <span class="icon-star-empty placeholder" data-col="capital"></span>
-        <input class="stateCapital placeholder" data-col="capital" />
+        <div data-col="capital">
+          <span class="icon-star-empty placeholder"></span>
+          <input class="stateCapital placeholder" />
+        </div>
         <select class="stateCulture placeholder hide" data-col="culture">${getCultureOptions(0)}</select>
-        <span data-tip="Click to overview neutral burgs" class="icon-dot-circled pointer hide" style="padding-right: 1px" data-col="burgs"></span>
-        <div data-tip="Burgs count" class="stateBurgs hide" data-col="burgs">${s.burgs}</div>
-        <span data-tip="Cells count" class="icon-check-empty hide" data-col="cells"></span>
-        <div data-tip="Cells count" class="stateCells hide" data-col="cells">${s.cells}</div>
-        <span data-tip="Neutral lands area" style="padding-right: 4px" class="icon-map-o hide" data-col="area"></span>
-        <div data-tip="Neutral lands area" class="stateArea hide" style="width: 6em" data-col="area">${si(area)} ${unit}</div>
-        <span data-tip="${populationTip}" class="icon-male hide" data-col="population"></span>
-        <div data-tip="${populationTip}" class="statePopulation pointer hide" style="width: 5em" data-col="population">${si(population)}</div>
-        <div data-tip="Neutrals collect no taxes" class="stateTreasury placeholder hide" style="width: 6em" data-col="treasury"></div>
-        <select class="cultureType ${hidden} placeholder show hide" data-col="type">${getTypeOptions(0)}</select>
-        <span class="icon-resize-full ${hidden} placeholder show hide" data-col="expansionism"></span>
-        <input class="statePower ${hidden} placeholder show hide" type="number" value="0" data-col="expansionism" />
+        <div data-col="burgs">
+          <span data-tip="Click to overview neutral burgs" class="icon-dot-circled pointer hide" style="padding-right: 1px"></span>
+          <div data-tip="Burgs count" class="stateBurgs hide">${s.burgs}</div>
+        </div>
+        <div data-col="cells">
+          <span data-tip="Cells count" class="icon-check-empty hide"></span>
+          <div data-tip="Cells count" class="stateCells hide">${s.cells}</div>
+        </div>
+        <div data-col="area">
+          <span data-tip="Neutral lands area" style="padding-right: 4px" class="icon-map-o hide"></span>
+          <div data-tip="Neutral lands area" class="stateArea hide">${si(area)} ${unit}</div>
+        </div>
+        <div data-col="population">
+          <span data-tip="${populationTip}" class="icon-male hide"></span>
+          <div data-tip="${populationTip}" class="statePopulation pointer hide">${si(population)}</div>
+        </div>
+        <div data-tip="Neutrals collect no taxes" class="stateTreasury placeholder hide" data-col="treasury"></div>
+        <select class="cultureType placeholder hide" data-col="type">${getTypeOptions(0)}</select>
+        <div data-col="expansionism">
+          <span class="icon-resize-full placeholder hide"></span>
+          <input class="statePower placeholder hide" type="number" value="0" />
+        </div>
+        <div data-col="actions"></div>
       </div>`;
       continue;
     }
@@ -355,43 +436,61 @@ function renderStatesPage(view: TableView<State>): void {
       data-type=${s.type}
       data-expansionism=${s.expansionism}
     >
-      <fill-box fill="${s.color}"></fill-box>
+      <fill-box fill="${s.color}" data-col="color"></fill-box>
       <input data-tip="State name. Click to change" class="stateName name pointer" value="${s.name}" readonly data-col="name" />
-      <svg data-tip="Click to show and edit state emblem" class="coaIcon pointer" viewBox="0 0 200 200"><use href="#stateCOA${
+      <svg data-tip="Click to show and edit state emblem" class="coaIcon pointer" viewBox="0 0 200 200" data-col="emblem"><use href="#stateCOA${
         s.i
       }"></use></svg>
       <input data-tip="State form name. Click to change" class="stateForm name pointer" value="${
         s.formName
       }" readonly data-col="form" />
-      <span data-tip="State capital. Click to zoom into view" class="icon-star-empty pointer" data-col="capital"></span>
-      <input data-tip="Capital name. Click and type to rename" class="stateCapital" value="${capital}" autocorrect="off" spellcheck="false" data-col="capital" />
+      <div data-col="capital">
+        <span data-tip="State capital. Click to zoom into view" class="icon-star-empty pointer"></span>
+        <input data-tip="Capital name. Click and type to rename" class="stateCapital" value="${capital}" autocorrect="off" spellcheck="false" />
+      </div>
       <select data-tip="Dominant culture. Click to change" class="stateCulture hide" data-col="culture">${getCultureOptions(
         s.culture
       )}</select>
-      <span data-tip="Click to overview state burgs" style="padding-right: 1px" class="icon-dot-circled pointer hide" data-col="burgs"></span>
-      <div data-tip="Burgs count" class="stateBurgs hide" data-col="burgs">${s.burgs}</div>
-      <span data-tip="Cells count" class="icon-check-empty hide" data-col="cells"></span>
-      <div data-tip="Cells count" class="stateCells hide" data-col="cells">${s.cells}</div>
-      <span data-tip="State area" style="padding-right: 4px" class="icon-map-o hide" data-col="area"></span>
-      <div data-tip="State area" class="stateArea hide" style="width: 6em" data-col="area">${si(area)} ${unit}</div>
-      <span data-tip="${populationTip}" class="icon-male hide" data-col="population"></span>
-      <div data-tip="${populationTip}" class="statePopulation pointer hide" style="width: 5em" data-col="population">${si(population)}</div>
-      <div data-tip="${treasuryTip}" class="stateTreasury pointer hide" style="width: 6em" data-col="treasury">🟡 ${si(s.treasury)}</div>
-      <select data-tip="State type. Defines growth model. Click to change" class="cultureType ${hidden} show hide" data-col="type">${getTypeOptions(
+      <div data-col="burgs">
+        <span data-tip="Click to overview state burgs" style="padding-right: 1px" class="icon-dot-circled pointer hide"></span>
+        <div data-tip="Burgs count" class="stateBurgs hide">${s.burgs}</div>
+      </div>
+      <div data-col="cells">
+        <span data-tip="Cells count" class="icon-check-empty hide"></span>
+        <div data-tip="Cells count" class="stateCells hide">${s.cells}</div>
+      </div>
+      <div data-col="area">
+        <span data-tip="State area" style="padding-right: 4px" class="icon-map-o hide"></span>
+        <div data-tip="State area" class="stateArea hide">${si(area)} ${unit}</div>
+      </div>
+      <div data-col="population">
+        <span data-tip="${populationTip}" class="icon-male hide"></span>
+        <div data-tip="${populationTip}" class="statePopulation pointer hide">${si(population)}</div>
+      </div>
+      <div data-tip="${treasuryTip}" class="stateTreasury pointer hide" data-col="treasury">🟡 ${si(s.treasury)}</div>
+      <select data-tip="State type. Defines growth model. Click to change" class="cultureType hide" data-col="type">${getTypeOptions(
         s.type
       )}</select>
-      <span data-tip="State expansionism" class="icon-resize-full ${hidden} show hide" data-col="expansionism"></span>
-      <input data-tip="Expansionism (defines competitive size). Change to re-calculate states based on new value"
-        class="statePower ${hidden} show hide" type="number" min="0" max="99" step=".1" value=${s.expansionism} data-col="expansionism" />
-      <span data-tip="Locate the state" class="icon-target hide"></span>
-      <span data-tip="Toggle state focus" class="icon-pin ${focused ? "" : " inactive"} hide"></span>
-      <span data-tip="Lock the state to protect it from re-generation" class="icon-lock${
-        s.lock ? "" : "-open"
-      } hide"></span>
-      <span data-tip="Remove the state" class="icon-trash-empty hide"></span>
+      <div data-col="expansionism">
+        <span data-tip="State expansionism" class="icon-resize-full hide"></span>
+        <input data-tip="Expansionism (defines competitive size). Change to re-calculate states based on new value"
+          class="statePower hide" type="number" min="0" max="99" step=".1" value=${s.expansionism} />
+      </div>
+      <div data-col="actions">
+        <span data-tip="Locate the state" class="icon-target hide"></span>
+        <span data-tip="Toggle state focus" class="icon-pin ${focused ? "" : " inactive"} hide"></span>
+        <span data-tip="Lock the state to protect it from re-generation" class="icon-lock${
+          s.lock ? "" : "-open"
+        } hide"></span>
+        <span data-tip="Remove the state" class="icon-trash-empty hide"></span>
+      </div>
     </div>`;
   }
-  ensureEl("statesBodySection").innerHTML = lines;
+  const body = ensureEl("statesBodySection");
+  body.querySelectorAll(":scope > .states").forEach(row => {
+    row.remove();
+  });
+  body.insertAdjacentHTML("beforeend", lines);
 
   // update footer
   ensureEl("statesFooterStates").innerHTML = String(pack.states.filter(s => s.i && !s.removed).length);
@@ -405,7 +504,7 @@ function renderStatesPage(view: TableView<State>): void {
 
   // add listeners
   ensureEl("statesBodySection")
-    .querySelectorAll(":scope > div")
+    .querySelectorAll(":scope > .states")
     .forEach($line => {
       $line.on("mouseenter", stateHighlightOn);
       $line.on("mouseleave", stateHighlightOff);
@@ -475,7 +574,7 @@ function stateHighlightOff(): void {
 
 function stateChangeFill(fillBox: FillBoxElement): void {
   const currentFill = fillBox.getAttribute("fill") || "#ffffff";
-  const state = +(fillBox.parentNode as HTMLElement).dataset.id!;
+  const state = +(fillBox.closest(".states") as HTMLElement).dataset.id!;
 
   const callback = (newFill: string) => {
     fillBox.fill = newFill;
@@ -1029,7 +1128,7 @@ function togglePercentageMode(): void {
     const totalCells = pack.states.reduce((sum, s) => sum + (s.i && !s.removed ? s.cells || 0 : 0), 0);
 
     ensureEl("statesBodySection")
-      .querySelectorAll<HTMLElement>(":scope > div")
+      .querySelectorAll<HTMLElement>(":scope > .states")
       .forEach(el => {
         const { burgs, area, population, treasury, cells } = el.dataset;
         el.querySelector<HTMLElement>(".stateBurgs")!.innerText = `${rn((+burgs! / totalBurgs) * 100)}%`;
@@ -1195,12 +1294,7 @@ function openRegenerationMenu(): void {
       el.style.display = "none";
     });
   ensureEl("statesRegenerateButtons").style.display = "block";
-
-  ensureEl("statesEditor")
-    .querySelectorAll(".show")
-    .forEach(el => {
-      el.classList.remove("hidden");
-    });
+  setModeHiddenColumns("statesEditor", []);
   $("#statesEditor").dialog({ position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" } });
 }
 
@@ -1231,7 +1325,7 @@ function randomizeStatesExpansion(): void {
     const expansionism = rn(Math.random() * 4 + 1, 1);
     s.expansionism = expansionism;
     const $power = ensureEl("statesBodySection").querySelector(
-      `div.states[data-id='${s.i}'] > input.statePower`
+      `div.states[data-id='${s.i}'] input.statePower`
     ) as HTMLInputElement | null;
     if ($power) $power.value = String(expansionism);
   });
@@ -1245,11 +1339,7 @@ function exitRegenerationMenu(): void {
       el.style.display = "inline-block";
     });
   ensureEl("statesRegenerateButtons").style.display = "none";
-  ensureEl("statesEditor")
-    .querySelectorAll(".show")
-    .forEach(el => {
-      el.classList.add("hidden");
-    });
+  setModeHiddenColumns("statesEditor", ["type", "expansionism"]);
   $("#statesEditor").dialog({ position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" } });
 }
 
@@ -1301,7 +1391,7 @@ function populateBrushStateSelect(): void {
   const sel = ensureEl("statesManuallyState") as HTMLSelectElement | null;
   if (!sel) return;
   const states = pack.states.filter((s: any) => !s.removed);
-  sortDataByActiveHeader(ensureEl("statesHeader"), states, STATES_SORT_ACCESSORS);
+  sortDataByColumns(ensureEl("statesHeader"), states, STATE_COLUMNS);
   sel.innerHTML = states.map((s: any) => `<option value="${s.i}">${s.i ? s.fullName : s.name}</option>`).join("");
 }
 
@@ -1654,8 +1744,10 @@ function exitStatesManualAssignment(close: boolean): void {
   ensureEl("statesManuallyButtons").style.display = "none";
   ensureEl("statesHalo").style.display = "block";
 
+  // regenerate-mode column visibility (type/expansionism) is now owned by setModeHiddenColumns,
+  // not the "hidden" class, so unhiding every ".hide" element here is safe
   ensureEl("statesEditor")
-    .querySelectorAll(".hide:not(.show)")
+    .querySelectorAll(".hide")
     .forEach(el => {
       (el as HTMLElement).classList.remove("hidden");
     });
@@ -1823,7 +1915,7 @@ function openStateMergeDialog(): void {
   const validStates = pack.states.filter(s => s.i && !s.removed);
   // Mirror the editor's active sort so the merge list reads in the same order the user is
   // looking at (e.g. by culture), instead of always by state id.
-  sortDataByActiveHeader(ensureEl("statesHeader"), validStates, STATES_SORT_ACCESSORS);
+  sortDataByColumns(ensureEl("statesHeader"), validStates, STATE_COLUMNS);
 
   const statesSelector = validStates
     .map(

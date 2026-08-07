@@ -1,11 +1,12 @@
 import { mean, select } from "d3";
 import { closeDialogs } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
-import { applySortingByHeader, bindEditorSortReset, sortDataByActiveHeader } from "@/components/dialog/sorting";
+import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
 import {
   type EditorColumn,
   initColumnVisibility,
   initEditorTable,
+  renderEditorHeader,
   renderEditorPagination,
   type TableView
 } from "@/components/dialog/table";
@@ -15,13 +16,60 @@ import { highlightElement } from "@/renderers/overlays/highlight";
 import { downloadFile, getFileName } from "@/utils";
 import { destroyDialogIfExists, ensureEl, rn } from "../utils";
 
-const RIVER_COLUMNS: EditorColumn[] = [
-  { key: "name", label: "Name", hideable: false },
-  { key: "type", label: "Type", mobileHidden: true },
-  { key: "discharge", label: "Discharge", mobileHidden: true },
-  { key: "length", label: "Length" },
-  { key: "width", label: "Width", mobileHidden: true },
-  { key: "basin", label: "Basin" }
+const RIVER_COLUMNS: EditorColumn<River>[] = [
+  { key: "locate", width: "1.4em", hideable: false },
+  {
+    key: "name",
+    label: "River",
+    width: "8em",
+    fill: true,
+    hideable: false,
+    tip: "Click to sort by river name",
+    sortBy: river => river.name || "",
+    sortType: "alpha"
+  },
+  {
+    key: "type",
+    label: "Type",
+    width: "4em",
+    mobileHidden: true,
+    tip: "Click to sort by river type name",
+    sortBy: river => river.type || "",
+    sortType: "alpha"
+  },
+  {
+    key: "discharge",
+    label: "Discharge",
+    width: "7em",
+    mobileHidden: true,
+    tip: "Click to sort by discharge (flux in m3/s)",
+    sortBy: river => river.discharge,
+    defaultSort: "desc"
+  },
+  {
+    key: "length",
+    label: "Length",
+    width: "5em",
+    tip: "Click to sort by river length",
+    sortBy: river => river.length
+  },
+  {
+    key: "width",
+    label: "Width",
+    width: "5em",
+    mobileHidden: true,
+    tip: "Click to sort by river mouth width",
+    sortBy: river => river.width
+  },
+  {
+    key: "basin",
+    label: "Basin",
+    width: "9em",
+    tip: "Click to sort by river basin",
+    sortBy: river => river.basin,
+    sortType: "alpha"
+  },
+  { key: "actions", width: "3em", hideable: false }
 ];
 
 function getRiversById(): Map<number, River> {
@@ -45,14 +93,10 @@ const riversTable = initEditorTable<River>({
   getData: () => {
     const riversById = getRiversById();
     const filtered = getFilteredRivers(riversById);
-    return sortDataByActiveHeader(ensureEl("riversHeader"), filtered, {
-      name: (r: River) => r.name || "",
-      type: (r: River) => r.type || "",
-      discharge: (r: River) => r.discharge,
-      length: (r: River) => r.length,
-      width: (r: River) => r.width,
-      basin: (r: River) => riversById.get(r.basin)?.name || ""
-    });
+    const columns = RIVER_COLUMNS.map(column =>
+      column.key === "basin" ? { ...column, sortBy: (river: River) => riversById.get(river.basin)?.name || "" } : column
+    );
+    return sortDataByColumns(ensureEl("riversHeader"), filtered, columns);
   },
   onUpdate: renderRiversPage
 });
@@ -78,15 +122,11 @@ function renderDialog(): void {
   destroyDialogIfExists("riversOverview");
 
   const html = /* html */ `<div id="riversOverview" class="dialog stable editorDialog">
-    <div id="riversHeader" class="header" style="grid-template-columns: 9em 4em 7em 5em 5em 9em">
-      <div data-tip="Click to sort by river name" class="sortable alphabetically" data-sortby="name" data-col="name">River&nbsp;</div>
-      <div data-tip="Click to sort by river type name" class="sortable alphabetically" data-sortby="type" data-col="type">Type&nbsp;</div>
-      <div data-tip="Click to sort by discharge (flux in m3/s)" class="sortable icon-sort-number-down" data-sortby="discharge" data-col="discharge">Discharge&nbsp;</div>
-      <div data-tip="Click to sort by river length" class="sortable" data-sortby="length" data-col="length">Length&nbsp;</div>
-      <div data-tip="Click to sort by river mouth width" class="sortable" data-sortby="width" data-col="width">Width&nbsp;</div>
-      <div data-tip="Click to sort by river basin" class="sortable alphabetically" data-sortby="basin" data-col="basin">Basin&nbsp;</div>
-    </div>
-    <div id="riversBody" class="table"></div>
+    <div id="riversBody" class="table">${renderEditorHeader({
+      id: "riversHeader",
+      columns: RIVER_COLUMNS,
+      columnsButtonId: "riversToggleColumns"
+    })}</div>
     <div id="riversFilters" class="editorFilters">
       <label for="riversSearch" data-tip="Filter by name, type or basin">Search: <input id="riversSearch" type="search" /></label>
     </div>
@@ -98,7 +138,6 @@ function renderDialog(): void {
     </div>
     <div id="riversBottom" class="editorToolbar">
       <button id="riversOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
-      <button id="riversToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="addNewRiver" data-tip="Automatically add river starting from clicked cell. Hold Shift to add multiple" class="icon-plus"></button>
       <button id="riverCreateNew" data-tip="Create a new river selecting river cells" class="icon-map-pin"></button>
       <button id="riversBasinHighlight" data-tip="Toggle basin highlight mode" class="icon-sitemap"></button>
@@ -107,9 +146,7 @@ function renderDialog(): void {
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
-  applySortingByHeader("riversHeader");
-  // header is recreated on every open(), so re-register the sort-triggered page reset here too
-  bindEditorSortReset(ensureEl("riversHeader"), riversTable.reset);
+  bindColumnSorting(ensureEl("riversHeader"), riversTable.reset);
   applyLineHighlighting("riversOverview", ({ target, cellId }) => {
     const riverId = pack.cells.r[cellId];
     if (riverId) return riverId;
@@ -143,7 +180,9 @@ function createNewRiver(): void {
 // totals span the full filtered set, not just the current page
 function renderRiversPage(view: TableView<River>): void {
   const body = ensureEl("riversBody");
-  body.innerHTML = "";
+  body.querySelectorAll(":scope > .states").forEach(row => {
+    row.remove();
+  });
   let lines = "";
   const unit = distanceUnitInput.value;
   const riversById = getRiversById();
@@ -164,15 +203,17 @@ function renderRiversPage(view: TableView<River>): void {
         data-width="${r.width}"
         data-basin="${basin}"
       >
-        <span data-tip="Locate the river" class="icon-target"></span>
-        <div data-tip="River name" style="margin-left: 0.4em;" class="riverName" data-col="name">${r.name}</div>
+        <span data-tip="Locate the river" class="icon-target" data-col="locate"></span>
+        <div data-tip="River name" class="riverName" data-col="name">${r.name}</div>
         <div data-tip="River type name" class="riverType" data-col="type">${r.type}</div>
         <div data-tip="River discharge (flux power)" class="biomeArea" data-col="discharge">${discharge}</div>
         <div data-tip="River length from source to mouth" class="biomeArea" data-col="length">${length}</div>
         <div data-tip="River mouth width" class="biomeArea" data-col="width">${width}</div>
         <input data-tip="River basin (name of the main stem)" class="stateName" value="${basin}" disabled data-col="basin" />
-        <span data-tip="Edit river" class="icon-pencil"></span>
-        <span data-tip="Remove river" class="icon-trash-empty"></span>
+        <div data-col="actions">
+          <span data-tip="Edit river" class="icon-pencil"></span>
+          <span data-tip="Remove river" class="icon-trash-empty"></span>
+        </div>
       </div>`;
   }
   body.insertAdjacentHTML("beforeend", lines);
@@ -207,7 +248,7 @@ function riverHighlightOff(e: Event): void {
 }
 
 function zoomToRiver(this: HTMLElement): void {
-  const r = +(this.parentNode as HTMLElement).dataset.id!;
+  const r = +(this.closest(".states") as HTMLElement).dataset.id!;
   const river = select("#rivers").select(`#river${r}`).node() as Element;
   highlightElement(river, 3);
 }
@@ -263,12 +304,12 @@ function downloadRiversData(): void {
 }
 
 function openRiverEditor(this: HTMLElement): void {
-  const id = `river${(this.parentNode as HTMLElement).dataset.id}`;
+  const id = `river${(this.closest(".states") as HTMLElement).dataset.id}`;
   void Controllers.RiverEditor.open(id);
 }
 
 function triggerRiverRemove(this: HTMLElement): void {
-  const river = +(this.parentNode as HTMLElement).dataset.id!;
+  const river = +(this.closest(".states") as HTMLElement).dataset.id!;
   alertMessage.innerHTML = /* html */ `Are you sure you want to remove the river? All tributaries will be auto-removed`;
 
   $("#alert").dialog({
