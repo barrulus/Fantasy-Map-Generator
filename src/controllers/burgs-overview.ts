@@ -141,7 +141,7 @@ function open(filters: Filters = { stateId: null, cultureId: null }): void {
 
 function renderDialog(): void {
   document.getElementById("burgsOverview")?.remove();
-  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable editorDialog gridTable">
+  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable editorDialog">
       <div id="burgsBody" class="table">${renderEditorHeader({
         id: "burgsHeader",
         columns: BURG_COLUMNS,

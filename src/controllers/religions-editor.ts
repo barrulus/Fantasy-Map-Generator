@@ -147,7 +147,7 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("religionsEditor");
-  const editorHtml = /* html */ `<div id="religionsEditor" class="dialog stable editorDialog gridTable">
+  const editorHtml = /* html */ `<div id="religionsEditor" class="dialog stable editorDialog">
     <div id="religionsBody" class="table" data-type="absolute">${renderEditorHeader({
       id: "religionsHeader",
       columns: RELIGION_COLUMNS,

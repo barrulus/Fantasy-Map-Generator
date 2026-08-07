@@ -85,17 +85,6 @@ export function sortData<T>(data: T[], sort: SortState, accessors: SortAccessors
   });
 }
 
-export function sortDataByActiveHeader<T>(headers: HTMLElement, data: T[], accessors: SortAccessors<T>): T[] {
-  const sort = getActiveSort(headers);
-  return sort ? sortData(data, sort, accessors) : data;
-}
-
-export function bindEditorSortReset(headers: HTMLElement, onSort: () => void): void {
-  for (const el of Array.from(headers.querySelectorAll<HTMLElement>(".sortable"))) {
-    el.addEventListener("click", () => onSort());
-  }
-}
-
 export function bindColumnSorting(headers: HTMLElement, onSort: () => void): void {
   for (const cell of Array.from(headers.querySelectorAll<HTMLElement>(".sortable"))) {
     cell.addEventListener("click", () => {

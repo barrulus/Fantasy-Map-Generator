@@ -148,7 +148,7 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("culturesEditor");
-  const editorHtml = /* html */ `<div id="culturesEditor" class="dialog stable editorDialog gridTable">
+  const editorHtml = /* html */ `<div id="culturesEditor" class="dialog stable editorDialog">
     <div id="culturesBody" class="table" data-type="absolute">${renderEditorHeader({
       id: "culturesHeader",
       columns: CULTURE_COLUMNS,

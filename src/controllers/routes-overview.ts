@@ -90,7 +90,7 @@ function open(): void {
 function renderDialog(): void {
   destroyDialogIfExists("routesOverview");
 
-  const html = /* html */ `<div id="routesOverview" class="dialog stable editorDialog gridTable">
+  const html = /* html */ `<div id="routesOverview" class="dialog stable editorDialog">
     <div id="routesBody" class="table">${renderEditorHeader({
       id: "routesHeader",
       columns: ROUTE_COLUMNS,

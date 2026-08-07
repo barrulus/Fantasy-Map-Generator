@@ -121,7 +121,7 @@ function open(): void {
 function renderDialog(): void {
   destroyDialogIfExists("riversOverview");
 
-  const html = /* html */ `<div id="riversOverview" class="dialog stable editorDialog gridTable">
+  const html = /* html */ `<div id="riversOverview" class="dialog stable editorDialog">
     <div id="riversBody" class="table">${renderEditorHeader({
       id: "riversHeader",
       columns: RIVER_COLUMNS,

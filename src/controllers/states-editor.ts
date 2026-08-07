@@ -181,7 +181,7 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("statesEditor");
-  const editorHtml = /* html */ `<div id="statesEditor" class="dialog stable editorDialog gridTable">
+  const editorHtml = /* html */ `<div id="statesEditor" class="dialog stable editorDialog">
     <div id="statesBodySection" class="table" data-type="absolute">${renderEditorHeader({
       id: "statesHeader",
       columns: STATE_COLUMNS,
