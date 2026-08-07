@@ -129,6 +129,8 @@ function rewriteHeaderGridColumns(header: HTMLElement, hidden: Set<string>): voi
 
 // scale visible columns up to fill the dialog's available width, preserving their relative proportions
 function stretchRules(dialog: HTMLElement, dialogId: string, header: HTMLElement, hidden: Set<string>): string {
+  // before dialog() initializes the element its width is meaningless, and rules computed from it are garbage
+  if (!dialog.classList.contains("ui-dialog-content")) return "";
   const computed = getComputedStyle(header)
     .gridTemplateColumns.trim()
     .split(/\s+/)

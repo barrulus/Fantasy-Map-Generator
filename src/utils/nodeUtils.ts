@@ -36,6 +36,17 @@ export const destroyDialogIfExists = (id: string): void => {
 };
 
 /**
+ * Refit an already-initialized jQuery UI dialog to its content. Never initializes the widget:
+ * creating it here would use default options (resizable: true), and the later resizable("destroy")
+ * from the opener's proper config strips ALL touch-punch handlers off the frame, breaking touch drag
+ * @param {string} id - The ID of the dialog content element
+ */
+export const fitDialogIfExists = (id: string): void => {
+  const el = findEl(id);
+  if (el?.classList.contains("ui-dialog-content")) window.$(el).dialog({ width: "fit-content" });
+};
+
+/**
  * Get the composed path of a node (including shadow DOM and window)
  * @param {Node | Window} node - The starting node or window
  * @returns {Array<Node>} - The composed path as an array
