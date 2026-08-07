@@ -856,7 +856,7 @@ function togglePercentageMode(): void {
     const totalPopulation = +ensureEl("culturesFooterPopulation").dataset.population!;
 
     ensureEl("culturesBody")
-      .querySelectorAll<HTMLElement>(":scope > div")
+      .querySelectorAll<HTMLElement>(":scope > div.states")
       .forEach(el => {
         const { cells, area, population } = el.dataset;
         el.querySelector<HTMLElement>(".cultureCells")!.innerText = `${rn((+cells! / totalCells) * 100)}%`;
@@ -943,7 +943,7 @@ function enterCultureManualAssignent(): void {
     .call(drag<SVGElement, unknown>().on("start", dragCultureBrush))
     .on("touchmove mousemove", moveCultureBrush);
 
-  const firstLine = ensureEl("culturesBody").querySelector<HTMLElement>("div");
+  const firstLine = ensureEl("culturesBody").querySelector<HTMLElement>(":scope > div.states");
   if (firstLine) {
     firstLine.classList.add("selected");
     selectedCultureId = +firstLine.dataset.id!;
