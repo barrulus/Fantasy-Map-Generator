@@ -70,7 +70,7 @@ function open(): void {
 function renderDialog(): void {
   destroyDialogIfExists("routesOverview");
 
-  const html = /* html */ `<div id="routesOverview" class="dialog stable editorDialog">
+  const html = /* html */ `<div id="routesOverview" class="dialog stable">
     <div id="routesHeader" class="header" style="grid-template-columns: 17em 8em 8em">
       <div data-tip="Click to sort by route name" class="sortable alphabetically" data-sortby="name" data-col="name">Route&nbsp;</div>
       <div data-tip="Click to sort by route group" class="sortable alphabetically" data-sortby="group" data-col="group">Group&nbsp;</div>

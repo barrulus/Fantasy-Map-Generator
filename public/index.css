@@ -1456,11 +1456,6 @@ div.header > div:first-child {
   min-width: 3em;
 }
 
-/* floor picked to fit a usable search input plus a couple of wrapped icon rows, shared by all six overview editors */
-.editorDialog {
-  min-width: 20em;
-}
-
 .editorToolbar {
   display: flex;
   flex-wrap: wrap;

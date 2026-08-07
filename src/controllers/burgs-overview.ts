@@ -73,7 +73,7 @@ function open(filters: Filters = { stateId: null, cultureId: null }): void {
 
 function renderDialog(): void {
   document.getElementById("burgsOverview")?.remove();
-  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable editorDialog">
+  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable">
       <div id="burgsHeader" class="header" style="grid-template-columns: 9em 7em 7.5em 7.2em 6.5em 8em 6.5em 6.5em 5.5em 6em">
         <div data-tip="Click to sort by burg name" class="sortable alphabetically" data-sortby="name" data-col="name">
           Burg

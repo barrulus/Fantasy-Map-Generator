@@ -91,7 +91,7 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("religionsEditor");
-  const editorHtml = /* html */ `<div id="religionsEditor" class="dialog stable editorDialog">
+  const editorHtml = /* html */ `<div id="religionsEditor" class="dialog stable">
     <div id="religionsHeader" class="header" style="grid-template-columns: 13em 6em 7em 18em 6em 7em 6em 7em">
       <div data-tip="Click to sort by religion name" class="sortable alphabetically" data-sortby="name" data-col="name">Religion&nbsp;</div>
       <div data-tip="Click to sort by religion type" class="sortable alphabetically icon-sort-name-down" data-sortby="type" data-col="type">Type&nbsp;</div>

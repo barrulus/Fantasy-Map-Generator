@@ -103,7 +103,7 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("statesEditor");
-  const editorHtml = /* html */ `<div id="statesEditor" class="dialog stable editorDialog">
+  const editorHtml = /* html */ `<div id="statesEditor" class="dialog stable">
     <div id="statesHeader" class="header" style="grid-template-columns: 11em 8em 7em 7em 5em 6em 6em 7em 7em 6em 7em">
       <div data-tip="Click to sort by state name" class="sortable alphabetically" data-sortby="name" data-col="name">State&nbsp;</div>
       <div data-tip="Click to sort by state form name" class="sortable alphabetically" data-sortby="form" data-col="form">Form&nbsp;</div>
