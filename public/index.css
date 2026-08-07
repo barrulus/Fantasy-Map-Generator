@@ -1502,6 +1502,8 @@ div.header > div:first-child {
   gap: 0.3em;
   width: auto;
   min-width: 0;
+  /* resolves against the column track, so no cell can overflow into its neighbour */
+  max-width: 100%;
   white-space: nowrap;
 }
 

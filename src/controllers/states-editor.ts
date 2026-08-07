@@ -384,7 +384,7 @@ function renderStatesPage(view: TableView<State>): void {
         <input data-tip="Neutral lands name. Click to change" class="stateName name pointer italic" value="${
           s.name
         }" readonly data-col="name" />
-        <svg class="coaIcon placeholder" data-col="emblem"></svg>
+        <svg class="coaIcon placeholder" viewBox="0 0 200 200" data-col="emblem"></svg>
         <input class="stateForm placeholder" value="none" data-col="form" />
         <div data-col="capital">
           <span class="icon-star-empty placeholder"></span>
