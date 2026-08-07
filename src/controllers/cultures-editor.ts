@@ -94,7 +94,7 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("culturesEditor");
-  const editorHtml = /* html */ `<div id="culturesEditor" class="dialog stable">
+  const editorHtml = /* html */ `<div id="culturesEditor" class="dialog stable editorDialog">
     <div id="culturesHeader" class="header" style="grid-template-columns: 10em 7em 9em 4em 8em 5em 7em 8em">
       <div data-tip="Click to sort by culture name" class="sortable alphabetically" data-sortby="name" data-col="name">Culture&nbsp;</div>
       <div data-tip="Click to sort by type" class="sortable alphabetically" data-sortby="type" data-col="type">Type&nbsp;</div>

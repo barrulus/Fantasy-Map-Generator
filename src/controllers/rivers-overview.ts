@@ -77,7 +77,7 @@ function open(): void {
 function renderDialog(): void {
   destroyDialogIfExists("riversOverview");
 
-  const html = /* html */ `<div id="riversOverview" class="dialog stable">
+  const html = /* html */ `<div id="riversOverview" class="dialog stable editorDialog">
     <div id="riversHeader" class="header" style="grid-template-columns: 9em 4em 7em 5em 5em 9em">
       <div data-tip="Click to sort by river name" class="sortable alphabetically" data-sortby="name" data-col="name">River&nbsp;</div>
       <div data-tip="Click to sort by river type name" class="sortable alphabetically" data-sortby="type" data-col="type">Type&nbsp;</div>
