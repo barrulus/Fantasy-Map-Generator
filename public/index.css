@@ -1473,8 +1473,37 @@ div.header > div:first-child {
   min-width: 20em;
 }
 
+.editorDialog.gridTable .header,
+.editorDialog.gridTable .states {
+  display: grid;
+  grid-template-columns: var(--table-columns);
+  align-items: center;
+}
+
+.editorDialog.gridTable .header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: auto;
+  background: var(--bg-main, #fff);
+}
+
+.editorDialog.gridTable .header > div:first-child {
+  margin-left: 0;
+}
+
+/* cells take their track's width, not their own; min-width:0 lets long values shrink instead of widening the row */
+.editorDialog.gridTable .states > * {
+  width: auto;
+  min-width: 0;
+}
+
+.editorDialog.gridTable > .table {
+  width: auto;
+}
+
 /* stretched cell widths are computed, so a stray pixel must clip rather than wrap the trailing action icons */
-.editorDialog .states {
+.editorDialog:not(.gridTable) .states {
   white-space: nowrap;
 }
 

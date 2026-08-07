@@ -259,6 +259,19 @@ function stretchRules(dialog: HTMLElement, dialogId: string, header: HTMLElement
   return rules.join("\n");
 }
 
+const dialogColumnsRegistry = new Map<
+  string,
+  { storageKey: string; columns: EditorColumn[]; modeHidden: Set<string> }
+>();
+
+function effectiveHidden(dialogId: string): Set<string> {
+  const entry = dialogColumnsRegistry.get(dialogId);
+  if (!entry) return new Set();
+  const hidden = loadHiddenColumns(entry.storageKey, entry.columns);
+  for (const key of entry.modeHidden) hidden.add(key);
+  return hidden;
+}
+
 function applyColumnVisibility(dialogId: string, hidden: Set<string>): void {
   const dialog = document.getElementById(dialogId);
   const styleId = `${dialogId}ColumnsStyle`;
@@ -269,22 +282,36 @@ function applyColumnVisibility(dialogId: string, hidden: Set<string>): void {
     document.head.appendChild(style);
   }
   style.textContent = Array.from(hidden)
-    .map(key => `#${dialogId} [data-col="${key}"] {display: none !important}`)
+    .map(key => `#${dialogId} [data-col="${key}"] {display: none}`)
     .join("\n");
+  if (!dialog) return;
 
-  const header = dialog ? getEditorHeader(dialog) : null;
-  if (!dialog || !header) return;
+  if (dialog.classList.contains("gridTable")) {
+    const entry = dialogColumnsRegistry.get(dialogId);
+    if (entry) dialog.style.setProperty("--table-columns", buildTracks(entry.columns, hidden));
+    return;
+  }
+
+  const header = getEditorHeader(dialog);
+  if (!header) return;
   rewriteHeaderGridColumns(header, hidden);
   const extra = stretchRules(dialog, dialogId, header, hidden);
   if (extra) style.textContent += `\n${extra}`;
 }
 
-const dialogColumnsRegistry = new Map<string, { storageKey: string; columns: EditorColumn[] }>();
+export function refreshColumnVisibility(dialogId: string): void {
+  applyColumnVisibility(dialogId, effectiveHidden(dialogId));
+}
 
-function restretchColumns(dialogId: string): void {
+export function setModeHiddenColumns(dialogId: string, keys: string[]): void {
   const entry = dialogColumnsRegistry.get(dialogId);
   if (!entry) return;
-  applyColumnVisibility(dialogId, loadHiddenColumns(entry.storageKey, entry.columns));
+  entry.modeHidden = new Set(keys);
+  refreshColumnVisibility(dialogId);
+}
+
+function restretchColumns(dialogId: string): void {
+  refreshColumnVisibility(dialogId);
 }
 
 let resizeFrame = 0;
@@ -372,12 +399,12 @@ export function initColumnVisibility(options: {
   columns: EditorColumn[];
 }): void {
   const { button, dialogId, storageKey, columns } = options;
-  dialogColumnsRegistry.set(dialogId, { storageKey, columns });
-  applyColumnVisibility(dialogId, loadHiddenColumns(storageKey, columns));
+  dialogColumnsRegistry.set(dialogId, { storageKey, columns, modeHidden: new Set() });
+  refreshColumnVisibility(dialogId);
   bindColumnsPicker(button, {
     dialogId,
     storageKey,
     columns,
-    onChange: hidden => applyColumnVisibility(dialogId, hidden)
+    onChange: () => refreshColumnVisibility(dialogId)
   });
 }
