@@ -204,11 +204,11 @@ function renderRiversPage(view: TableView<River>): void {
         data-basin="${basin}"
       >
         <span data-tip="Locate the river" class="icon-target" data-col="locate"></span>
-        <div data-tip="River name" class="riverName" data-col="name">${r.name}</div>
-        <div data-tip="River type name" class="riverType" data-col="type">${r.type}</div>
-        <div data-tip="River discharge (flux power)" class="biomeArea" data-col="discharge">${discharge}</div>
-        <div data-tip="River length from source to mouth" class="biomeArea" data-col="length">${length}</div>
-        <div data-tip="River mouth width" class="biomeArea" data-col="width">${width}</div>
+        <div data-tip="River name" data-col="name">${r.name}</div>
+        <div data-tip="River type name" data-col="type">${r.type}</div>
+        <div data-tip="River discharge (flux power)" data-col="discharge">${discharge}</div>
+        <div data-tip="River length from source to mouth" data-col="length">${length}</div>
+        <div data-tip="River mouth width" data-col="width">${width}</div>
         <input data-tip="River basin (name of the main stem)" class="stateName" value="${basin}" disabled data-col="basin" />
         <div data-col="actions">
           <span data-tip="Edit river" class="icon-pencil"></span>
