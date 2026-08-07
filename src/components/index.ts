@@ -8,7 +8,6 @@ import "./tools";
 import "./hotkeys";
 import "./dialog/dialog-helpers";
 import "./dialog/sorting";
-import "./dialog/pagination";
 import "./dialog/fit-content";
 import "./fill-box";
 import "./slider-input";

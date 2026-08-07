@@ -171,24 +171,6 @@ declare global {
   var mapId: number;
   var getArea: (rawArea: number) => number;
 
-  // Pagination/sort helpers defined in src/components/dialog/pagination.ts
-  var sortDataByActiveHeader: <T>(
-    headers: HTMLElement | null,
-    data: T[],
-    accessors: Record<string, (item: T) => unknown>
-  ) => T[];
-  var getEditorPage: <T>(
-    data: T[],
-    pageRef: { page: number },
-    size?: number
-  ) => { items: T[]; page: number; totalPages: number; total: number };
-  var renderEditorPagination: (
-    footerEl: HTMLElement | null,
-    info: { page: number; totalPages: number },
-    onGoto: (page: number) => void
-  ) => void;
-  var bindEditorSortReset: (headerEl: HTMLElement | null, onSort: () => void) => void;
-
   // Dialog fit-content gutter fix, defined in src/components/dialog/fit-content.ts
   var fitContent: () => string;
   var getAreaUnit: (squareMark?: string) => string;
