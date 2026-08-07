@@ -1355,7 +1355,7 @@ function enterStatesManualAssignent(): void {
   ensureEl("statesHalo").style.display = "none";
 
   ensureEl("statesEditor")
-    .querySelectorAll(".hide")
+    .querySelectorAll(".hide:not([data-col])")
     .forEach(el => {
       el.classList.add("hidden");
     });
@@ -1390,8 +1390,11 @@ function enterStatesManualAssignent(): void {
 function populateBrushStateSelect(): void {
   const sel = ensureEl("statesManuallyState") as HTMLSelectElement | null;
   if (!sel) return;
-  const states = pack.states.filter((s: any) => !s.removed);
-  sortDataByColumns(ensureEl("statesHeader"), states, STATE_COLUMNS);
+  const states = sortDataByColumns(
+    ensureEl("statesHeader"),
+    pack.states.filter((s: any) => !s.removed),
+    STATE_COLUMNS
+  );
   sel.innerHTML = states.map((s: any) => `<option value="${s.i}">${s.i ? s.fullName : s.name}</option>`).join("");
 }
 
@@ -1744,10 +1747,8 @@ function exitStatesManualAssignment(close: boolean): void {
   ensureEl("statesManuallyButtons").style.display = "none";
   ensureEl("statesHalo").style.display = "block";
 
-  // regenerate-mode column visibility (type/expansionism) is now owned by setModeHiddenColumns,
-  // not the "hidden" class, so unhiding every ".hide" element here is safe
   ensureEl("statesEditor")
-    .querySelectorAll(".hide")
+    .querySelectorAll(".hide:not([data-col])")
     .forEach(el => {
       (el as HTMLElement).classList.remove("hidden");
     });
@@ -1912,10 +1913,13 @@ function exitAddStateMode(): void {
 function openStateMergeDialog(): void {
   const emblem = (i: number) =>
     /* html */ `<svg class="coaIcon" viewBox="0 0 200 200"><use href="#stateCOA${i}"></use></svg>`;
-  const validStates = pack.states.filter(s => s.i && !s.removed);
   // Mirror the editor's active sort so the merge list reads in the same order the user is
   // looking at (e.g. by culture), instead of always by state id.
-  sortDataByColumns(ensureEl("statesHeader"), validStates, STATE_COLUMNS);
+  const validStates = sortDataByColumns(
+    ensureEl("statesHeader"),
+    pack.states.filter(s => s.i && !s.removed),
+    STATE_COLUMNS
+  );
 
   const statesSelector = validStates
     .map(
