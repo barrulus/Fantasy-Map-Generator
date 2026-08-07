@@ -66,10 +66,6 @@ export function renderEditorPagination(
     footer.appendChild(nav);
   }
 
-  const dialogId = footer.closest<HTMLElement>(".editorDialog")?.id;
-  // deferred so the jQuery UI dialog() call (which runs after the first render) has finished sizing the dialog
-  if (dialogId) requestAnimationFrame(() => restretchColumns(dialogId));
-
   if (view.totalPages <= 1) {
     nav.style.display = "none";
     nav.innerHTML = "";
@@ -127,77 +123,6 @@ function rewriteHeaderGridColumns(header: HTMLElement, hidden: Set<string>): voi
   header.style.gridTemplateColumns = tracks.filter((_, i) => !hidden.has(children[i].dataset.col ?? "")).join(" ");
 }
 
-// scale visible columns up to fill the dialog's available width, preserving their relative proportions
-function stretchRules(dialog: HTMLElement, dialogId: string, header: HTMLElement, hidden: Set<string>): string {
-  const computed = getComputedStyle(header)
-    .gridTemplateColumns.trim()
-    .split(/\s+/)
-    .map(t => Number.parseFloat(t));
-  if (computed.some(Number.isNaN) || !computed.length) return "";
-
-  const body = dialog.querySelector<HTMLElement>(":scope > .table");
-  // the first row is sometimes a sparser "neutral/unassigned" placeholder lacking the trailing action
-  // icons real rows carry (cultures/religions row 0); pick the richest row so reserved space isn't underestimated
-  const rows = body ? Array.from(body.querySelectorAll<HTMLElement>(":scope > .states")) : [];
-  const sampleRow = rows.reduce<HTMLElement | null>(
-    (best, row) => (!best || row.children.length > best.children.length ? row : best),
-    null
-  );
-  if (!body || !sampleRow) return "";
-
-  const scrollbarWidth = body.offsetWidth - body.clientWidth;
-  const dialogStyle = getComputedStyle(dialog);
-  const available =
-    dialog.clientWidth -
-    Number.parseFloat(dialogStyle.paddingLeft) -
-    Number.parseFloat(dialogStyle.paddingRight) -
-    scrollbarWidth;
-
-  // scale is applied to the body cells' OWN natural widths (below), not the header's declared track widths —
-  // the two drift apart (icon+value pairs routinely sum wider than their header track), so the denominator
-  // here must be the body's own total or the resulting scale overshoots and reintroduces the wrap
-  const rowRect = sampleRow.getBoundingClientRect();
-  const seen = new Set<string>();
-  const bodyCells: { tag: string; key: string; width: number }[] = [];
-  let firstTaggedLeft: number | null = null;
-  let lastTaggedRight = 0;
-  Array.from(sampleRow.children).forEach(child => {
-    const cell = child as HTMLElement;
-    const key = cell.dataset.col;
-    // some columns (e.g. states' type/expansionism) are hidden by an unrelated toggle, not our hidden set;
-    // exclude those too, or the scale denominator inflates and the columns we DO scale undershoot
-    if (!key || hidden.has(key) || getComputedStyle(cell).display === "none") return;
-    const rect = cell.getBoundingClientRect();
-    if (!rect.width) return;
-    if (firstTaggedLeft === null) firstTaggedLeft = rect.left;
-    lastTaggedRight = rect.right;
-    const signature = `${cell.tagName}:${key}`;
-    if (seen.has(signature)) return;
-    seen.add(signature);
-    bodyCells.push({ tag: cell.tagName.toLowerCase(), key, width: rect.width });
-  });
-  const bodyVisibleTotal = bodyCells.reduce((sum, c) => sum + c.width, 0);
-  if (!bodyVisibleTotal || firstTaggedLeft === null) return "";
-  // whitespace between adjacent inline-block columns is untouched by our width rules too — reserve it
-  const internalGaps = Math.max(0, lastTaggedRight - firstTaggedLeft - bodyVisibleTotal);
-  // everything outside the tagged span — leading icon, trailing action icons (edit/lock/trash, no data-col),
-  // the row's own padding/border, and the gaps next to the boundary — is untouched, so reserve it wholesale
-  const reserved = Math.max(0, firstTaggedLeft - rowRect.left) + Math.max(0, rowRect.right - lastTaggedRight);
-
-  const budget = available - reserved - internalGaps;
-  if (!(budget > bodyVisibleTotal + 0.5)) return "";
-  const scale = budget / bodyVisibleTotal;
-
-  header.style.gridTemplateColumns = computed.map(px => `${(px * scale).toFixed(2)}px`).join(" ");
-  // pin the body's own box to the measured available width, otherwise widening its cells widens its
-  // max-content size too, which widens the dialog, which widens "available" — an unbounded feedback loop
-  const rules: string[] = [`#${dialogId} > .table {width: ${available.toFixed(2)}px}`];
-  bodyCells.forEach(({ tag, key, width }) => {
-    rules.push(`#${dialogId} .states ${tag}[data-col="${key}"] {width: ${(width * scale).toFixed(2)}px}`);
-  });
-  return rules.join("\n");
-}
-
 function applyColumnVisibility(dialogId: string, hidden: Set<string>): void {
   const dialog = document.getElementById(dialogId);
   const styleId = `${dialogId}ColumnsStyle`;
@@ -214,28 +139,6 @@ function applyColumnVisibility(dialogId: string, hidden: Set<string>): void {
   const header = dialog ? getEditorHeader(dialog) : null;
   if (!dialog || !header) return;
   rewriteHeaderGridColumns(header, hidden);
-  const extra = stretchRules(dialog, dialogId, header, hidden);
-  if (extra) style.textContent += `\n${extra}`;
-}
-
-const dialogColumnsRegistry = new Map<string, { storageKey: string; columns: EditorColumn[] }>();
-
-function restretchColumns(dialogId: string): void {
-  const entry = dialogColumnsRegistry.get(dialogId);
-  if (!entry) return;
-  applyColumnVisibility(dialogId, loadHiddenColumns(entry.storageKey, entry.columns));
-}
-
-let resizeFrame = 0;
-if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
-  window.addEventListener("resize", () => {
-    cancelAnimationFrame(resizeFrame);
-    resizeFrame = requestAnimationFrame(() => {
-      document.querySelectorAll<HTMLElement>(".editorDialog").forEach(dialog => {
-        restretchColumns(dialog.id);
-      });
-    });
-  });
 }
 
 function bindColumnsPicker(
@@ -311,7 +214,6 @@ export function initColumnVisibility(options: {
   columns: EditorColumn[];
 }): void {
   const { button, dialogId, storageKey, columns } = options;
-  dialogColumnsRegistry.set(dialogId, { storageKey, columns });
   applyColumnVisibility(dialogId, loadHiddenColumns(storageKey, columns));
   bindColumnsPicker(button, {
     dialogId,
