@@ -179,9 +179,8 @@ function stretchRules(dialog: HTMLElement, dialogId: string, header: HTMLElement
   });
   if (!taggedApplied) return "";
 
-  // the width rules only reach tagged cells: untagged cells (leading fill-box/COA, trailing action icons),
-  // the whitespace between inline-block cells, the row's own padding/border and the body scrollbar all keep
-  // their natural size, so reserve them (plus 2px slack) or the scaled cells overflow and the row wraps
+  // width rules only reach tagged cells: untagged cells, inter-cell whitespace, row padding/border and
+  // the body scrollbar keep their natural size, so reserve them (plus slack) or the row overflows and wraps
   const range = document.createRange();
   range.selectNodeContents(sampleRow);
   const untouched = Math.max(0, range.getBoundingClientRect().width - taggedActual);

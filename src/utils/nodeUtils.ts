@@ -36,9 +36,9 @@ export const destroyDialogIfExists = (id: string): void => {
 };
 
 /**
- * Refit an already-initialized jQuery UI dialog to its content. Never initializes the widget:
- * creating it here would use default options (resizable: true), and the later resizable("destroy")
- * from the opener's proper config strips ALL touch-punch handlers off the frame, breaking touch drag
+ * Refit an already-initialized dialog to its content, never creating the widget: a widget created here
+ * would default to resizable, and the opener's later resizable("destroy") would strip touch-punch's
+ * touch handlers off the frame, breaking touch drag
  * @param {string} id - The ID of the dialog content element
  */
 export const fitDialogIfExists = (id: string): void => {
