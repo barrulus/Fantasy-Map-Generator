@@ -1507,6 +1507,13 @@ div.header > div:first-child {
   white-space: nowrap;
 }
 
+/* flex items default to min-width:auto, so an input's UA-default width would ignore the cell's cap */
+.editorDialog .states [data-col] input:not([type="checkbox"]),
+.editorDialog .states [data-col] select {
+  min-width: 0;
+  flex: 1;
+}
+
 .editorDialog > .table {
   width: auto;
 }
