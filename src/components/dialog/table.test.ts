@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildTracks, initEditorTable, loadHiddenColumns, renderEditorHeader, saveHiddenColumns } from "./table";
+import {
+  buildTracks,
+  type EditorColumn,
+  initColumnVisibility,
+  initEditorTable,
+  loadHiddenColumns,
+  renderEditorHeader,
+  saveHiddenColumns,
+  setModeHiddenColumns
+} from "./table";
 
 const items = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
 
@@ -205,5 +214,85 @@ describe("renderEditorHeader", () => {
     container.innerHTML = html;
     const button = container.querySelector<HTMLElement>("#routesToggleColumns")!;
     expect(button.closest("[data-col]")!.getAttribute("data-col")).toBe("actions");
+  });
+
+  it("anchors the button to the last non-hideable column, even if it isn't last overall", () => {
+    const columns: EditorColumn[] = [
+      { key: "locate", hideable: false },
+      { key: "name", label: "Name", hideable: false },
+      { key: "extra", label: "Extra" }
+    ];
+    const container = document.createElement("div");
+    container.innerHTML = renderEditorHeader({ id: "h", columns, columnsButtonId: "toggle" });
+    const button = container.querySelector<HTMLElement>("#toggle")!;
+    expect(button.closest("[data-col]")!.getAttribute("data-col")).toBe("name");
+  });
+});
+
+describe("mode-hidden columns", () => {
+  const COLUMNS: EditorColumn[] = [
+    { key: "name", label: "Name", hideable: false },
+    { key: "population", label: "Population" },
+    { key: "treasury", label: "Treasury" },
+    { key: "actions", hideable: false }
+  ];
+
+  let dialog: HTMLElement;
+  let button: HTMLButtonElement;
+
+  const hiddenKeys = () => {
+    const style = document.getElementById("modeTestColumnsStyle") as HTMLStyleElement;
+    const matches = [...(style?.textContent ?? "").matchAll(/data-col="([^"]+)"/g)];
+    return new Set(matches.map(m => m[1]));
+  };
+
+  beforeEach(() => {
+    const store = new Map<string, string>();
+    (globalThis as Record<string, unknown>).localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v)
+    };
+    document.body.innerHTML = "";
+    dialog = document.createElement("div");
+    dialog.id = "modeTest";
+    button = document.createElement("button");
+    dialog.appendChild(button);
+    document.body.appendChild(dialog);
+  });
+
+  afterEach(() => {
+    document.getElementById("modeTestColumnsStyle")?.remove();
+  });
+
+  it("unions mode-hidden keys with the user's stored choice", () => {
+    saveHiddenColumns("modeTest", new Set(["population"]));
+    initColumnVisibility({ button, dialogId: "modeTest", storageKey: "modeTest", columns: COLUMNS });
+    setModeHiddenColumns("modeTest", ["treasury"]);
+    expect(hiddenKeys()).toEqual(new Set(["population", "treasury"]));
+  });
+
+  it("restores the mode-hidden columns when set back to an empty list, keeping the user's choice", () => {
+    saveHiddenColumns("modeTest", new Set(["population"]));
+    initColumnVisibility({ button, dialogId: "modeTest", storageKey: "modeTest", columns: COLUMNS });
+    setModeHiddenColumns("modeTest", ["treasury"]);
+    expect(hiddenKeys()).toEqual(new Set(["population", "treasury"]));
+
+    setModeHiddenColumns("modeTest", []);
+    expect(hiddenKeys()).toEqual(new Set(["population"]));
+  });
+
+  it("keeps the columns picker's checkboxes reflecting only the user's stored choice, not mode-hidden additions", () => {
+    saveHiddenColumns("modeTest", new Set(["population"]));
+    initColumnVisibility({ button, dialogId: "modeTest", storageKey: "modeTest", columns: COLUMNS });
+    setModeHiddenColumns("modeTest", ["treasury"]);
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const popup = document.getElementById("modeTestColumnsPicker")!;
+    const population = popup.querySelector<HTMLInputElement>('input[data-key="population"]')!;
+    const treasury = popup.querySelector<HTMLInputElement>('input[data-key="treasury"]')!;
+    // population is the user's own hidden choice: unchecked
+    expect(population.checked).toBe(false);
+    // treasury is only mode-hidden, never stored by the user: still checked
+    expect(treasury.checked).toBe(true);
   });
 });

@@ -108,6 +108,7 @@ export function buildTracks(columns: EditorColumn[], hidden: Set<string>): strin
 
 export function renderEditorHeader(options: { id: string; columns: EditorColumn[]; columnsButtonId: string }): string {
   const { id, columns, columnsButtonId } = options;
+  const buttonIndex = columns.map(column => column.hideable === false).lastIndexOf(true);
   const cells = columns.map((column, index) => {
     const classes: string[] = [];
     if (column.sortBy) {
@@ -118,7 +119,7 @@ export function renderEditorHeader(options: { id: string; columns: EditorColumn[
         classes.push(`icon-sort-${type}-${column.defaultSort === "desc" ? "down" : "up"}`);
       }
     }
-    const tip = column.tip ?? (column.sortBy && column.label ? `Click to sort by ${column.label.toLowerCase()}` : "");
+    const tip = column.tip ?? "";
     const attributes = [
       `data-col="${column.key}"`,
       classes.length ? `class="${classes.join(" ")}"` : "",
@@ -128,7 +129,7 @@ export function renderEditorHeader(options: { id: string; columns: EditorColumn[
       .filter(Boolean)
       .join(" ");
     const button =
-      index === columns.length - 1
+      index === buttonIndex
         ? `<button id="${columnsButtonId}" data-tip="Show or hide columns" class="icon-sliders"></button>`
         : "";
     return `<div ${attributes}>${column.label ?? ""}${button}</div>`;
