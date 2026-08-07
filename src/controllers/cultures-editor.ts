@@ -1,12 +1,20 @@
 import { csvParse, drag, easeSinIn, select, transition } from "d3";
 import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { fitContent } from "@/components/dialog/fit-content";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
-import { applySorting, applySortingByHeader } from "@/components/dialog/sorting";
+import { applySortingByHeader, bindEditorSortReset, sortDataByActiveHeader } from "@/components/dialog/sorting";
+import {
+  type EditorColumn,
+  initColumnVisibility,
+  initEditorTable,
+  renderEditorPagination,
+  type TableView
+} from "@/components/dialog/table";
 import type { FillBoxElement } from "@/components/fill-box";
 import { clearMainTip, showMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
-import { CULTURE_TYPES } from "@/generators/cultures-generator";
+import { CULTURE_TYPES, type Culture } from "@/generators/cultures-generator";
 import { drawBurgLabels } from "@/renderers/draw-burg-labels";
 import { clearLegend, drawLegend } from "@/renderers/draw-legend";
 import { moveCircle, removeCircle } from "@/renderers/overlays/brush-circle";
@@ -19,6 +27,7 @@ import {
   destroyDialogIfExists,
   ensureEl,
   findAllCellsInRadius,
+  fitDialogIfExists,
   getPackPolygon,
   getPointer,
   isLand,
@@ -29,18 +38,39 @@ import {
 } from "../utils";
 
 let culturesManualHistory: string[] = [];
+// brush-selected culture during manual assignment; tracked off-DOM since the selected row may be on another page
+let selectedCultureId: number | null = null;
 
-const culturesPage = { page: 1 };
-const CULTURES_SORT_ACCESSORS = {
-  name: (c: any) => c.name,
-  type: (c: any) => c.type || "",
-  base: (c: any) => c.base,
-  cells: (c: any) => c.cells,
-  expansionism: (c: any) => c.expansionism || 0,
-  area: (c: any) => c.area,
-  population: (c: any) => c.rural * populationRate + c.urban * populationRate * urbanization,
-  emblems: (c: any) => c.shield
+const CULTURES_SORT_ACCESSORS: Record<string, (c: Culture) => string | number> = {
+  name: c => c.name || "",
+  type: c => c.type || "",
+  base: c => c.base,
+  cells: c => c.cells || 0,
+  expansionism: c => c.expansionism || 0,
+  area: c => c.area || 0,
+  population: c => (c.rural || 0) * populationRate + (c.urban || 0) * populationRate * urbanization,
+  emblems: c => c.shield
 };
+
+function getFilteredCultures(): Culture[] {
+  return pack.cultures.filter(c => !c.removed);
+}
+
+const CULTURE_COLUMNS: EditorColumn[] = [
+  { key: "name", label: "Name", hideable: false },
+  { key: "type", label: "Type", mobileHidden: true },
+  { key: "base", label: "Names base", mobileHidden: true },
+  { key: "cells", label: "Cells" },
+  { key: "expansionism", label: "Expansionism", mobileHidden: true },
+  { key: "area", label: "Area", mobileHidden: true },
+  { key: "population", label: "Population" },
+  { key: "emblems", label: "Emblems", mobileHidden: true }
+];
+
+const culturesTable = initEditorTable<Culture>({
+  getData: () => sortDataByActiveHeader(ensureEl("culturesHeader"), getFilteredCultures(), CULTURES_SORT_ACCESSORS),
+  onUpdate: culturesEditorAddLines
+});
 
 function open(): void {
   if (customization) return;
@@ -52,12 +82,14 @@ function open(): void {
   if (layerIsOn("toggleProvinces")) toggleProvinces();
 
   renderDialog();
-  culturesPage.page = 1;
-  refreshCulturesEditor();
+  culturesCollectStatistics();
+  drawCultureCenters();
+  culturesTable.reset();
 
   $("#culturesEditor").dialog({
     title: "Cultures Editor",
     resizable: false,
+    width: fitContent(),
     close: closeCulturesEditor,
     position: { my: "right top", at: "right-10 top+10", of: "svg" }
   });
@@ -65,34 +97,35 @@ function open(): void {
 
 function renderDialog(): void {
   destroyDialogIfExists("culturesEditor");
-  const editorHtml = /* html */ `<div id="culturesEditor" class="dialog stable">
+  const editorHtml = /* html */ `<div id="culturesEditor" class="dialog stable editorDialog">
     <div id="culturesHeader" class="header" style="grid-template-columns: 10em 7em 9em 4em 8em 5em 7em 8em">
-      <div data-tip="Click to sort by culture name" class="sortable alphabetically" data-sortby="name">Culture&nbsp;</div>
-      <div data-tip="Click to sort by type" class="sortable alphabetically" data-sortby="type">Type&nbsp;</div>
-      <div data-tip="Click to sort by culture namesbase" class="sortable" data-sortby="base">Namesbase&nbsp;</div>
-      <div data-tip="Click to sort by culture cells count" class="sortable hide" data-sortby="cells">Cells&nbsp;</div>
-      <div data-tip="Click to sort by expansionism" class="sortable hide" data-sortby="expansionism">Expansion&nbsp;</div>
-      <div data-tip="Click to sort by culture area" class="sortable hide" data-sortby="area">Area&nbsp;</div>
-      <div data-tip="Click to sort by culture population" class="sortable hide icon-sort-number-down" data-sortby="population">Population&nbsp;</div>
-      <div data-tip="Click to sort by culture emblems shape" class="sortable alphabetically hide" data-sortby="emblems">Emblems&nbsp;</div>
+      <div data-tip="Click to sort by culture name" class="sortable alphabetically" data-sortby="name" data-col="name">Culture&nbsp;</div>
+      <div data-tip="Click to sort by type" class="sortable alphabetically" data-sortby="type" data-col="type">Type&nbsp;</div>
+      <div data-tip="Click to sort by culture namesbase" class="sortable" data-sortby="base" data-col="base">Namesbase&nbsp;</div>
+      <div data-tip="Click to sort by culture cells count" class="sortable hide" data-sortby="cells" data-col="cells">Cells&nbsp;</div>
+      <div data-tip="Click to sort by expansionism" class="sortable hide" data-sortby="expansionism" data-col="expansionism">Expansion&nbsp;</div>
+      <div data-tip="Click to sort by culture area" class="sortable hide" data-sortby="area" data-col="area">Area&nbsp;</div>
+      <div data-tip="Click to sort by culture population" class="sortable hide icon-sort-number-down" data-sortby="population" data-col="population">Population&nbsp;</div>
+      <div data-tip="Click to sort by culture emblems shape" class="sortable alphabetically hide" data-sortby="emblems" data-col="emblems">Emblems&nbsp;</div>
     </div>
     <div id="culturesBody" class="table" data-type="absolute"></div>
 
     <div id="culturesFooter" class="totalLine">
       <div data-tip="Cultures number" style="margin-left: 12px">Cultures:&nbsp;<span id="culturesFooterCultures">0</span></div>
-      <div data-tip="Total land cells number" style="margin-left: 12px">Cells:&nbsp;<span id="culturesFooterCells">0</span></div>
-      <div data-tip="Total land area" style="margin-left: 12px">Land Area:&nbsp;<span id="culturesFooterArea">0</span></div>
-      <div data-tip="Total population" style="margin-left: 12px">Population:&nbsp;<span id="culturesFooterPopulation">0</span></div>
+      <div data-tip="Total land cells number" style="margin-left: 12px" data-col="cells">Cells:&nbsp;<span id="culturesFooterCells">0</span></div>
+      <div data-tip="Total land area" style="margin-left: 12px" data-col="area">Land Area:&nbsp;<span id="culturesFooterArea">0</span></div>
+      <div data-tip="Total population" style="margin-left: 12px" data-col="population">Population:&nbsp;<span id="culturesFooterPopulation">0</span></div>
     </div>
 
-    <div id="culturesBottom">
+    <div id="culturesBottom" class="editorToolbar">
       <button id="culturesEditorRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
+      <button id="culturesToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="culturesEditStyle" data-tip="Edit cultures style in Style Editor" class="icon-adjust"></button>
       <button id="culturesLegend" data-tip="Toggle Legend box" class="icon-list-bullet"></button>
       <button id="culturesPercentage" data-tip="Toggle percentage / absolute values display mode" class="icon-percent"></button>
       <button id="culturesHeirarchy" data-tip="Show cultures hierarchy tree" class="icon-sitemap"></button>
       <button id="culturesManually" data-tip="Manually re-assign cultures" class="icon-brush"></button>
-      <div id="culturesManuallyButtons" style="display: none">
+      <div id="culturesManuallyButtons" class="editorToolbarPanel" style="display: none">
         <div data-tip="Change brush size. Shortcuts: + / ] to increase; - / [ to decrease" style="margin-block: 0.3em;">
           <slider-input id="culturesBrush" min="1" max="100" value="15">Brush size:</slider-input>
         </div>
@@ -105,7 +138,11 @@ function renderDialog(): void {
       <button id="culturesExport" data-tip="Download cultures-related data" class="icon-download"></button>
       <button id="culturesImport" data-tip="Upload cultures-related data" class="icon-upload"></button>
       <button id="culturesRecalculate" data-tip="Recalculate cultures based on current values of growth-related attributes" class="icon-retweet"></button>
-      <span data-tip="Allow culture centers, expansion and type changes to take an immediate effect" style="display: inline-flex">
+      <span
+        data-tip="Allow culture centers, expansion and type changes to take an immediate effect"
+        class="editorToolbarPanel"
+        style="display: inline-flex"
+      >
         <input id="culturesAutoChange" class="checkbox" type="checkbox" />
         <label for="culturesAutoChange" class="checkbox-label"><i>auto-apply changes</i></label>
       </span>
@@ -114,13 +151,17 @@ function renderDialog(): void {
 
   ensureEl("dialogs").insertAdjacentHTML("beforeend", editorHtml);
   applySortingByHeader("culturesHeader");
+  // header is recreated on every open(), so re-register the sort-triggered page reset here too
+  bindEditorSortReset(ensureEl("culturesHeader"), culturesTable.reset);
   applyLineHighlighting("culturesEditor", ({ cellId }) => pack.cells.culture[cellId]);
-  bindEditorSortReset(ensureEl("culturesHeader"), () => {
-    culturesPage.page = 1;
-    culturesEditorAddLines();
-  });
 
   ensureEl("culturesEditorRefresh").on("click", refreshCulturesEditor);
+  initColumnVisibility({
+    button: ensureEl("culturesToggleColumns"),
+    dialogId: "culturesEditor",
+    storageKey: "cultures",
+    columns: CULTURE_COLUMNS
+  });
   ensureEl("culturesEditStyle").on("click", () => editStyle("cults"));
   ensureEl("culturesLegend").on("click", toggleLegend);
   ensureEl("culturesPercentage").on("click", togglePercentageMode);
@@ -139,7 +180,7 @@ function renderDialog(): void {
 
 function refreshCulturesEditor(): void {
   culturesCollectStatistics();
-  culturesEditorAddLines();
+  culturesTable.refresh();
   drawCultureCenters();
 }
 
@@ -160,31 +201,26 @@ function culturesCollectStatistics(): void {
   }
 }
 
-function culturesEditorAddLines(): void {
+function culturesEditorAddLines(view: TableView<Culture>): void {
   const unit = getAreaUnit();
+  let lines = "";
+  let totalArea = 0;
+  let totalPopulation = 0;
 
   const emblemShapeGroup =
     ensureEl<HTMLSelectElement>("emblemShape").selectedOptions[0]?.parentElement?.getAttribute("label");
   const selectShape = emblemShapeGroup === "Diversiform";
 
-  const allCultures = pack.cultures.filter((c: any) => !c.removed);
-  sortDataByActiveHeader(ensureEl("culturesHeader"), allCultures, CULTURES_SORT_ACCESSORS);
-
-  // footer totals over the full set
-  let totalArea = 0;
-  let totalPopulation = 0;
-  for (const c of allCultures) {
-    totalArea += getArea((c as any).area);
-    totalPopulation += rn((c as any).rural * populationRate + (c as any).urban * populationRate * urbanization);
+  // totals span the full filtered set, not just the current page
+  for (const c of view.all) {
+    totalArea += getArea(c.area ?? 0);
+    totalPopulation += rn((c.rural ?? 0) * populationRate + (c.urban ?? 0) * populationRate * urbanization);
   }
 
-  const pageInfo = getEditorPage(allCultures, culturesPage);
-  let lines = "";
-
-  for (const c of pageInfo.items) {
-    const area = getArea((c as any).area ?? 0);
-    const rural = ((c as any).rural ?? 0) * populationRate;
-    const urban = ((c as any).urban ?? 0) * populationRate * urbanization;
+  for (const c of view.rows) {
+    const area = getArea(c.area ?? 0);
+    const rural = (c.rural ?? 0) * populationRate;
+    const urban = (c.urban ?? 0) * populationRate * urbanization;
     const population = rn(rural + urban);
     const populationTip = `Total population: ${si(population)}. Rural population: ${si(rural)}. Urban population: ${si(
       urban
@@ -207,21 +243,21 @@ function culturesEditorAddLines(): void {
         >
           <svg width="11" height="11" class="placeholder"></svg>
           <input data-tip="Neutral culture name. Click and type to change" class="cultureName italic" style="width: 7em"
-            value="${c.name}" autocorrect="off" spellcheck="false" />
-          <span class="icon-cw placeholder"></span>
-          <select class="cultureType placeholder">${getTypeOptions(c.type)}</select>
-          <span data-tip="Click to re-generate names for burgs with this culture assigned" class="icon-arrows-cw hide"></span>
+            value="${c.name}" autocorrect="off" spellcheck="false" data-col="name" />
+          <span class="icon-cw placeholder" data-col="name"></span>
+          <select class="cultureType placeholder" data-col="type">${getTypeOptions(c.type)}</select>
+          <span data-tip="Click to re-generate names for burgs with this culture assigned" class="icon-arrows-cw hide" data-col="base"></span>
           <select data-tip="Culture namesbase. Click to change. Click on arrows to re-generate names"
-            class="cultureBase">${getBaseOptions(c.base)}</select>
-          <span data-tip="Cells count" class="icon-check-empty hide"></span>
-          <div data-tip="Cells count" class="cultureCells hide" style="width: 4em">${c.cells}</div>
-          <span class="icon-resize-full placeholder hide"></span>
-          <input class="cultureExpan placeholder hide" type="number" />
-          <span data-tip="Culture area" style="padding-right: 4px" class="icon-map-o hide"></span>
-          <div data-tip="Culture area" class="cultureArea hide" style="width: 6em">${si(area)} ${unit}</div>
-          <span data-tip="${populationTip}" class="icon-male hide"></span>
+            class="cultureBase" data-col="base">${getBaseOptions(c.base)}</select>
+          <span data-tip="Cells count" class="icon-check-empty hide" data-col="cells"></span>
+          <div data-tip="Cells count" class="cultureCells hide" style="width: 4em" data-col="cells">${c.cells}</div>
+          <span class="icon-resize-full placeholder hide" data-col="expansionism"></span>
+          <input class="cultureExpan placeholder hide" type="number" data-col="expansionism" />
+          <span data-tip="Culture area" style="padding-right: 4px" class="icon-map-o hide" data-col="area"></span>
+          <div data-tip="Culture area" class="cultureArea hide" style="width: 6em" data-col="area">${si(area)} ${unit}</div>
+          <span data-tip="${populationTip}" class="icon-male hide" data-col="population"></span>
           <div data-tip="${populationTip}" class="culturePopulation hide pointer"
-            style="width: 4em">${si(population)}</div>
+            style="width: 4em" data-col="population">${si(population)}</div>
           ${getShapeOptions(selectShape, c.shield)}
         </div>`;
       continue;
@@ -242,16 +278,16 @@ function culturesEditorAddLines(): void {
       >
         <fill-box fill="${c.color}"></fill-box>
         <input data-tip="Culture name. Click and type to change" class="cultureName" style="width: 7em"
-          value="${c.name}" autocorrect="off" spellcheck="false" />
-        <span data-tip="Regenerate culture name" class="icon-cw hiddenIcon" style="visibility: hidden"></span>
+          value="${c.name}" autocorrect="off" spellcheck="false" data-col="name" />
+        <span data-tip="Regenerate culture name" class="icon-cw hiddenIcon" style="visibility: hidden" data-col="name"></span>
         <select data-tip="Culture type. Defines growth model. Click to change"
-          class="cultureType">${getTypeOptions(c.type)}</select>
-        <span data-tip="Click to re-generate names for burgs with this culture assigned" class="icon-arrows-cw hide"></span>
+          class="cultureType" data-col="type">${getTypeOptions(c.type)}</select>
+        <span data-tip="Click to re-generate names for burgs with this culture assigned" class="icon-arrows-cw hide" data-col="base"></span>
         <select data-tip="Culture namesbase. Click to change. Click on arrows to re-generate names"
-          class="cultureBase">${getBaseOptions(c.base)}</select>
-        <span data-tip="Cells count" class="icon-check-empty hide"></span>
-        <div data-tip="Cells count" class="cultureCells hide" style="width: 4em">${c.cells}</div>
-        <span data-tip="Culture expansionism. Defines competitive size" class="icon-resize-full hide"></span>
+          class="cultureBase" data-col="base">${getBaseOptions(c.base)}</select>
+        <span data-tip="Cells count" class="icon-check-empty hide" data-col="cells"></span>
+        <div data-tip="Cells count" class="cultureCells hide" style="width: 4em" data-col="cells">${c.cells}</div>
+        <span data-tip="Culture expansionism. Defines competitive size" class="icon-resize-full hide" data-col="expansionism"></span>
         <input
           data-tip="Culture expansionism. Defines competitive size. Click to change, then click Recalculate to apply change"
           class="cultureExpan hide"
@@ -260,12 +296,13 @@ function culturesEditorAddLines(): void {
           max="99"
           step=".1"
           value=${c.expansionism}
+          data-col="expansionism"
         />
-        <span data-tip="Culture area" style="padding-right: 4px" class="icon-map-o hide"></span>
-        <div data-tip="Culture area" class="cultureArea hide" style="width: 6em">${si(area)} ${unit}</div>
-        <span data-tip="${populationTip}" class="icon-male hide"></span>
+        <span data-tip="Culture area" style="padding-right: 4px" class="icon-map-o hide" data-col="area"></span>
+        <div data-tip="Culture area" class="cultureArea hide" style="width: 6em" data-col="area">${si(area)} ${unit}</div>
+        <span data-tip="${populationTip}" class="icon-male hide" data-col="population"></span>
         <div data-tip="${populationTip}" class="culturePopulation hide pointer"
-          style="width: 4em">${si(population)}</div>
+          style="width: 4em" data-col="population">${si(population)}</div>
         ${getShapeOptions(selectShape, c.shield)}
         <span data-tip="Locate the culture" class="icon-target hide"></span>
         <span data-tip="Lock culture" class="icon-lock${c.lock ? "" : "-open"} hide"></span>
@@ -273,6 +310,9 @@ function culturesEditorAddLines(): void {
       </div>`;
   }
   ensureEl("culturesBody").innerHTML = lines;
+  if (customization === 4 && selectedCultureId !== null) {
+    ensureEl("culturesBody").querySelector(`div[data-id='${selectedCultureId}']`)?.classList.add("selected");
+  }
 
   // update footer
   ensureEl("culturesFooterCultures").innerHTML = String(pack.cultures.filter(c => c.i && !c.removed).length);
@@ -282,10 +322,7 @@ function culturesEditorAddLines(): void {
   ensureEl("culturesFooterArea").dataset.area = String(totalArea);
   ensureEl("culturesFooterPopulation").dataset.population = String(totalPopulation);
 
-  renderEditorPagination(ensureEl("culturesFooter"), pageInfo, (page: number) => {
-    culturesPage.page = page;
-    culturesEditorAddLines();
-  });
+  renderEditorPagination(ensureEl("culturesFooter"), view, culturesTable.goto);
 
   // add listeners
   ensureEl("culturesBody")
@@ -336,16 +373,16 @@ function culturesEditorAddLines(): void {
     .forEach($el => void $el.on("click", updateLockStatus));
 
   const $culturesHeader = ensureEl("culturesHeader");
-  ($culturesHeader.querySelector("div[data-sortby='emblems']") as HTMLElement).style.display = selectShape
-    ? "inline-block"
-    : "none";
+  const emblemsHeader = $culturesHeader.querySelector("div[data-sortby='emblems']") as HTMLElement;
+  // Don't force "inline-block" — it would override the user's hidden-column choice
+  if (selectShape) emblemsHeader.style.removeProperty("display");
+  else emblemsHeader.style.display = "none";
 
   if (ensureEl("culturesBody").dataset.type === "percentage") {
     ensureEl("culturesBody").dataset.type = "absolute";
     togglePercentageMode();
   }
-  applySorting($culturesHeader);
-  $("#culturesEditor").dialog({ width: fitContent() });
+  fitDialogIfExists("culturesEditor");
 }
 
 function getTypeOptions(type: string): string {
@@ -372,7 +409,7 @@ function getShapeOptions(selectShape: boolean, selected: string): string {
   const options = shapes.map(
     shape => `<option ${shape === selected ? "selected" : ""} value="${shape}">${capitalize(shape)}</option>`
   );
-  return `<select data-tip="Emblem shape associated with culture. Click to change" class="cultureEmblems hide">${options}</select>`;
+  return `<select data-tip="Emblem shape associated with culture. Click to change" class="cultureEmblems hide" data-col="emblems">${options}</select>`;
 }
 
 const cultureHighlightOn = debounce((event: any) => {
@@ -755,7 +792,7 @@ function togglePercentageMode(): void {
       });
   } else {
     ensureEl("culturesBody").dataset.type = "absolute";
-    culturesEditorAddLines();
+    culturesTable.refresh();
   }
 }
 
@@ -805,8 +842,6 @@ function recalculateCultures(force?: boolean): void {
 function enterCultureManualAssignent(): void {
   if (!layerIsOn("toggleCultures")) toggleCultures();
   customization = 4;
-  culturesPage.page = 1;
-  culturesEditorAddLines();
   select("#cults").append("g").attr("id", "temp");
   document.querySelectorAll<HTMLElement>("#culturesBottom > *").forEach(el => {
     el.style.display = "none";
@@ -834,7 +869,11 @@ function enterCultureManualAssignent(): void {
     .call(drag<SVGElement, unknown>().on("start", dragCultureBrush))
     .on("touchmove mousemove", moveCultureBrush);
 
-  ensureEl("culturesBody").querySelector("div")?.classList.add("selected");
+  const firstLine = ensureEl("culturesBody").querySelector<HTMLElement>("div");
+  if (firstLine) {
+    firstLine.classList.add("selected");
+    selectedCultureId = +firstLine.dataset.id!;
+  }
   culturesManualHistory = [];
 }
 
@@ -843,6 +882,7 @@ function selectCultureOnLineClick(this: HTMLElement): void {
   const previous = ensureEl("culturesBody").querySelector("div.selected");
   if (previous) previous.classList.remove("selected");
   this.classList.add("selected");
+  selectedCultureId = +this.dataset.id!;
 }
 
 function selectCultureOnMapClick(this: any, event: any): void {
@@ -853,10 +893,10 @@ function selectCultureOnMapClick(this: any, event: any): void {
   const assigned = select("#cults").select("#temp").select(`polygon[data-cell='${i}']`);
   const culture = assigned.size() ? +assigned.attr("data-culture") : pack.cells.culture[i!];
 
-  const $row = ensureEl("culturesBody").querySelector(`div[data-id='${culture}']`);
-  if (!$row) return; // clicked culture's row is on another page; ignore to avoid a crash
   ensureEl("culturesBody").querySelector("div.selected")?.classList.remove("selected");
-  ($row as HTMLElement).classList.add("selected");
+  selectedCultureId = culture;
+  // row may be on another page; the class re-applies on render if/when that page is shown
+  ensureEl("culturesBody").querySelector(`div[data-id='${culture}']`)?.classList.add("selected");
 }
 
 function dragCultureBrush(this: any, event: any): void {
@@ -875,10 +915,10 @@ function dragCultureBrush(this: any, event: any): void {
 }
 
 function changeCultureForSelection(selection: number[]): void {
-  const temp = select("#cults").select("#temp");
-  const selected = ensureEl("culturesBody").querySelector<HTMLElement>("div.selected")!;
+  if (selectedCultureId === null) return;
 
-  const cultureNew = +selected.dataset.id!;
+  const temp = select("#cults").select("#temp");
+  const cultureNew = selectedCultureId;
   const color = pack.cultures[cultureNew].color || "#ffffff";
 
   selection.forEach(i => {
@@ -950,6 +990,7 @@ function exitCulturesManualAssignment(close?: string): void {
   clearMainTip();
   const selected = ensureEl("culturesBody").querySelector("div.selected");
   if (selected) selected.classList.remove("selected");
+  selectedCultureId = null;
 }
 
 function saveCulturesManualSnapshot(): void {
@@ -1016,36 +1057,35 @@ function addCulture(this: SVGElement, event: MouseEvent): void {
   Cultures.add(center);
 
   drawCultureCenters();
-  culturesEditorAddLines();
+  culturesTable.refresh();
 }
 
 function downloadCulturesCsv(): void {
   const unit = getAreaUnit("2");
   const headers = `Id,Name,Color,Cells,Expansionism,Type,Area ${unit},Population,Namesbase,Emblems Shape,Origins`;
-  const data = pack.cultures
-    .filter((c: any) => !c.removed)
-    .map((c: any) => {
-      const area = getArea(c.area);
-      const population = rn(c.rural * populationRate + c.urban * populationRate * urbanization);
-      const namesbase = Names.nameBases[c.base].name;
-      const originList = (c.origins || [])
-        .filter((origin: number | null): origin is number => Boolean(origin))
-        .map((origin: number) => pack.cultures[origin].name);
-      const originText = `"${originList.join(", ")}"`;
-      return [
-        c.i,
-        c.name,
-        c.color || "",
-        c.cells,
-        c.i ? (c.expansionism ?? "") : "",
-        c.type || "",
-        area,
-        population,
-        namesbase,
-        c.shield,
-        originText
-      ].join(",");
-    });
+  // export the full filtered set (all pages), not just the visible page
+  const data = culturesTable.view().all.map(c => {
+    const area = getArea(c.area ?? 0);
+    const population = rn((c.rural ?? 0) * populationRate + (c.urban ?? 0) * populationRate * urbanization);
+    const namesbase = Names.nameBases[c.base].name;
+    const originList = (c.origins ?? [])
+      .filter((origin): origin is number => Boolean(origin))
+      .map(origin => pack.cultures[origin].name);
+    const originText = `"${originList.join(", ")}"`;
+    return [
+      c.i,
+      c.name,
+      c.i ? c.color || "" : "",
+      c.cells || 0,
+      c.i ? c.expansionism || 0 : "",
+      c.i ? c.type : "",
+      area,
+      population,
+      namesbase,
+      c.shield,
+      originText
+    ].join(",");
+  });
   const csvData = [headers].concat(data).join("\n");
 
   const name = `${getFileName("Cultures")}.csv`;

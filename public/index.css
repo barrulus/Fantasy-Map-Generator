@@ -1444,6 +1444,55 @@ div.header > div:first-child {
   margin-bottom: 3px;
 }
 
+.editorFilters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding-block: 0.1em;
+  /* width:0 + min-width:100% fills the table-driven dialog width without contributing to it, same trick as the pagination footer */
+  width: 0;
+  min-width: 100%;
+}
+
+/* fixed label column (a text node + control per label, both grid items) so controls line up across rows */
+.editorFilters label {
+  display: grid;
+  grid-template-columns: 5.5em 1fr;
+  align-items: center;
+  column-gap: 0.3em;
+}
+
+.editorFilters input[type="search"],
+.editorFilters select {
+  width: 100%;
+  min-width: 3em;
+}
+
+/* floor picked to fit a usable search input plus a couple of wrapped icon rows, shared by all six overview editors */
+.editorDialog {
+  min-width: 20em;
+}
+
+/* stretched cell widths are computed, so a stray pixel must clip rather than wrap the trailing action icons */
+.editorDialog .states {
+  white-space: nowrap;
+}
+
+.editorToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2em;
+  width: 0;
+  min-width: 100%;
+  /* max-content of a wrapping flex row ignores the wrap, so cap it to force real wrapping instead of setting the dialog's fit-content width */
+  max-width: 20em;
+}
+
+.editorToolbar > .editorToolbarPanel {
+  flex-basis: 100%;
+}
+
 .totalLine > div {
   display: inline-block;
 }

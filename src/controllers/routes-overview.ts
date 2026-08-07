@@ -1,6 +1,13 @@
 import { mean, select } from "d3";
 import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
-import { applySortingByHeader } from "@/components/dialog/sorting";
+import { applySortingByHeader, bindEditorSortReset, sortDataByActiveHeader } from "@/components/dialog/sorting";
+import {
+  type EditorColumn,
+  initColumnVisibility,
+  initEditorTable,
+  renderEditorPagination,
+  type TableView
+} from "@/components/dialog/table";
 import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
 import type { Route } from "@/generators/routes-generator";
@@ -8,12 +15,40 @@ import { highlightElement } from "@/renderers/overlays/highlight";
 import { downloadFile, getFileName } from "@/utils";
 import { destroyDialogIfExists, ensureEl, rn } from "../utils";
 
-const routesPage = { page: 1 };
+const ROUTE_COLUMNS: EditorColumn[] = [
+  { key: "name", label: "Name", hideable: false },
+  { key: "group", label: "Group" },
+  { key: "length", label: "Length" }
+];
+
 const ROUTES_SORT_ACCESSORS = {
   name: (route: Route) => route.name || "",
   group: (route: Route) => route.group || "",
-  length: (route: Route) => route.length
+  length: (route: Route) => route.length || 0
 };
+
+function getFilteredRoutes(): Route[] {
+  const searchText = ensureEl<HTMLInputElement>("routesSearch").value.toLowerCase().trim();
+  const routes = pack.routes.filter((route: Route) => Boolean(route.points) && route.points.length >= 2);
+
+  for (const route of routes) {
+    route.name = route.name || Routes.generateName(route);
+    route.length = route.length || Routes.getLength(route.i);
+  }
+
+  if (!searchText) return routes;
+
+  return routes.filter((route: Route) => {
+    const name = (route.name || "").toLowerCase();
+    const group = (route.group || "").toLowerCase();
+    return name.includes(searchText) || group.includes(searchText);
+  });
+}
+
+const routesTable = initEditorTable<Route>({
+  getData: () => sortDataByActiveHeader(ensureEl("routesHeader"), getFilteredRoutes(), ROUTES_SORT_ACCESSORS),
+  onUpdate: renderRoutesPage
+});
 
 function open(): void {
   if (customization) return;
@@ -21,8 +56,7 @@ function open(): void {
   if (!layerIsOn("toggleRoutes")) toggleRoutes();
 
   renderDialog();
-  routesPage.page = 1;
-  routesOverviewAddLines();
+  routesTable.reset();
 
   $("#routesOverview").dialog({
     title: "Routes Overview",
@@ -36,43 +70,47 @@ function open(): void {
 function renderDialog(): void {
   destroyDialogIfExists("routesOverview");
 
-  const html = /* html */ `<div id="routesOverview" class="dialog stable">
+  const html = /* html */ `<div id="routesOverview" class="dialog stable editorDialog">
     <div id="routesHeader" class="header" style="grid-template-columns: 17em 8em 8em">
-      <div data-tip="Click to sort by route name" class="sortable alphabetically" data-sortby="name">Route&nbsp;</div>
-      <div data-tip="Click to sort by route group" class="sortable alphabetically" data-sortby="group">Group&nbsp;</div>
-      <div data-tip="Click to sort by route length" class="sortable icon-sort-number-down" data-sortby="length">Length&nbsp;</div>
+      <div data-tip="Click to sort by route name" class="sortable alphabetically" data-sortby="name" data-col="name">Route&nbsp;</div>
+      <div data-tip="Click to sort by route group" class="sortable alphabetically" data-sortby="group" data-col="group">Group&nbsp;</div>
+      <div data-tip="Click to sort by route length" class="sortable icon-sort-number-down" data-sortby="length" data-col="length">Length&nbsp;</div>
     </div>
     <div id="routesBody" class="table"></div>
+    <div id="routesFilters" class="editorFilters">
+      <label for="routesSearch" data-tip="Filter by name or group">Search: <input id="routesSearch" type="search" /></label>
+    </div>
     <div id="routesFooter" class="totalLine">
       <div data-tip="Routes number" style="margin-left: 4px">Routes:&nbsp;<span id="routesFooterNumber">0</span></div>
-      <div data-tip="Average length" style="margin-left: 12px">Average length:&nbsp;<span id="routesFooterLength">0</span></div>
+      <div data-tip="Average length" style="margin-left: 12px" data-col="length">Average length:&nbsp;<span id="routesFooterLength">0</span></div>
     </div>
-    <div id="routesBottom">
+    <div id="routesBottom" class="editorToolbar">
       <button id="routesOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
+      <button id="routesToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
       <button id="routesCreateNew" data-tip="Create a new route selecting route cells" class="icon-map-pin"></button>
       <button id="routesExport" data-tip="Save routes-related data as a text file (.csv)" class="icon-download"></button>
       <button id="routesLockAll" data-tip="Lock or unlock all routes" class="icon-lock"></button>
       <button id="routesRemoveAll" data-tip="Remove all unlocked routes (locked routes are kept)" class="icon-trash"></button>
-      <label for="routesSearch" data-tip="Filter by name or group" style="margin-left: 0.2em">Search: <input id="routesSearch" type="search" /></label>
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
   applySortingByHeader("routesHeader");
-  bindEditorSortReset(ensureEl("routesHeader"), () => {
-    routesPage.page = 1;
-    routesOverviewAddLines();
-  });
+  // header is recreated on every open(), so re-register the sort-triggered page reset here too
+  bindEditorSortReset(ensureEl("routesHeader"), routesTable.reset);
 
   // add listeners — dropped together with the dialog HTML on close
-  ensureEl("routesOverviewRefresh").on("click", routesOverviewAddLines);
+  ensureEl("routesOverviewRefresh").on("click", routesTable.refresh);
+  initColumnVisibility({
+    button: ensureEl("routesToggleColumns"),
+    dialogId: "routesOverview",
+    storageKey: "routes",
+    columns: ROUTE_COLUMNS
+  });
   ensureEl("routesCreateNew").on("click", createNewRoute);
   ensureEl("routesExport").on("click", downloadRoutesData);
   ensureEl("routesLockAll").on("click", toggleLockAll);
   ensureEl("routesRemoveAll").on("click", triggerAllRoutesRemove);
-  ensureEl("routesSearch").on("input", () => {
-    routesPage.page = 1;
-    routesOverviewAddLines();
-  });
+  ensureEl("routesSearch").on("input", routesTable.reset);
 }
 
 function closeRoutesOverview(): void {
@@ -83,37 +121,14 @@ function createNewRoute(): void {
   Controllers.RouteCreator.open();
 }
 
-// add line for each route
-function routesOverviewAddLines(): void {
+// totals span the full filtered set, not just the current page
+function renderRoutesPage(view: TableView<Route>): void {
   const body = ensureEl("routesBody");
   body.innerHTML = "";
   let lines = "";
 
-  let filteredRoutes: Route[] = pack.routes.slice(); // copy so cross-page sort never mutates pack.routes order
-
-  // route name/length are computed lazily; populate them for the whole set so search,
-  // sort, footer averages and CSV export are consistent across all pages, not just the visible one
-  for (const route of filteredRoutes) {
-    if (!route.points || route.points.length < 2) continue;
-    route.name = route.name || Routes.generateName(route);
-    route.length = route.length || Routes.getLength(route.i);
-  }
-
-  const searchText = ensureEl<HTMLInputElement>("routesSearch").value.toLowerCase().trim();
-  if (searchText) {
-    filteredRoutes = filteredRoutes.filter(route => {
-      const name = (route.name || "").toLowerCase();
-      const group = (route.group || "").toLowerCase();
-      return name.includes(searchText) || group.includes(searchText);
-    });
-  }
-
-  sortDataByActiveHeader(ensureEl("routesHeader"), filteredRoutes, ROUTES_SORT_ACCESSORS);
-  const pageInfo = getEditorPage(filteredRoutes, routesPage);
-
-  for (const route of pageInfo.items) {
-    if (!route.points || route.points.length < 2) continue;
-    const length = `${rn((route.length ?? 0) * distanceScale)} ${distanceUnitInput.value}`;
+  for (const route of view.rows) {
+    const length = `${rn((route.length || 0) * distanceScale)} ${distanceUnitInput.value}`;
 
     lines += /* html */ `<div
         class="states"
@@ -123,9 +138,9 @@ function routesOverviewAddLines(): void {
         data-length="${route.length}"
       >
         <span data-tip="Locate the route" class="icon-target"></span>
-        <div data-tip="Route name" style="width: 15em; margin-left: 0.4em;">${route.name}</div>
-        <div data-tip="Route group" style="width: 8em;">${route.group}</div>
-        <div data-tip="Route length" style="width: 6em;">${length}</div>
+        <div data-tip="Route name" style="width: 15em; margin-left: 0.4em;" data-col="name">${route.name}</div>
+        <div data-tip="Route group" style="width: 8em;" data-col="group">${route.group}</div>
+        <div data-tip="Route length" style="width: 6em;" data-col="length">${length}</div>
         <span data-tip="Edit route" class="icon-pencil"></span>
         <span class="locks pointer ${
           route.lock ? "icon-lock" : "icon-lock-open inactive"
@@ -135,9 +150,8 @@ function routesOverviewAddLines(): void {
   }
   body.insertAdjacentHTML("beforeend", lines);
 
-  // update footer
-  ensureEl("routesFooterNumber").innerHTML = `${filteredRoutes.length} of ${pack.routes.length}`;
-  const averageLength = rn(mean(filteredRoutes.map(r => r.length)) || 0) || 0;
+  ensureEl("routesFooterNumber").innerHTML = `${view.all.length} of ${pack.routes.length}`;
+  const averageLength = rn(mean(view.all.map(r => r.length)) || 0) || 0;
   ensureEl("routesFooterLength").innerHTML = `${averageLength * distanceScale} ${distanceUnitInput.value}`;
 
   // add listeners
@@ -148,10 +162,7 @@ function routesOverviewAddLines(): void {
   body.querySelectorAll("div > span.locks").forEach(el => void el.on("click", toggleLockStatus));
   body.querySelectorAll("div > span.icon-trash-empty").forEach(el => void el.on("click", triggerRouteRemove));
 
-  renderEditorPagination(ensureEl("routesFooter"), pageInfo, (page: number) => {
-    routesPage.page = page;
-    routesOverviewAddLines();
-  });
+  renderEditorPagination(ensureEl("routesFooter"), view, routesTable.goto);
 }
 
 function routeHighlightOn(event: Event): void {
@@ -182,19 +193,10 @@ function zoomToRoute(this: HTMLElement): void {
 function downloadRoutesData(): void {
   let data = "Id,Route,Group,Length\n"; // headers
 
-  const searchText = ensureEl<HTMLInputElement>("routesSearch").value.toLowerCase().trim();
-  const exported = pack.routes.filter((route: Route) => {
-    if (!route.points || route.points.length < 2) return false; // skip degenerate routes (never rendered)
-    if (!searchText) return true;
-    const name = (route.name || "").toLowerCase();
-    const group = (route.group || "").toLowerCase();
-    return name.includes(searchText) || group.includes(searchText);
-  });
-
+  // export the full sorted+filtered set (all pages), not the DOM (which only holds the current page)
+  const exported = routesTable.view().all;
   exported.forEach((route: Route) => {
-    route.name = route.name || Routes.generateName(route);
-    route.length = route.length || Routes.getLength(route.i);
-    const length = `${rn((route.length ?? 0) * distanceScale)} ${distanceUnitInput.value}`;
+    const length = `${rn((route.length || 0) * distanceScale)} ${distanceUnitInput.value}`;
     data += `${[route.i, route.name, route.group, length].join(",")}\n`;
   });
 
@@ -231,7 +233,7 @@ function toggleLockAll(): void {
     route.lock = !allLocked;
   });
 
-  routesOverviewAddLines();
+  routesTable.refresh();
   ensureEl("routesLockAll").className = allLocked ? "icon-lock" : "icon-lock-open";
 }
 
@@ -244,7 +246,7 @@ function triggerRouteRemove(this: HTMLElement): void {
     onConfirm: () => {
       const route = pack.routes.find((r: Route) => r.i === routeId) as Route;
       Routes.remove(route);
-      routesOverviewAddLines();
+      routesTable.refresh();
     }
   });
 }
@@ -285,7 +287,7 @@ function triggerAllRoutesRemove(): void {
           Routes.remove(route);
         }
         pack.cells.routes = Routes.buildLinks(pack.routes);
-        routesOverviewAddLines();
+        routesTable.refresh();
         $(this).dialog("close");
       },
       Cancel: function (this: any) {

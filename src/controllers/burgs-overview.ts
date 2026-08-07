@@ -1,19 +1,58 @@
 import { pack as packLayout, select, stratify } from "d3";
 import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { fitContent } from "@/components/dialog/fit-content";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
-import { applySortingByHeader } from "@/components/dialog/sorting";
+import { applySortingByHeader, bindEditorSortReset, sortDataByActiveHeader } from "@/components/dialog/sorting";
+import {
+  type EditorColumn,
+  initColumnVisibility,
+  initEditorTable,
+  renderEditorPagination,
+  type TableView
+} from "@/components/dialog/table";
 import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
-import { findMegalopolises, groupedMemberIds, megalopolisName } from "../generators/megalopolis";
+import type { Burg } from "@/generators/burgs-generator";
+import { findMegalopolises, groupedMemberIds, megalopolisName } from "@/generators/megalopolis";
 import { drawBurgLabels } from "@/renderers/draw-burg-labels";
 import { downloadFile, getFileName, getHeight, getLatitude, getLongitude, uploadFile } from "@/utils";
 import { convertTemperature, ensureEl, getTemperatureLikeness, rn, si } from "../utils";
 
 type Filters = { stateId?: number | null; cultureId?: number | null };
 
-// Pagination: module-scoped so once-bound listeners stay in sync across dialog reopens.
-const BURGS_PAGE_SIZE = 200;
-let burgsCurrentPage = 1;
+const BURGS_SORT_ACCESSORS: Record<string, (b: Burg) => string | number> = {
+  name: b => b.name || "",
+  province: b => {
+    const p = pack.cells.province[b.cell];
+    return p ? pack.provinces[p]?.name || "" : "";
+  },
+  state: b => pack.states[b.state!]?.name || "",
+  culture: b => pack.cultures[b.culture!]?.name || "",
+  group: b => b.group || "",
+  population: b => b.population! * populationRate * urbanization,
+  grossproduct: b => rn(b.product || 0, 2),
+  productpercapita: b => rn(b.population! > 0 ? (b.product || 0) / b.population! : 0, 2),
+  treasury: b => rn(b.treasury || 0, 2),
+  features: b => (b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg")
+};
+
+const BURG_COLUMNS: EditorColumn[] = [
+  { key: "name", label: "Name", hideable: false },
+  { key: "province", label: "Province", mobileHidden: true },
+  { key: "state", label: "State" },
+  { key: "culture", label: "Culture", mobileHidden: true },
+  { key: "group", label: "Group", mobileHidden: true },
+  { key: "population", label: "Population" },
+  { key: "grossproduct", label: "Gross product", mobileHidden: true },
+  { key: "productpercapita", label: "Product per capita", mobileHidden: true },
+  { key: "treasury", label: "Treasury", mobileHidden: true },
+  { key: "features", label: "Features", mobileHidden: true }
+];
+
+const burgsTable = initEditorTable<Burg>({
+  getData: () => sortDataByActiveHeader(ensureEl("burgsHeader"), getFilteredBurgs(), BURGS_SORT_ACCESSORS),
+  onUpdate: renderBurgsPage
+});
 
 function open(filters: Filters = { stateId: null, cultureId: null }): void {
   if (customization) return;
@@ -22,10 +61,9 @@ function open(filters: Filters = { stateId: null, cultureId: null }): void {
   if (!layerIsOn("toggleLabels")) toggleLabels();
 
   renderDialog();
-  burgsCurrentPage = 1; // reset on each dialog open
   updateFilter(filters);
   updateLockAllIcon();
-  burgsOverviewAddLines();
+  burgsTable.reset();
 
   $("#burgsOverview").dialog({
     title: "Burgs Overview",
@@ -37,43 +75,86 @@ function open(filters: Filters = { stateId: null, cultureId: null }): void {
 
 function renderDialog(): void {
   document.getElementById("burgsOverview")?.remove();
-  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable">
+  const HTML = /* html */ `<div id="burgsOverview" class="dialog stable editorDialog">
       <div id="burgsHeader" class="header" style="grid-template-columns: 9em 7em 7.5em 7.2em 6.5em 8em 6.5em 6.5em 5.5em 6em">
-        <div data-tip="Click to sort by burg name" class="sortable alphabetically" data-sortby="name">Burg</div>
-        <div data-tip="Click to sort by province name" class="sortable alphabetically" data-sortby="province">
+        <div data-tip="Click to sort by burg name" class="sortable alphabetically" data-sortby="name" data-col="name">
+          Burg
+        </div>
+        <div
+          data-tip="Click to sort by province name"
+          class="sortable alphabetically"
+          data-sortby="province"
+          data-col="province"
+        >
           Province
         </div>
-        <div data-tip="Click to sort by state name" class="sortable alphabetically" data-sortby="state">State</div>
-        <div data-tip="Click to sort by culture name" class="sortable alphabetically" data-sortby="culture">
+        <div
+          data-tip="Click to sort by state name"
+          class="sortable alphabetically"
+          data-sortby="state"
+          data-col="state"
+        >
+          State
+        </div>
+        <div
+          data-tip="Click to sort by culture name"
+          class="sortable alphabetically"
+          data-sortby="culture"
+          data-col="culture"
+        >
           Culture
         </div>
-        <div data-tip="Click to sort by culture group" class="sortable alphabetically" data-sortby="group">Group</div>
+        <div
+          data-tip="Click to sort by culture group"
+          class="sortable alphabetically"
+          data-sortby="group"
+          data-col="group"
+        >
+          Group
+        </div>
         <div
           data-tip="Click to sort by burg population"
           class="sortable icon-sort-number-down"
           data-sortby="population"
+          data-col="population"
         >
           Population
         </div>
-        <div data-tip="Click to sort by burg product" class="sortable" data-sortby="grossproduct">
+        <div
+          data-tip="Click to sort by burg product"
+          class="sortable"
+          data-sortby="grossproduct"
+          data-col="grossproduct"
+        >
           Product&nbsp;
         </div>
-        <div data-tip="Click to sort by burg wealth (gross product per capita)" class="sortable" data-sortby="productpercapita">
+        <div
+          data-tip="Click to sort by burg wealth (gross product per capita)"
+          class="sortable"
+          data-sortby="productpercapita"
+          data-col="productpercapita"
+        >
           Wealth&nbsp;
         </div>
-        <div data-tip="Click to sort by burg treasury" class="sortable" data-sortby="treasury">
+        <div
+          data-tip="Click to sort by burg treasury"
+          class="sortable"
+          data-sortby="treasury"
+          data-col="treasury"
+        >
           Treasury&nbsp;
         </div>
-        <div data-tip="Click to sort by burg features" class="sortable alphabetically" data-sortby="features">
+        <div
+          data-tip="Click to sort by burg features"
+          class="sortable alphabetically"
+          data-sortby="features"
+          data-col="features"
+        >
           Features&nbsp;
         </div>
       </div>
       <div id="burgsBody" class="table"></div>
-      <div
-        id="burgsFilters"
-        data-tip="Apply a filter"
-        style="padding-block: 0.1em; display: flex; gap: 0.5em; width: 100%"
-      >
+      <div id="burgsFilters" data-tip="Apply a filter" class="editorFilters">
         <label for="burgsSearch" data-tip="Filter by name, province, state, culture, or group"
           >Search: <input id="burgsSearch" type="search"
         /></label>
@@ -90,26 +171,22 @@ function renderDialog(): void {
         <div data-tip="Burgs displayed" style="margin-left: 5px">
           Burgs:&nbsp;<span id="burgsFooterBurgs">0 of 0</span>
         </div>
-        <div data-tip="Average population" style="margin-left: 12px">
+        <div data-tip="Average population" style="margin-left: 12px" data-col="population">
           Avg population:&nbsp;<span id="burgsFooterPopulation">0</span>
         </div>
-        <div data-tip="Average gross product" style="margin-left: 12px">
+        <div data-tip="Average gross product" style="margin-left: 12px" data-col="grossproduct">
           Avg product:&nbsp;<span id="burgsFooterGrossProduct">0</span> 🟡
         </div>
-        <div data-tip="Average wealth (product per capita)" style="margin-left: 12px">
+        <div data-tip="Average wealth (product per capita)" style="margin-left: 12px" data-col="productpercapita">
           Avg wealth:&nbsp;<span id="burgsFooterProductPerCapita">0</span> 🟡
         </div>
-        <div data-tip="Average treasury" style="margin-left: 12px">
+        <div data-tip="Average treasury" style="margin-left: 12px" data-col="treasury">
           Avg treasury:&nbsp;<span id="burgsFooterTreasury">0</span> 🟡
         </div>
-        <div id="burgsPagination" style="float: right; display: inline-flex; gap: 0.3em; align-items: center;">
-          <button id="burgsPagePrev" class="icon-left-open" data-tip="Previous page" style="padding: 0 4px;"></button>
-          <span>Page&nbsp;<input id="burgsPageInput" type="number" min="1" value="1" style="width: 3.5em" data-tip="Jump to page" />&nbsp;of&nbsp;<span id="burgsPageTotal">1</span></span>
-          <button id="burgsPageNext" class="icon-right-open" data-tip="Next page" style="padding: 0 4px;"></button>
-        </div>
       </div>
-      <div id="burgsBottom">
+      <div id="burgsBottom" class="editorToolbar">
         <button id="burgsOverviewRefresh" data-tip="Refresh the Editor" class="icon-cw"></button>
+        <button id="burgsToggleColumns" data-tip="Show or hide columns" class="icon-sliders"></button>
         <button id="burgsGroupsEditorButton" data-tip="Edit burg groups" class="icon-cog"></button>
         <button id="burgsChart" data-tip="Show burgs bubble chart" class="icon-chart-area"></button>
         <button
@@ -135,6 +212,8 @@ function renderDialog(): void {
     </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", HTML);
   applySortingByHeader("burgsHeader");
+  // header is recreated on every open(), so re-register the sort-triggered page reset here too
+  bindEditorSortReset(ensureEl("burgsHeader"), burgsTable.reset);
   applyLineHighlighting("burgsOverview", ({ target, cellId }) => {
     const burgId = pack.cells.burg[cellId];
     if (burgId) return burgId;
@@ -142,12 +221,19 @@ function renderDialog(): void {
     return burg ? Number(burg.dataset.id) : undefined;
   });
 
+  initColumnVisibility({
+    button: ensureEl("burgsToggleColumns"),
+    dialogId: "burgsOverview",
+    storageKey: "burgs",
+    columns: BURG_COLUMNS
+  });
+
   ensureEl("burgsOverviewRefresh").addEventListener("click", refreshBurgsEditor);
   ensureEl("burgsGroupsEditorButton").addEventListener("click", () => Controllers.BurgGroupEditor.open());
   ensureEl("burgsChart").addEventListener("click", showBurgsChart);
-  ensureEl("burgsFilterState").addEventListener("change", resetAndRefresh);
-  ensureEl("burgsFilterCulture").addEventListener("change", resetAndRefresh);
-  ensureEl("burgsSearch").addEventListener("input", resetAndRefresh);
+  ensureEl("burgsFilterState").addEventListener("change", burgsTable.reset);
+  ensureEl("burgsFilterCulture").addEventListener("change", burgsTable.reset);
+  ensureEl("burgsSearch").addEventListener("input", burgsTable.reset);
   ensureEl("regenerateBurgNames").addEventListener("click", regenerateNames);
   ensureEl("addNewBurg").addEventListener("click", () => void Controllers.BurgCreator.toggle());
   ensureEl("addNewSkyBurg").addEventListener("click", () => void Controllers.BurgCreator.toggleSky());
@@ -158,34 +244,6 @@ function renderDialog(): void {
   });
   ensureEl("burgsLockAll").addEventListener("click", toggleLockAll);
   ensureEl("burgsRemoveAll").addEventListener("click", triggerAllBurgsRemove);
-
-  // pagination controls
-  ensureEl("burgsPagePrev").addEventListener("click", () => gotoPage(burgsCurrentPage - 1));
-  ensureEl("burgsPageNext").addEventListener("click", () => gotoPage(burgsCurrentPage + 1));
-  ensureEl<HTMLInputElement>("burgsPageInput").addEventListener("change", e =>
-    gotoPage(+(e.target as HTMLInputElement).value)
-  );
-
-  // re-render on column sort so sorting applies across all pages, not just visible 200
-  ensureEl("burgsHeader")
-    .querySelectorAll<HTMLElement>(".sortable")
-    .forEach(el => {
-      el.addEventListener("click", () => {
-        burgsCurrentPage = 1;
-        burgsOverviewAddLines();
-      });
-    });
-}
-
-function resetAndRefresh(): void {
-  burgsCurrentPage = 1;
-  burgsOverviewAddLines();
-}
-
-function gotoPage(page: number): void {
-  if (!Number.isFinite(page)) return;
-  burgsCurrentPage = Math.max(1, Math.floor(page));
-  burgsOverviewAddLines();
 }
 
 function closeBurgsOverview(): void {
@@ -196,8 +254,7 @@ function closeBurgsOverview(): void {
 
 function refreshBurgsEditor(): void {
   updateFilter();
-  burgsCurrentPage = 1;
-  burgsOverviewAddLines();
+  burgsTable.reset();
 }
 
 function updateFilter(filters: { stateId?: number | null; cultureId?: number | null } = {}): void {
@@ -222,15 +279,12 @@ function updateFilter(filters: { stateId?: number | null; cultureId?: number | n
   );
 }
 
-// add line for each burg
-function burgsOverviewAddLines(): void {
-  const body = ensureEl("burgsBody");
+function getFilteredBurgs(): Burg[] {
   const searchText = ensureEl<HTMLInputElement>("burgsSearch").value.toLowerCase().trim();
   const selectedStateId = +ensureEl<HTMLSelectElement>("burgsFilterState").value;
   const selectedCultureId = +ensureEl<HTMLSelectElement>("burgsFilterCulture").value;
 
-  const validBurgs = pack.burgs.filter(b => b.i && !b.removed);
-  let filtered = validBurgs;
+  let filtered = pack.burgs.filter(b => b.i && !b.removed);
 
   if (searchText) {
     // filter by search text
@@ -251,17 +305,13 @@ function burgsOverviewAddLines(): void {
   }
   if (selectedStateId !== -1) filtered = filtered.filter(b => b.state === selectedStateId); // filtered by state
   if (selectedCultureId !== -1) filtered = filtered.filter(b => b.culture === selectedCultureId); // filtered by culture
+  return filtered;
+}
 
-  // sort full filtered set so pagination shows correct order across all pages
-  sortFilteredBurgs(filtered);
-
-  // pagination math
-  const totalFiltered = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / BURGS_PAGE_SIZE));
-  if (burgsCurrentPage > totalPages) burgsCurrentPage = totalPages;
-  if (burgsCurrentPage < 1) burgsCurrentPage = 1;
-  const pageStart = (burgsCurrentPage - 1) * BURGS_PAGE_SIZE;
-  const pageBurgs = filtered.slice(pageStart, pageStart + BURGS_PAGE_SIZE);
+// totals and footer span the full filtered set, not just the current page
+function renderBurgsPage(view: TableView<Burg>): void {
+  const body = ensureEl("burgsBody");
+  const validCount = pack.burgs.filter(b => b.i && !b.removed).length;
 
   body.innerHTML = "";
   let lines = "";
@@ -269,24 +319,26 @@ function burgsOverviewAddLines(): void {
   let totalProduct = 0;
   let totalProductPerCapita = 0;
   let totalTreasury = 0;
-  for (const b of filtered) {
-    totalPopulation += b.population! * populationRate * urbanization;
-    totalProduct += (b as any).product || 0;
-    totalProductPerCapita += b.population! > 0 ? ((b as any).product || 0) / b.population! : 0;
-    totalTreasury += (b as any).treasury || 0;
+
+  for (const b of view.all) {
+    const population = b.population! * populationRate * urbanization;
+    const grossProduct = rn(b.product || 0, 2);
+    const productPerCapita = rn(b.population! > 0 ? (b.product || 0) / b.population! : 0, 2);
+    const treasury = rn(b.treasury || 0, 2);
+    totalPopulation += population;
+    totalProduct += grossProduct;
+    totalProductPerCapita += productPerCapita;
+    totalTreasury += treasury;
   }
-  totalProduct = rn(totalProduct, 2);
-  totalProductPerCapita = rn(totalProductPerCapita, 2);
-  totalTreasury = rn(totalTreasury, 2);
 
   const megas = findMegalopolises(pack.burgs, pack.cells.burg);
   const memberIds = groupedMemberIds(megas);
 
-  for (const b of pageBurgs) {
+  for (const b of view.rows) {
     const population = b.population! * populationRate * urbanization;
-    const grossProduct = rn((b as any).product || 0, 2);
-    const productPerCapita = rn(b.population! > 0 ? ((b as any).product || 0) / b.population! : 0, 2);
-    const treasury = rn((b as any).treasury || 0, 2);
+    const grossProduct = rn(b.product || 0, 2);
+    const productPerCapita = rn(b.population! > 0 ? (b.product || 0) / b.population! : 0, 2);
+    const treasury = rn(b.treasury || 0, 2);
     const features = b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg";
     const state = pack.states[b.state!].name;
     const prov = pack.cells.province[b.cell];
@@ -319,20 +371,20 @@ function burgsOverviewAddLines(): void {
         data-features="${features}"
       >
         <span data-tip="Click to zoom into view" class="icon-dot-circled pointer"></span>
-        <input data-tip="${nameTip}" class="burgName" value="${b.name}"${nameStyle} disabled />
-        <input data-tip="Burg province" value="${province}" disabled />
-        <input data-tip="Burg state" value="${state}" disabled />
-        <input data-tip="Dominant culture" value="${culture}" disabled />
-        <input data-tip="Burg group" value="${b.group}" disabled />
-        <span data-tip="Burg population" class="icon-male"></span>
-        <input data-tip="Burg population" value=${si(population)} style="width: 5em" disabled />
-        <span data-tip="Gross Product: local sale revenue minus purchased ingredient costs during the production.">🟡</span>
-        <input data-tip="Gross Product: local sale revenue minus purchased ingredient costs during the production." value=${grossProduct} style="width: 5em" disabled />
-        <span data-tip="Wealth: gross product divided by population">🟡</span>
-        <input data-tip="Wealth: gross product divided by population" value=${productPerCapita} style="width: 5em" disabled />
-        <span data-tip="Treasury: accumulated cash balance">🟡</span>
-        <input data-tip="Treasury: accumulated cash balance" value=${treasury} style="width: 5em" disabled />
-        <div style="width: 3em">
+        <input data-tip="${nameTip}" class="burgName" value="${b.name}"${nameStyle} data-col="name" disabled />
+        <input data-tip="Burg province" value="${province}" data-col="province" disabled />
+        <input data-tip="Burg state" value="${state}" data-col="state" disabled />
+        <input data-tip="Dominant culture" value="${culture}" data-col="culture" disabled />
+        <input data-tip="Burg group" value="${b.group}" data-col="group" disabled />
+        <span data-tip="Burg population" class="icon-male" data-col="population"></span>
+        <input data-tip="Burg population" value=${si(population)} style="width: 5em" data-col="population" disabled />
+        <span data-tip="Gross Product: local sale revenue minus purchased ingredient costs during the production." data-col="grossproduct">🟡</span>
+        <input data-tip="Gross Product: local sale revenue minus purchased ingredient costs during the production." value=${grossProduct} style="width: 5em" data-col="grossproduct" disabled />
+        <span data-tip="Wealth: gross product divided by population" data-col="productpercapita">🟡</span>
+        <input data-tip="Wealth: gross product divided by population" value=${productPerCapita} style="width: 5em" data-col="productpercapita" disabled />
+        <span data-tip="Treasury: accumulated cash balance" data-col="treasury">🟡</span>
+        <input data-tip="Treasury: accumulated cash balance" value=${treasury} style="width: 5em" data-col="treasury" disabled />
+        <div style="width: 3em" data-col="features">
           <span
             data-tip="${b.capital ? " This burg is a state capital" : "This burg is a NOT state capital"}"
             class="icon-star-empty${b.capital ? "" : " inactive"}" style="padding: 0 1px;"></span>
@@ -347,30 +399,18 @@ function burgsOverviewAddLines(): void {
         <span data-tip="Remove burg" class="icon-trash-empty"></span>
       </div>`;
   }
-  if (!totalFiltered) {
-    const empty = document.createElement("div");
-    empty.style.paddingBlock = "0.3em";
-    empty.textContent = "No burgs found";
-    body.appendChild(empty);
-  } else {
-    body.insertAdjacentHTML("beforeend", lines);
-  }
+  if (!view.all.length) body.innerHTML = /* html */ `<div style="padding-block: 0.3em;">No burgs found</div>`;
+  body.insertAdjacentHTML("beforeend", lines);
 
-  // update footer
-  ensureEl("burgsFooterBurgs").textContent = `${totalFiltered} of ${validBurgs.length}`;
-  ensureEl("burgsFooterPopulation").textContent = totalFiltered ? si(totalPopulation / totalFiltered) : "0";
-  ensureEl("burgsFooterGrossProduct").textContent = totalFiltered ? String(rn(totalProduct / totalFiltered, 2)) : "0";
-  ensureEl("burgsFooterProductPerCapita").textContent = totalFiltered
-    ? String(rn(totalProductPerCapita / totalFiltered, 2))
+  ensureEl("burgsFooterBurgs").innerHTML = `${view.all.length} of ${validCount}`;
+  ensureEl("burgsFooterPopulation").innerHTML = view.all.length ? si(totalPopulation / view.all.length) : "0";
+  ensureEl("burgsFooterGrossProduct").innerHTML = view.all.length ? String(rn(totalProduct / view.all.length, 2)) : "0";
+  ensureEl("burgsFooterProductPerCapita").innerHTML = view.all.length
+    ? String(rn(totalProductPerCapita / view.all.length, 2))
     : "0";
-  ensureEl("burgsFooterTreasury").textContent = totalFiltered ? String(rn(totalTreasury / totalFiltered, 2)) : "0";
+  ensureEl("burgsFooterTreasury").innerHTML = view.all.length ? String(rn(totalTreasury / view.all.length, 2)) : "0";
 
-  // pagination controls
-  ensureEl<HTMLInputElement>("burgsPageInput").value = String(burgsCurrentPage);
-  (ensureEl<HTMLInputElement>("burgsPageInput") as any).max = String(totalPages);
-  ensureEl("burgsPageTotal").textContent = String(totalPages);
-  (ensureEl("burgsPagePrev") as HTMLButtonElement).disabled = burgsCurrentPage <= 1;
-  (ensureEl("burgsPageNext") as HTMLButtonElement).disabled = burgsCurrentPage >= totalPages;
+  renderEditorPagination(ensureEl("burgsFooter"), view, burgsTable.goto);
 
   // add listeners
   body.querySelectorAll("div.states").forEach(el => void el.addEventListener("mouseenter", ev => burgHighlightOn(ev)));
@@ -381,46 +421,6 @@ function burgsOverviewAddLines(): void {
   body
     .querySelectorAll("div > span.icon-trash-empty")
     .forEach(el => void el.addEventListener("click", triggerBurgRemove));
-
-  // Note: sorting is now applied via sortFilteredBurgs() before pagination;
-  // applySorting() is no longer called here. The sortable header click listeners
-  // are registered once in the isInitialized block and reset burgsCurrentPage.
-}
-
-function sortFilteredBurgs(filtered: any[]): void {
-  const sortHeader = ensureEl("burgsHeader").querySelector<HTMLElement>("div[class*='icon-sort']");
-  if (!sortHeader) return;
-  const sortby = sortHeader.dataset.sortby;
-  const asName = sortHeader.classList.contains("alphabetically");
-  const desc = sortHeader.className.includes("-down") ? -1 : 1;
-  const valueOf = (b: any): any => {
-    switch (sortby) {
-      case "name":
-        return b.name || "";
-      case "state":
-        return pack.states[b.state]?.name || "";
-      case "province": {
-        const prov = pack.cells.province[b.cell];
-        return prov ? pack.provinces[prov]?.name || "" : "";
-      }
-      case "culture":
-        return pack.cultures[b.culture]?.name || "";
-      case "group":
-        return b.group || "";
-      case "population":
-        return b.population * populationRate * urbanization;
-      case "features":
-        return b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg";
-      default:
-        return "";
-    }
-  };
-  filtered.sort((a, b) => {
-    const av = valueOf(a);
-    const bv = valueOf(b);
-    if (!asName) return (av - bv) * desc;
-    return (av > bv ? 1 : av < bv ? -1 : 0) * desc;
-  });
 }
 
 function burgHighlightOn(event: Event): void {
@@ -435,10 +435,9 @@ function burgHighlightOff(): void {
 
 function zoomIntoBurg(this: HTMLElement): void {
   const burg = +(this.parentNode as HTMLElement).dataset.id!;
-  const label = document.querySelector(`#burgLabels [data-id='${burg}']`);
-  const b = pack.burgs[burg];
-  const x = label ? +label.getAttribute("x")! : b.x!;
-  const y = label ? +label.getAttribute("y")! : b.y!;
+  const label = document.querySelector(`#burgLabels [data-id='${burg}']`)!;
+  const x = +label.getAttribute("x")!;
+  const y = +label.getAttribute("y")!;
   zoomTo(x, y, 8, 2000);
 }
 
@@ -477,27 +476,21 @@ function triggerBurgRemove(this: HTMLElement): void {
     confirm: "Remove",
     onConfirm: () => {
       Burgs.remove(burgId);
-      burgsOverviewAddLines();
+      burgsTable.refresh();
     }
   });
 }
 
 function regenerateNames(): void {
-  ensureEl("burgsBody")
-    .querySelectorAll<HTMLElement>(":scope > div")
-    .forEach(el => {
-      const burg = +el.dataset.id!;
-      if (pack.burgs[burg].lock) return;
-
-      const culture = pack.burgs[burg].culture!;
-      const name = Names.getCulture(culture);
-
-      el.querySelector<HTMLInputElement>(".burgName")!.value = name;
-      pack.burgs[burg].name = el.dataset.name = name;
-    });
+  // regenerate across the full filtered set (all pages), not just the visible page
+  for (const b of getFilteredBurgs()) {
+    if (b.lock) continue;
+    b.name = Names.getCulture(b.culture!);
+  }
 
   if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
   else if (layerIsOn("toggleLabels")) drawBurgLabels();
+  burgsTable.refresh();
 }
 
 function showBurgsChart(): void {
@@ -704,7 +697,7 @@ function downloadBurgsData(): void {
     data += `${getLatitude(b.y, mapCoordinates, graphHeight, 2)},`;
     data += `${getLongitude(b.x, mapCoordinates, graphWidth, 2)},`;
     data += `${parseInt(getHeight(pack.cells.h[b.cell]), 10)},`;
-    data += `${(b as any).flying ? ((b as any).altitude ?? "") : ""},`;
+    data += `${b.flying ? (b.altitude ?? "") : ""},`;
     const temperature = grid.cells.temp[pack.cells.g[b.cell]];
     data += `${convertTemperature(temperature)},`;
     data += `${getTemperatureLikeness(temperature)},`;
@@ -787,9 +780,9 @@ function importBurgNames(dataLoaded: string): void {
       const id = change[i].id;
       pack.burgs[id].name = change[i].name;
       select("#burgLabels").select(`[data-id='${id}']`).text(change[i].name);
-      if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
     }
-    burgsOverviewAddLines();
+    if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
+    burgsTable.refresh();
   };
 
   confirmationDialog({
@@ -810,7 +803,7 @@ function triggerAllBurgsRemove(): void {
     confirm: "Remove",
     onConfirm: () => {
       pack.burgs.filter(b => b.i && !(b.capital || b.lock)).forEach(b => void Burgs.remove(b.i));
-      burgsOverviewAddLines();
+      burgsTable.refresh();
     }
   });
 }
@@ -823,7 +816,7 @@ function toggleLockAll(): void {
     burg.lock = !allLocked;
   });
 
-  burgsOverviewAddLines();
+  burgsTable.refresh();
   ensureEl("burgsLockAll").className = allLocked ? "icon-lock" : "icon-lock-open";
 }
 
