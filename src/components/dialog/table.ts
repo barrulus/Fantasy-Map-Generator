@@ -87,7 +87,58 @@ export function renderEditorPagination(
   });
 }
 
-export type EditorColumn = { key: string; label: string; hideable?: boolean; mobileHidden?: boolean };
+export type EditorColumn<T = any> = {
+  key: string;
+  label?: string;
+  width?: string;
+  fill?: boolean;
+  tip?: string;
+  sortBy?: (item: T) => string | number;
+  sortType?: "alpha" | "number";
+  defaultSort?: "asc" | "desc";
+  hideable?: boolean;
+  mobileHidden?: boolean;
+};
+
+export function buildTracks(columns: EditorColumn[], hidden: Set<string>): string {
+  return columns
+    .filter(column => !hidden.has(column.key))
+    .map(column => {
+      const width = column.width ?? "auto";
+      return column.fill ? `minmax(${width}, 1fr)` : width;
+    })
+    .join(" ");
+}
+
+export function renderEditorHeader(options: { id: string; columns: EditorColumn[]; columnsButtonId: string }): string {
+  const { id, columns, columnsButtonId } = options;
+  const cells = columns.map((column, index) => {
+    const classes: string[] = [];
+    if (column.sortBy) {
+      classes.push("sortable");
+      if (column.sortType === "alpha") classes.push("alphabetically");
+      if (column.defaultSort) {
+        const type = column.sortType === "alpha" ? "name" : "number";
+        classes.push(`icon-sort-${type}-${column.defaultSort === "desc" ? "down" : "up"}`);
+      }
+    }
+    const tip = column.tip ?? (column.sortBy && column.label ? `Click to sort by ${column.label.toLowerCase()}` : "");
+    const attributes = [
+      `data-col="${column.key}"`,
+      classes.length ? `class="${classes.join(" ")}"` : "",
+      column.sortBy ? `data-sortby="${column.key}"` : "",
+      tip ? `data-tip="${tip}"` : ""
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const button =
+      index === columns.length - 1
+        ? `<button id="${columnsButtonId}" data-tip="Show or hide columns" class="icon-sliders"></button>`
+        : "";
+    return `<div ${attributes}>${column.label ?? ""}${button}</div>`;
+  });
+  return `<div id="${id}" class="header">${cells.join("")}</div>`;
+}
 
 const columnsStorageKey = (storageKey: string) => `columnsHidden:${storageKey}`;
 

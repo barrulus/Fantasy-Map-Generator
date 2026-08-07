@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initEditorTable, loadHiddenColumns, saveHiddenColumns } from "./table";
+import { buildTracks, initEditorTable, loadHiddenColumns, renderEditorHeader, saveHiddenColumns } from "./table";
 
 const items = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
 
@@ -127,5 +127,83 @@ describe("hidden columns persistence", () => {
     (globalThis as Record<string, unknown>).MOBILE = true;
     saveHiddenColumns("burgs", new Set(["treasury"]));
     expect(loadHiddenColumns("burgs", MOBILE_COLUMNS)).toEqual(new Set(["treasury"]));
+  });
+});
+
+const COLUMNS = [
+  { key: "locate", width: "1.4em", hideable: false },
+  {
+    key: "name",
+    label: "Route",
+    width: "8em",
+    fill: true,
+    sortBy: (r: { name: string }) => r.name,
+    sortType: "alpha" as const
+  },
+  { key: "group", label: "Group", width: "8em", sortBy: (r: { group: string }) => r.group, sortType: "alpha" as const },
+  {
+    key: "length",
+    label: "Length",
+    width: "6em",
+    sortBy: (r: { length: number }) => r.length,
+    defaultSort: "desc" as const
+  },
+  { key: "actions", width: "4em", hideable: false }
+];
+
+describe("buildTracks", () => {
+  it("emits one track per visible column, in order", () => {
+    expect(buildTracks(COLUMNS, new Set())).toBe("1.4em minmax(8em, 1fr) 8em 6em 4em");
+  });
+
+  it("drops the tracks of hidden columns", () => {
+    expect(buildTracks(COLUMNS, new Set(["group", "length"]))).toBe("1.4em minmax(8em, 1fr) 4em");
+  });
+
+  it("falls back to auto for a column with no declared width", () => {
+    expect(buildTracks([{ key: "x" }], new Set())).toBe("auto");
+  });
+});
+
+describe("renderEditorHeader", () => {
+  const html = renderEditorHeader({ id: "routesHeader", columns: COLUMNS, columnsButtonId: "routesToggleColumns" });
+
+  it("gives every column a cell tagged with its key", () => {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const header = container.firstElementChild as HTMLElement;
+    expect(header.id).toBe("routesHeader");
+    expect(Array.from(header.children).map(cell => (cell as HTMLElement).dataset.col)) //
+      .toEqual(["locate", "name", "group", "length", "actions"]);
+  });
+
+  it("marks sortable columns and their sort type", () => {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const name = container.querySelector<HTMLElement>('[data-col="name"]')!;
+    expect(name.classList.contains("sortable")).toBe(true);
+    expect(name.classList.contains("alphabetically")).toBe(true);
+    expect(name.dataset.sortby).toBe("name");
+  });
+
+  it("leaves structural columns unsortable", () => {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const locate = container.querySelector<HTMLElement>('[data-col="locate"]')!;
+    expect(locate.classList.contains("sortable")).toBe(false);
+    expect(locate.dataset.sortby).toBeUndefined();
+  });
+
+  it("applies the initial sort icon to the default-sorted column", () => {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    expect(container.querySelector('[data-col="length"]')!.className).toContain("icon-sort-number-down");
+  });
+
+  it("puts the columns button in the last cell", () => {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const button = container.querySelector<HTMLElement>("#routesToggleColumns")!;
+    expect(button.closest("[data-col]")!.getAttribute("data-col")).toBe("actions");
   });
 });
