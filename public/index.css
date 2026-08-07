@@ -1495,10 +1495,15 @@ div.header > div:first-child {
   margin-left: 0;
 }
 
-/* cells take their track's width, not their own; min-width:0 lets long values shrink instead of widening the row */
+/* cells take their track's width, not their own; min-width:0 lets long values shrink instead of widening the row.
+   flex keeps an icon and its value on one line instead of the value block stacking under the icon */
 .editorDialog .states > * {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
   width: auto;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .editorDialog > .table {
