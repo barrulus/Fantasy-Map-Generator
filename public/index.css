@@ -1486,6 +1486,9 @@ div.header > div:first-child {
   z-index: 1;
   width: auto;
   background: var(--bg-main, #fff);
+  /* matches .states' border+padding box so header and row content boxes share a left edge; kept invisible since rows already draw the visible outline */
+  border: 1px solid transparent;
+  padding: 0 0.2em;
 }
 
 .editorDialog.gridTable .header > div:first-child {
