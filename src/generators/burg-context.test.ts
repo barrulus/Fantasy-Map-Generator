@@ -210,8 +210,8 @@ describe("readHydrology", () => {
 
   it("omits ocean bearing and harbour size for a landlocked burg", () => {
     const h = readHydrology({ ...base, isPort: false, cellsHaven: [0, 0, 0], cellsHarbor: [0, 0, 0] });
-    expect(h.oceanBearingDeg).toBeUndefined();
-    expect(h.harbourSize).toBeUndefined();
+    expect("oceanBearingDeg" in h).toBe(false);
+    expect("harbourSize" in h).toBe(false);
     expect(h.coastal).toBe(false);
   });
 
@@ -224,6 +224,11 @@ describe("readHydrology", () => {
     expect(readHydrology({ ...base, approaches: seaRoute, population: 100 }).harbourSize).toBe("small");
     // big but no sea route
     expect(readHydrology({ ...base, population: 100000 }).harbourSize).toBe("small");
+    // traderoutes with sufficient population also yields large
+    const tradeRoute: Approach[] = [{ routeId: 2, group: "traderoutes", bearingDeg: 180, through: false }];
+    expect(
+      readHydrology({ ...base, approaches: tradeRoute, population: LARGE_HARBOUR_MIN_POPULATION }).harbourSize
+    ).toBe("large");
   });
 
   it("detects a lake in the window", () => {

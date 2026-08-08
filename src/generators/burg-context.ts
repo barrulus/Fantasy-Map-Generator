@@ -178,5 +178,10 @@ export function readHydrology(input: {
       : "small"
     : undefined;
 
-  return { oceanBearingDeg, harbourSize, coastal, lakeside };
+  return {
+    coastal,
+    lakeside,
+    ...(oceanBearingDeg !== undefined && { oceanBearingDeg }),
+    ...(harbourSize !== undefined && { harbourSize })
+  };
 }
