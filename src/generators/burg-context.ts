@@ -126,3 +126,57 @@ export function readApproaches(
 
   return approaches.sort((a, b) => a.bearingDeg - b.bearingDeg);
 }
+
+export interface Hydrology {
+  oceanBearingDeg?: number;
+  harbourSize?: "large" | "small";
+  coastal: boolean;
+  lakeside: boolean;
+}
+
+export const LARGE_HARBOUR_MIN_POPULATION = 5000;
+
+const SEA_TRADE_GROUPS = new Set<RouteGroup>(["searoutes", "traderoutes"]);
+
+export function readHydrology(input: {
+  window: CellWindow;
+  cellsHaven: ArrayLike<number>;
+  cellsHarbor: ArrayLike<number>;
+  cellsF: ArrayLike<number>;
+  cellsP: ArrayLike<[number, number]>;
+  featureTypeById: (featureId: number) => string | undefined;
+  approaches: Approach[];
+  isPort: boolean;
+  population: number;
+}): Hydrology {
+  const {
+    window: win,
+    cellsHaven,
+    cellsHarbor,
+    cellsF,
+    cellsP,
+    featureTypeById,
+    approaches,
+    isPort,
+    population
+  } = input;
+  const center = win.center;
+
+  const coastal = isPort || Number(cellsHarbor[center] ?? 0) > 0;
+
+  const lakeside = win.cellIds.some(id => featureTypeById(Number(cellsF[id])) === "lake");
+
+  const haven = Number(cellsHaven[center] ?? 0);
+  const havenPoint = haven ? cellsP[haven] : undefined;
+  const [cx, cy] = cellsP[center] ?? [0, 0];
+  const oceanBearingDeg = coastal && havenPoint ? compassBearing(havenPoint[0] - cx, havenPoint[1] - cy) : undefined;
+
+  const hasSeaTradeRoute = approaches.some(a => SEA_TRADE_GROUPS.has(a.group));
+  const harbourSize = coastal
+    ? hasSeaTradeRoute && population >= LARGE_HARBOUR_MIN_POPULATION
+      ? "large"
+      : "small"
+    : undefined;
+
+  return { oceanBearingDeg, harbourSize, coastal, lakeside };
+}

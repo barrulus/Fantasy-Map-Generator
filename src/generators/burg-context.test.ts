@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  type Approach,
   collectWindow,
   compassBearing,
   elevationMetres,
   hashSeedToInt,
   kmToWorldUnits,
+  LARGE_HARBOUR_MIN_POPULATION,
   type RouteGroup,
   readApproaches,
+  readHydrology,
   scaledPopulation
 } from "./burg-context";
 
@@ -179,5 +182,56 @@ describe("readApproaches", () => {
 
   it("skips connections whose route is missing from the index", () => {
     expect(readApproaches(5, { 5: { 6: 99 } }, cellsP, routeById)).toEqual([]);
+  });
+});
+
+describe("readHydrology", () => {
+  const cellsP = [
+    [0, 0], // 0, the burg
+    [0, -1], // 1, haven to the north
+    [5, 5] // 2, elsewhere
+  ] as [number, number][];
+
+  const base = {
+    window: { center: 0, cellIds: [0, 1, 2], radiusKm: 12 },
+    cellsHaven: [1, 0, 0],
+    cellsHarbor: [1, 0, 0],
+    cellsF: [1, 2, 3],
+    cellsP,
+    featureTypeById: (id: number) => ({ 1: "island", 2: "ocean", 3: "lake" })[id],
+    approaches: [] as Approach[],
+    isPort: true,
+    population: 100
+  };
+
+  it("bearings toward the haven cell in compass degrees", () => {
+    expect(readHydrology(base).oceanBearingDeg).toBe(0); // haven is due north
+  });
+
+  it("omits ocean bearing and harbour size for a landlocked burg", () => {
+    const h = readHydrology({ ...base, isPort: false, cellsHaven: [0, 0, 0], cellsHarbor: [0, 0, 0] });
+    expect(h.oceanBearingDeg).toBeUndefined();
+    expect(h.harbourSize).toBeUndefined();
+    expect(h.coastal).toBe(false);
+  });
+
+  it("calls a harbour large only with a sea/trade route AND enough population", () => {
+    const seaRoute: Approach[] = [{ routeId: 1, group: "searoutes", bearingDeg: 90, through: false }];
+    expect(readHydrology({ ...base, approaches: seaRoute, population: LARGE_HARBOUR_MIN_POPULATION }).harbourSize).toBe(
+      "large"
+    );
+    // route but too small
+    expect(readHydrology({ ...base, approaches: seaRoute, population: 100 }).harbourSize).toBe("small");
+    // big but no sea route
+    expect(readHydrology({ ...base, population: 100000 }).harbourSize).toBe("small");
+  });
+
+  it("detects a lake in the window", () => {
+    expect(readHydrology(base).lakeside).toBe(true);
+    expect(readHydrology({ ...base, cellsF: [1, 2, 2] }).lakeside).toBe(false);
+  });
+
+  it("treats a harbor cell as coastal even without the port flag", () => {
+    expect(readHydrology({ ...base, isPort: false }).coastal).toBe(true);
   });
 });
