@@ -306,6 +306,18 @@ describe("readTerrain statistics", () => {
   it("reports a mean gradient of zero on level ground", () => {
     expect(readTerrain({ ...base, cellsH: [21, 21, 21] }).meanGradient).toBe(0);
   });
+
+  // Pins the unit conversion (world units -> km via distanceScale -> m): a
+  // dropped `* 1000` or a dropped `distanceScale` factor would still pass the
+  // flat-ground (0) case above, so this fixture must produce a nonzero value.
+  // center (cell 1) elevationM = (30-18)^2 = 144
+  // cell 0: elevationM = (20-18)^2 = 4, run = hypot(0-1,0-0) * 1 * 1000 = 1000m, gradient = |4-144|/1000 = 0.14
+  // cell 2: elevationM = (40-18)^2 = 484, run = hypot(2-1,0-0) * 1 * 1000 = 1000m, gradient = |484-144|/1000 = 0.34
+  // mean = (0.14 + 0.34) / 2 = 0.24
+  it("reports a nonzero mean gradient computed from the unit conversion", () => {
+    const t = readTerrain({ ...base, cellsH: [20, 30, 40] });
+    expect(t.meanGradient).toBeCloseTo(0.24);
+  });
 });
 
 describe("readClimate", () => {
