@@ -302,7 +302,7 @@ function renderDialog(): void {
   ensureEl("burgBody")
     .querySelectorAll<HTMLElement>(".burgFeature")
     .forEach(el => void el.on("click", toggleFeature));
-  ensureEl("burgLinkOpen").on("click", openBurgLink);
+  ensureEl("burgLinkOpen").on("click", () => void openBurgLink());
 
   ensureEl("burgStyleShow").on("click", showStyleSection);
   ensureEl("burgStyleHide").on("click", hideStyleSection);
@@ -311,7 +311,7 @@ function renderDialog(): void {
   ensureEl("burgEditAnchorStyle").on("click", editGroupAnchorStyle);
 
   ensureEl("burgEmblem").on("click", openEmblemEdit);
-  ensureEl("burgSetPreviewLink").on("click", setCustomPreview);
+  ensureEl("burgSetPreviewLink").on("click", () => void setCustomPreview());
   ensureEl("burgEditEmblem").on("click", openEmblemEdit);
   ensureEl("burgLocate").on("click", zoomIntoBurg);
   ensureEl("burgRelocate").on("click", toggleRelocateBurg);

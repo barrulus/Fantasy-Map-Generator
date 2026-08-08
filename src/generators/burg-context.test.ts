@@ -8,11 +8,14 @@ import {
   hashSeedToInt,
   kmToWorldUnits,
   LARGE_HARBOUR_MIN_POPULATION,
+  MAX_TOP_GOODS,
   MIN_WINDOW_RINGS,
   orderRouteCellsOutward,
   type RouteGroup,
   readApproaches,
   readClimate,
+  readCorridor,
+  readEconomy,
   readHydrology,
   readTerrain,
   scaledPopulation
@@ -328,6 +331,11 @@ describe("readTerrain statistics", () => {
     expect(readTerrain({ ...base, cellsH: [60, 22, 60] }).setting).toBe("valley");
   });
 
+  it("calls a high but level inland burg a plateau", () => {
+    // metres [900, 1024, 1156]: above the plateau floor, relief 256m below the hills threshold
+    expect(readTerrain({ ...base, cellsH: [48, 50, 52] }).setting).toBe("plateau");
+  });
+
   it("calls a flat low burg a plain", () => {
     expect(readTerrain({ ...base, cellsH: [21, 21, 21] }).setting).toBe("plain");
   });
@@ -407,8 +415,6 @@ describe("readClimate biome mix", () => {
     expect(mix.reduce((sum, entry) => sum + entry.share, 0)).toBeCloseTo(1, 6);
   });
 });
-
-import { readCorridor } from "./burg-context";
 
 describe("readCorridor", () => {
   // A straight run of 4 cells, 1 world unit apart, distanceScale 1 => 1km per step
@@ -563,14 +569,24 @@ describe("readHydrology rivers and water features", () => {
     ]);
   });
 
+  it("omits the bearing when the river runs through the burg's own cell", () => {
+    // the nearest river cell IS the burg, so the vector is (0,0) — no direction to report
+    const [river] = readHydrology({ ...input, cellsR: [9, 9, 0] }).rivers;
+    expect("bearingDeg" in river).toBe(false);
+    expect(river.throughBurg).toBe(true);
+  });
+
+  it("reports one entry per water feature even when several window cells share it", () => {
+    const shared = readHydrology({ ...input, cellsF: [1, 2, 2] }).waterFeatures;
+    expect(shared).toEqual([{ featureId: 2, type: "ocean", name: "The Deep" }]);
+  });
+
   it("returns empty arrays for a burg with no water nearby", () => {
     const dry = readHydrology({ ...input, cellsR: [0, 0, 0], cellsF: [1, 1, 1] });
     expect(dry.rivers).toEqual([]);
     expect(dry.waterFeatures).toEqual([]);
   });
 });
-
-import { MAX_TOP_GOODS, readEconomy } from "./burg-context";
 
 describe("readEconomy", () => {
   const base = {

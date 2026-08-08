@@ -153,7 +153,8 @@ export interface RiverReading {
   id: number;
   name: string;
   type: string;
-  bearingDeg: number;
+  /** Omitted when the nearest river cell is the burg's own: there is no direction to give. */
+  bearingDeg?: number;
   dischargeM3s: number;
   widthKm: number;
   throughBurg: boolean;
@@ -216,8 +217,8 @@ export function readHydrology(input: {
 
   const haven = Number(cellsHaven[center] ?? 0);
   const havenPoint = haven ? cellsP[haven] : undefined;
-  const [cx, cy] = cellsP[center] ?? [0, 0];
-  const oceanBearingDeg = coastal && havenPoint ? compassBearing(havenPoint[0] - cx, havenPoint[1] - cy) : undefined;
+  const [bx, by] = cellsP[center] ?? [0, 0];
+  const oceanBearingDeg = coastal && havenPoint ? compassBearing(havenPoint[0] - bx, havenPoint[1] - by) : undefined;
 
   const hasSeaTradeRoute = approaches.some(a => SEA_TRADE_GROUPS.has(a.group));
   const harbourSize = coastal
@@ -225,8 +226,6 @@ export function readHydrology(input: {
       ? "large"
       : "small"
     : undefined;
-
-  const [bx, by] = cellsP[center] ?? [0, 0];
 
   const nearestRiverCell = new Map<number, number>();
   for (const id of win.cellIds) {
@@ -249,11 +248,14 @@ export function readHydrology(input: {
     const river = riverById(riverId);
     if (!river) continue;
     const p = cellsP[cellId] ?? [bx, by];
+    // A river through the burg's own cell has no bearing: the vector would be (0,0),
+    // which compassBearing reports as due north.
+    const bearingDeg = cellId === center ? undefined : compassBearing(p[0] - bx, p[1] - by);
     rivers.push({
       id: riverId,
       name: river.name ?? "",
       type: river.type ?? "",
-      bearingDeg: compassBearing(p[0] - bx, p[1] - by),
+      ...(bearingDeg !== undefined && { bearingDeg }),
       dischargeM3s: river.discharge ?? 0,
       widthKm: river.width ?? 0,
       throughBurg: Number(cellsR[center] ?? 0) === riverId
@@ -390,6 +392,8 @@ export interface Economy {
  * quantity that drifts as the economy sim changes, but the band survives that.
  */
 function bandTreasury(treasury: number | undefined): Economy["treasuryBand"] {
+  // No sim data collapses to the middle band rather than a distinct "unknown": the band is
+  // consumed as a rendering hint, and an extra state would only ever be treated as average.
   if (treasury === undefined) return "modest";
   if (treasury < 0) return "poor";
   if (treasury < 500) return "modest";
@@ -486,7 +490,7 @@ export function readCorridor(input: {
 
   for (const id of routeCells) {
     const name = biomeNameById(Number(cellsBiome[id] ?? 0));
-    if (name && biomes.at(-1) !== name && !biomes.includes(name)) biomes.push(name);
+    if (name && !biomes.includes(name)) biomes.push(name);
 
     const temp = Number(gridTemp[Number(cellsG[id] ?? 0)] ?? 0);
     if (temp < minTempC) minTempC = temp;
@@ -587,7 +591,7 @@ export function buildBurgContext(burg: Burg): BurgContext {
   // Flying burgs are not on the ground route network.
   const approaches = burg.flying ? [] : readApproaches(cell, cells.routes, cells.p, routeById);
   const windowCells = new Set(win.cellIds);
-  const heightExponent = Number(heightExponentInput?.value ?? 2);
+  const heightExponent = Number(heightExponentInput?.value ?? 1.8);
   for (const approach of approaches) {
     const outward = orderRouteCellsOutward(routeById.get(approach.routeId)?.cells ?? [], cell);
     // Clip to the window: the readings must stay traceable to the window that produced them.
