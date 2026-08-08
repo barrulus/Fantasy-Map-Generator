@@ -36,3 +36,43 @@ export function hashSeedToInt(s: string): number {
 export function scaledPopulation(population: number, populationRate: number, urbanization: number): number {
   return rn(population * populationRate * urbanization);
 }
+
+export interface CellWindow {
+  center: number;
+  cellIds: number[];
+  radiusKm: number;
+}
+
+/** BFS from the centre cell, bounded by straight-line distance rather than hop count. */
+export function collectWindow(
+  center: number,
+  cellsC: ArrayLike<number[]>,
+  cellsP: ArrayLike<[number, number]>,
+  radiusKm: number,
+  distanceScale: number
+): CellWindow {
+  const radiusUnits = kmToWorldUnits(radiusKm, distanceScale);
+  const maxSq = radiusUnits * radiusUnits;
+  const [cx, cy] = cellsP[center] ?? [0, 0];
+
+  const seen = new Set<number>([center]);
+  const cellIds: number[] = [center];
+  const queue = [center];
+
+  while (queue.length) {
+    const current = queue.shift() as number;
+    for (const neighbour of cellsC[current] ?? []) {
+      if (seen.has(neighbour)) continue;
+      seen.add(neighbour);
+      const p = cellsP[neighbour];
+      if (!p) continue;
+      const dx = p[0] - cx;
+      const dy = p[1] - cy;
+      if (dx * dx + dy * dy > maxSq) continue;
+      cellIds.push(neighbour);
+      queue.push(neighbour);
+    }
+  }
+
+  return { center, cellIds, radiusKm };
+}

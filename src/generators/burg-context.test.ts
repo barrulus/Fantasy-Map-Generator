@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compassBearing, elevationMetres, hashSeedToInt, kmToWorldUnits, scaledPopulation } from "./burg-context";
+import {
+  collectWindow,
+  compassBearing,
+  elevationMetres,
+  hashSeedToInt,
+  kmToWorldUnits,
+  scaledPopulation
+} from "./burg-context";
 
 describe("compassBearing", () => {
   // SVG coordinates: y grows DOWNWARD, so north is negative dy
@@ -66,5 +73,57 @@ describe("scaledPopulation", () => {
 
   it("rounds to a whole number of people", () => {
     expect(scaledPopulation(0.0031, 1000, 0.5)).toBe(2);
+  });
+});
+
+describe("collectWindow", () => {
+  // A straight chain of 5 cells spaced 1 world unit apart on the x axis:
+  // 0 -- 1 -- 2 -- 3 -- 4
+  const cellsC = [[1], [0, 2], [1, 3], [2, 4], [3]];
+  const cellsP = [
+    [0, 0],
+    [1, 0],
+    [2, 0],
+    [3, 0],
+    [4, 0]
+  ] as [number, number][];
+
+  it("includes the centre and every cell inside the radius", () => {
+    // radiusKm 2 at distanceScale 1 => 2 world units => cells 0,1,2,3 from centre 2... within 2 of x=2
+    const w = collectWindow(2, cellsC, cellsP, 2, 1);
+    expect(w.center).toBe(2);
+    expect([...w.cellIds].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
+    expect(w.radiusKm).toBe(2);
+  });
+
+  it("excludes cells beyond the radius", () => {
+    const w = collectWindow(0, cellsC, cellsP, 2, 1);
+    expect([...w.cellIds].sort((a, b) => a - b)).toEqual([0, 1, 2]);
+  });
+
+  it("converts km to world units via distanceScale", () => {
+    // radiusKm 6 at distanceScale 3 => 2 world units, same as above
+    const w = collectWindow(0, cellsC, cellsP, 6, 3);
+    expect([...w.cellIds].sort((a, b) => a - b)).toEqual([0, 1, 2]);
+  });
+
+  it("returns just the centre for an isolated cell", () => {
+    const w = collectWindow(0, [[]], [[0, 0]] as [number, number][], 5, 1);
+    expect(w.cellIds).toEqual([0]);
+  });
+
+  it("does not revisit cells in a cyclic graph", () => {
+    const ringC = [
+      [1, 2],
+      [0, 2],
+      [0, 1]
+    ];
+    const ringP = [
+      [0, 0],
+      [1, 0],
+      [0, 1]
+    ] as [number, number][];
+    const w = collectWindow(0, ringC, ringP, 5, 1);
+    expect(w.cellIds).toHaveLength(3);
   });
 });
