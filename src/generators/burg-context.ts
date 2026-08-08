@@ -557,6 +557,23 @@ export function orderRouteCellsOutward(routeCells: number[], center: number): nu
   return backward.length >= forward.length ? backward : forward;
 }
 
+const idIndexCache = new WeakMap<object, { length: number; index: Map<number, unknown> }>();
+
+/**
+ * Indices over pack arrays, memoised on the array's own identity — pack is replaced
+ * wholesale on load and regenerate, so the new array simply misses the cache and no
+ * invalidation call is needed. Without this, a CSV export of a large map rebuilds every
+ * index once per burg. The length check also catches in-place additions or removals.
+ */
+function indexById<T extends { i: number }>(source: readonly T[] | undefined): Map<number, T> {
+  if (!source) return new Map();
+  const cached = idIndexCache.get(source as object);
+  if (cached && cached.length === source.length) return cached.index as Map<number, T>;
+  const index = new Map<number, T>(source.map(item => [item.i, item]));
+  idIndexCache.set(source as object, { length: source.length, index: index as Map<number, unknown> });
+  return index;
+}
+
 /** The only function here that reads globals. Everything above it is pure. */
 export function buildBurgContext(burg: Burg): BurgContext {
   const { cells, features, routes, biomes, cultures } = pack;
@@ -566,14 +583,13 @@ export function buildBurgContext(burg: Burg): BurgContext {
   const radiusKm = effectiveWindowRadiusKm(DEFAULT_WINDOW_RADIUS_KM, distanceScale, Number(grid?.spacing ?? 0));
   const win = collectWindow(cell, cells.c, cells.p, radiusKm, distanceScale);
 
-  const routeById = new Map(routes.map(r => [r.i, { group: r.group as RouteGroup, type: r.type, name: r.name }]));
+  const routeById = indexById(routes);
   // Flying burgs are not on the ground route network.
-  const routeCellsById = new Map(routes.map(r => [r.i, r.cells ?? []]));
   const approaches = burg.flying ? [] : readApproaches(cell, cells.routes, cells.p, routeById);
   const windowCells = new Set(win.cellIds);
   const heightExponent = Number(heightExponentInput?.value ?? 2);
   for (const approach of approaches) {
-    const outward = orderRouteCellsOutward(routeCellsById.get(approach.routeId) ?? [], cell);
+    const outward = orderRouteCellsOutward(routeById.get(approach.routeId)?.cells ?? [], cell);
     // Clip to the window: the readings must stay traceable to the window that produced them.
     const clipped: number[] = [];
     for (const id of outward) {
@@ -603,7 +619,7 @@ export function buildBurgContext(burg: Burg): BurgContext {
     cellsR: cells.r,
     featureTypeById: id => features[id]?.type,
     featureNameById: id => features[id]?.name,
-    riverById: id => pack.rivers.find(r => r.i === id),
+    riverById: id => indexById(pack.rivers).get(id),
     approaches,
     isPort: Number(burg.port ?? 0) > 0,
     population
@@ -631,7 +647,7 @@ export function buildBurgContext(burg: Burg): BurgContext {
     tradeRole: burg.tradeRole,
     treasury: burg.treasury,
     marketId: burg.market,
-    marketById: id => pack.markets?.find(m => m.i === id),
+    marketById: id => indexById(pack.markets).get(id),
     // Local production records carry a goodId and units but no recipe; deals (dealId)
     // and manufacturing records (which also carry a recipe) are a different shape and
     // are not settlement-defining.
@@ -640,7 +656,7 @@ export function buildBurgContext(burg: Burg): BurgContext {
         ? [{ goodId: record.goodId, units: record.units }]
         : []
     ),
-    goodNameById: id => pack.goods?.find(g => g.i === id)?.name
+    goodNameById: id => indexById(pack.goods).get(id)?.name
   });
 
   return {
