@@ -9,6 +9,9 @@ import {
   toSettlemakerInput
 } from "./settlemaker";
 
+// Stub WARN global to suppress console output in tests
+globalThis.WARN = false;
+
 const ctx = (over: Partial<BurgContext> = {}): BurgContext =>
   ({
     burg: {
@@ -163,6 +166,58 @@ describe("buildSettlemakerUrl", () => {
     const { link } = await buildSettlemakerUrl(ctx({ approaches }), {});
     const encoded = new URL(link).searchParams.get("i") as string;
     expect(encoded.length).toBeLessThan(MAX_ENCODED_PAYLOAD_BYTES);
+  });
+
+  it("falls back to flat tier when encoded payload exceeds budget", async () => {
+    // Craft a burg with massive data that exceeds the 8KB budget even after compression:
+    // - 5000+ approaches with unique random types to resist DEFLATE
+    // - Large culture string with low compressibility
+    const approaches = Array.from({ length: 5000 }, (_, i) => {
+      // Create non-compressible type strings using random UUIDs
+      const rand = Math.random().toString(36).slice(2);
+      return {
+        routeId: i,
+        group: (["roads", "trails", "traderoutes"] as const)[i % 3],
+        type: `${rand}${i}${rand}`,
+        bearingDeg: (i * 71) % 360,
+        through: i % 2 === 0
+      };
+    });
+    // Large culture with random data to defeat compression
+    const culture = Array.from({ length: 500 }, (_, i) => `${i}_${Math.random()}`).join("|");
+
+    const { link } = await buildSettlemakerUrl(
+      ctx({
+        burg: { ...ctx().burg, culture },
+        approaches
+      }),
+      { urbanDensity: 8, trade: true }
+    );
+    // Should not have i= param; should have flat tier params instead (roadBearings can't be encoded in flat tier)
+    expect(new URL(link).searchParams.get("i")).toBeNull();
+    expect(new URL(link).searchParams.get("name")).toBe("Toprak");
+    expect(new URL(link).searchParams.get("pop")).not.toBeNull();
+  });
+
+  it("falls back to flat tier when CompressionStream is unavailable", async () => {
+    const originalCompressionStream = globalThis.CompressionStream;
+    try {
+      // Temporarily hide CompressionStream
+      (globalThis as Record<string, unknown>).CompressionStream = undefined;
+
+      const { link, preview } = await buildSettlemakerUrl(ctx(), {});
+
+      // Should return same flat-tier URL for both link and preview
+      expect(preview).toBe(link);
+      // Should not have i= param
+      expect(new URL(link).searchParams.get("i")).toBeNull();
+      // Should have flat tier params
+      expect(new URL(link).searchParams.get("name")).toBe("Toprak");
+      expect(new URL(link).searchParams.get("pop")).toBe("13");
+    } finally {
+      // Restore CompressionStream
+      (globalThis as Record<string, unknown>).CompressionStream = originalCompressionStream;
+    }
   });
 });
 
