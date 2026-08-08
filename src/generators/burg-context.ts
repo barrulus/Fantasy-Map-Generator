@@ -135,11 +135,29 @@ export function readApproaches(
   return approaches.sort((a, b) => a.bearingDeg - b.bearingDeg);
 }
 
+export interface RiverReading {
+  id: number;
+  name: string;
+  type: string;
+  bearingDeg: number;
+  dischargeM3s: number;
+  widthKm: number;
+  throughBurg: boolean;
+}
+
+export interface WaterFeatureReading {
+  featureId: number;
+  type: string;
+  name: string;
+}
+
 export interface Hydrology {
   oceanBearingDeg?: number;
   harbourSize?: "large" | "small";
   coastal: boolean;
   lakeside: boolean;
+  rivers: RiverReading[];
+  waterFeatures: WaterFeatureReading[];
 }
 
 export const LARGE_HARBOUR_MIN_POPULATION = 5000;
@@ -152,7 +170,12 @@ export function readHydrology(input: {
   cellsHarbor: ArrayLike<number>;
   cellsF: ArrayLike<number>;
   cellsP: ArrayLike<[number, number]>;
+  cellsR: ArrayLike<number>;
   featureTypeById: (featureId: number) => string | undefined;
+  featureNameById: (featureId: number) => string | undefined;
+  riverById: (
+    id: number
+  ) => { name?: string; type?: string; discharge?: number; width?: number; cells?: number[] } | undefined;
   approaches: Approach[];
   isPort: boolean;
   population: number;
@@ -163,7 +186,10 @@ export function readHydrology(input: {
     cellsHarbor,
     cellsF,
     cellsP,
+    cellsR,
     featureTypeById,
+    featureNameById,
+    riverById,
     approaches,
     isPort,
     population
@@ -186,11 +212,60 @@ export function readHydrology(input: {
       : "small"
     : undefined;
 
+  const [bx, by] = cellsP[center] ?? [0, 0];
+
+  const nearestRiverCell = new Map<number, number>();
+  for (const id of win.cellIds) {
+    const river = Number(cellsR[id] ?? 0);
+    if (!river) continue;
+    const existing = nearestRiverCell.get(river);
+    if (existing === undefined) {
+      nearestRiverCell.set(river, id);
+      continue;
+    }
+    const dist = (cellId: number) => {
+      const p = cellsP[cellId] ?? [0, 0];
+      return Math.hypot(p[0] - bx, p[1] - by);
+    };
+    if (dist(id) < dist(existing)) nearestRiverCell.set(river, id);
+  }
+
+  const rivers: RiverReading[] = [];
+  for (const [riverId, cellId] of nearestRiverCell) {
+    const river = riverById(riverId);
+    if (!river) continue;
+    const p = cellsP[cellId] ?? [bx, by];
+    rivers.push({
+      id: riverId,
+      name: river.name ?? "",
+      type: river.type ?? "",
+      bearingDeg: compassBearing(p[0] - bx, p[1] - by),
+      dischargeM3s: river.discharge ?? 0,
+      widthKm: river.width ?? 0,
+      throughBurg: Number(cellsR[center] ?? 0) === riverId
+    });
+  }
+  rivers.sort((a, b) => b.dischargeM3s - a.dischargeM3s);
+
+  const waterFeatures: WaterFeatureReading[] = [];
+  const seenFeatures = new Set<number>();
+  for (const id of win.cellIds) {
+    const featureId = Number(cellsF[id]);
+    if (seenFeatures.has(featureId)) continue;
+    seenFeatures.add(featureId);
+    const type = featureTypeById(featureId);
+    if (type !== "ocean" && type !== "lake") continue;
+    waterFeatures.push({ featureId, type, name: featureNameById(featureId) ?? "" });
+  }
+  waterFeatures.sort((a, b) => a.featureId - b.featureId);
+
   return {
     coastal,
     lakeside,
     ...(oceanBearingDeg !== undefined && { oceanBearingDeg }),
-    ...(harbourSize !== undefined && { harbourSize })
+    ...(harbourSize !== undefined && { harbourSize }),
+    rivers,
+    waterFeatures
   };
 }
 
@@ -395,7 +470,10 @@ export function buildBurgContext(burg: Burg): BurgContext {
     cellsHarbor: cells.harbor,
     cellsF: cells.f,
     cellsP: cells.p,
+    cellsR: cells.r,
     featureTypeById: id => features[id]?.type,
+    featureNameById: id => features[id]?.name,
+    riverById: id => pack.rivers.find(r => r.i === id),
     approaches,
     isPort: Number(burg.port ?? 0) > 0,
     population

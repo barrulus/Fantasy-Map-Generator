@@ -201,7 +201,11 @@ describe("readHydrology", () => {
     cellsHarbor: [1, 0, 0],
     cellsF: [1, 2, 3],
     cellsP,
+    cellsR: [0, 9, 0],
     featureTypeById: (id: number) => ({ 1: "island", 2: "ocean", 3: "lake" })[id],
+    featureNameById: (id: number) => ({ 1: "Mainland", 2: "The Deep", 3: "Still Water" })[id],
+    riverById: (id: number) =>
+      id === 9 ? { name: "Greenwater", type: "River", discharge: 120, width: 0.4, cells: [1, 5] } : undefined,
     approaches: [] as Approach[],
     isPort: true,
     population: 100
@@ -386,5 +390,55 @@ describe("orderRouteCellsOutward", () => {
 
   it("returns just the burg cell when the route does not contain it", () => {
     expect(orderRouteCellsOutward([1, 2, 3], 5)).toEqual([5]);
+  });
+});
+
+describe("readHydrology rivers and water features", () => {
+  const cellsP = [
+    [0, 0], // 0, the burg
+    [0, -1], // 1, north
+    [1, 0] // 2, east
+  ] as [number, number][];
+
+  const input = {
+    window: { center: 0, cellIds: [0, 1, 2], radiusKm: 12 },
+    cellsHaven: [0, 0, 0],
+    cellsHarbor: [0, 0, 0],
+    cellsF: [1, 2, 3],
+    cellsP,
+    cellsR: [0, 9, 0],
+    featureTypeById: (id: number) => ({ 1: "island", 2: "ocean", 3: "lake" })[id],
+    featureNameById: (id: number) => ({ 1: "Mainland", 2: "The Deep", 3: "Still Water" })[id],
+    riverById: (id: number) =>
+      id === 9 ? { name: "Greenwater", type: "River", discharge: 120, width: 0.4, cells: [1, 5] } : undefined,
+    approaches: [] as Approach[],
+    isPort: false,
+    population: 100
+  };
+
+  it("lists rivers in the window with bearing, discharge and width", () => {
+    const [river] = readHydrology(input).rivers;
+    expect(river).toMatchObject({ id: 9, name: "Greenwater", type: "River", dischargeM3s: 120, widthKm: 0.4 });
+    expect(river.bearingDeg).toBe(0); // the river cell is due north
+  });
+
+  it("marks a river running through the burg cell", () => {
+    expect(readHydrology(input).rivers[0].throughBurg).toBe(false);
+    const through = readHydrology({ ...input, cellsR: [9, 9, 0] });
+    expect(through.rivers[0].throughBurg).toBe(true);
+  });
+
+  it("lists distinct water features touching the window, excluding land", () => {
+    const water = readHydrology(input).waterFeatures;
+    expect(water).toEqual([
+      { featureId: 2, type: "ocean", name: "The Deep" },
+      { featureId: 3, type: "lake", name: "Still Water" }
+    ]);
+  });
+
+  it("returns empty arrays for a burg with no water nearby", () => {
+    const dry = readHydrology({ ...input, cellsR: [0, 0, 0], cellsF: [1, 1, 1] });
+    expect(dry.rivers).toEqual([]);
+    expect(dry.waterFeatures).toEqual([]);
   });
 });

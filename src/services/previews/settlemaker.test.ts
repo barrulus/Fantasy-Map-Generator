@@ -30,7 +30,14 @@ const ctx = (over: Partial<BurgContext> = {}): BurgContext =>
     },
     window: { radiusKm: 12, cellCount: 40 },
     approaches: [],
-    hydrology: { oceanBearingDeg: 200, harbourSize: "small", coastal: true, lakeside: false },
+    hydrology: {
+      oceanBearingDeg: 200,
+      harbourSize: "small",
+      coastal: true,
+      lakeside: false,
+      rivers: [],
+      waterFeatures: []
+    },
     terrain: { elevationM: 144 },
     climate: { temperatureC: 14, biome: "Temperate deciduous forest" },
     ...over
@@ -63,7 +70,7 @@ describe("toSettlemakerInput", () => {
 
   it("omits optional fields rather than sending null", () => {
     const bare = ctx({
-      hydrology: { coastal: false, lakeside: false },
+      hydrology: { coastal: false, lakeside: false, rivers: [], waterFeatures: [] },
       climate: { temperatureC: 5, biome: "" },
       burg: { ...ctx().burg, culture: undefined }
     });
