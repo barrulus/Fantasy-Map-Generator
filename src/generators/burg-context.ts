@@ -76,3 +76,53 @@ export function collectWindow(
 
   return { center, cellIds, radiusKm };
 }
+
+export type RouteGroup = "roads" | "trails" | "searoutes" | "airroutes" | "traderoutes";
+
+export interface Approach {
+  routeId: number;
+  group: RouteGroup;
+  type?: string;
+  name?: string;
+  bearingDeg: number;
+  through: boolean;
+}
+
+/**
+ * One entry per route connection leaving the burg cell. An empty array is meaningful:
+ * settlemaker treats [] as "this burg genuinely has no roads" and an omitted field as
+ * "route data unknown", which makes it invent random gates instead.
+ */
+export function readApproaches(
+  center: number,
+  cellsRoutes: Record<number, Record<number, number>>,
+  cellsP: ArrayLike<[number, number]>,
+  routeById: Map<number, { group: RouteGroup; type?: string; name?: string }>
+): Approach[] {
+  const connections = cellsRoutes[center];
+  if (!connections) return [];
+
+  const [cx, cy] = cellsP[center] ?? [0, 0];
+  const sidesByRoute = new Map<number, number>();
+  for (const routeId of Object.values(connections)) {
+    sidesByRoute.set(routeId, (sidesByRoute.get(routeId) ?? 0) + 1);
+  }
+
+  const approaches: Approach[] = [];
+  for (const [neighbourKey, routeId] of Object.entries(connections)) {
+    const route = routeById.get(routeId);
+    if (!route) continue;
+    const p = cellsP[Number(neighbourKey)];
+    if (!p) continue;
+    approaches.push({
+      routeId,
+      group: route.group,
+      type: route.type,
+      name: route.name,
+      bearingDeg: compassBearing(p[0] - cx, p[1] - cy),
+      through: (sidesByRoute.get(routeId) ?? 0) > 1
+    });
+  }
+
+  return approaches.sort((a, b) => a.bearingDeg - b.bearingDeg);
+}

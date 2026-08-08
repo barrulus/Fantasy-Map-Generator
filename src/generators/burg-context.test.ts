@@ -5,6 +5,8 @@ import {
   elevationMetres,
   hashSeedToInt,
   kmToWorldUnits,
+  type RouteGroup,
+  readApproaches,
   scaledPopulation
 } from "./burg-context";
 
@@ -125,5 +127,57 @@ describe("collectWindow", () => {
     ] as [number, number][];
     const w = collectWindow(0, ringC, ringP, 5, 1);
     expect(w.cellIds).toHaveLength(3);
+  });
+});
+
+describe("readApproaches", () => {
+  //        7 (north)
+  //        |
+  //  4 --- 5 --- 6      (5 is the burg cell)
+  const cellsP = [
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [-1, 0], // 4, west of 5
+    [0, 0], // 5, the burg
+    [1, 0], // 6, east of 5
+    [0, -1] // 7, north of 5
+  ] as [number, number][];
+
+  const routeById = new Map<number, { group: RouteGroup; type?: string; name?: string }>([
+    [1, { group: "roads", type: "highway", name: "Kings Road" }],
+    [2, { group: "trails", type: "trail" }]
+  ]);
+
+  it("emits one approach per connected neighbour, sorted by bearing", () => {
+    const cellsRoutes = { 5: { 4: 1, 6: 1, 7: 2 } };
+    const approaches = readApproaches(5, cellsRoutes, cellsP, routeById);
+    expect(approaches.map(a => a.bearingDeg)).toEqual([0, 90, 270]);
+    expect(approaches.map(a => a.routeId)).toEqual([2, 1, 1]);
+  });
+
+  it("marks a route reaching the cell from two sides as through, and a single-sided one as terminating", () => {
+    const cellsRoutes = { 5: { 4: 1, 6: 1, 7: 2 } };
+    const approaches = readApproaches(5, cellsRoutes, cellsP, routeById);
+    const road = approaches.filter(a => a.routeId === 1);
+    expect(road).toHaveLength(2);
+    expect(road.every(a => a.through)).toBe(true);
+    const trail = approaches.find(a => a.routeId === 2)!;
+    expect(trail.through).toBe(false);
+  });
+
+  it("carries group, type and name through from the route", () => {
+    const approaches = readApproaches(5, { 5: { 6: 1 } }, cellsP, routeById);
+    expect(approaches[0]).toMatchObject({ group: "roads", type: "highway", name: "Kings Road" });
+  });
+
+  it("returns an empty array for a burg with no routes — never undefined", () => {
+    expect(readApproaches(5, {}, cellsP, routeById)).toEqual([]);
+    expect(readApproaches(5, { 5: {} }, cellsP, routeById)).toEqual([]);
+  });
+
+  it("skips connections whose route is missing from the index", () => {
+    expect(readApproaches(5, { 5: { 6: 99 } }, cellsP, routeById)).toEqual([]);
   });
 });
