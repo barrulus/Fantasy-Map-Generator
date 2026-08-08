@@ -93,6 +93,7 @@ export interface Approach {
   name?: string;
   bearingDeg: number;
   through: boolean;
+  corridor?: Corridor;
 }
 
 /**
@@ -339,6 +340,19 @@ export function readCorridor(input: {
   return { sampledKm, elevationDeltaM, maxGradient, relief, followsRiver, riverId, biomes, minTempC };
 }
 
+/**
+ * A route's cells run end to end, so a through-route has two arms at the burg. Sample the
+ * longer one — it carries more of the corridor's character.
+ */
+export function orderRouteCellsOutward(routeCells: number[], center: number): number[] {
+  const at = routeCells.indexOf(center);
+  if (at === -1) return [center];
+
+  const backward = routeCells.slice(0, at + 1).reverse();
+  const forward = routeCells.slice(at);
+  return backward.length >= forward.length ? backward : forward;
+}
+
 /** The only function here that reads globals. Everything above it is pure. */
 export function buildBurgContext(burg: Burg): BurgContext {
   const { cells, features, routes, biomes, cultures } = pack;
@@ -349,7 +363,31 @@ export function buildBurgContext(burg: Burg): BurgContext {
 
   const routeById = new Map(routes.map(r => [r.i, { group: r.group as RouteGroup, type: r.type, name: r.name }]));
   // Flying burgs are not on the ground route network.
+  const routeCellsById = new Map(routes.map(r => [r.i, r.cells ?? []]));
   const approaches = burg.flying ? [] : readApproaches(cell, cells.routes, cells.p, routeById);
+  const windowCells = new Set(win.cellIds);
+  const heightExponent = Number(heightExponentInput?.value ?? 2);
+  for (const approach of approaches) {
+    const outward = orderRouteCellsOutward(routeCellsById.get(approach.routeId) ?? [], cell);
+    // Clip to the window: the readings must stay traceable to the window that produced them.
+    const clipped: number[] = [];
+    for (const id of outward) {
+      if (!windowCells.has(id)) break;
+      clipped.push(id);
+    }
+    approach.corridor = readCorridor({
+      routeCells: clipped.length ? clipped : [cell],
+      cellsH: cells.h,
+      cellsP: cells.p,
+      cellsR: cells.r,
+      cellsG: cells.g,
+      cellsBiome: cells.biome,
+      gridTemp: grid.cells.temp,
+      biomeNameById: id => biomes[id]?.name,
+      heightExponent,
+      distanceScale
+    });
+  }
 
   const hydrology = readHydrology({
     window: win,
@@ -366,7 +404,7 @@ export function buildBurgContext(burg: Burg): BurgContext {
   const terrain = readTerrain({
     window: win,
     cellsH: cells.h,
-    heightExponent: Number(heightExponentInput?.value ?? 2)
+    heightExponent
   });
 
   const climate = readClimate({

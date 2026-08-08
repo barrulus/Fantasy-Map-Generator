@@ -7,6 +7,7 @@ import {
   hashSeedToInt,
   kmToWorldUnits,
   LARGE_HARBOUR_MIN_POPULATION,
+  orderRouteCellsOutward,
   type RouteGroup,
   readApproaches,
   readClimate,
@@ -366,5 +367,24 @@ describe("readCorridor", () => {
     expect(c.elevationDeltaM).toBe(0);
     expect(c.maxGradient).toBe(0);
     expect(c.relief).toBe("flat");
+  });
+});
+
+describe("orderRouteCellsOutward", () => {
+  it("returns the tail after the burg when the burg is at the start", () => {
+    expect(orderRouteCellsOutward([5, 6, 7, 8], 5)).toEqual([5, 6, 7, 8]);
+  });
+
+  it("reverses so the walk always leads away from the burg", () => {
+    expect(orderRouteCellsOutward([8, 7, 6, 5], 5)).toEqual([5, 6, 7, 8]);
+  });
+
+  it("splits a through-route at the burg and returns the longer arm", () => {
+    // burg at index 2; arms are [5,1,0] backwards and [5,9] forwards
+    expect(orderRouteCellsOutward([0, 1, 5, 9], 5)).toEqual([5, 1, 0]);
+  });
+
+  it("returns just the burg cell when the route does not contain it", () => {
+    expect(orderRouteCellsOutward([1, 2, 3], 5)).toEqual([5]);
   });
 });
