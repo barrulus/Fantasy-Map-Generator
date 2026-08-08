@@ -540,3 +540,67 @@ describe("readHydrology rivers and water features", () => {
     expect(dry.waterFeatures).toEqual([]);
   });
 });
+
+import { MAX_TOP_GOODS, readEconomy } from "./burg-context";
+
+describe("readEconomy", () => {
+  const base = {
+    burgId: 7,
+    tradeRole: "hub" as const,
+    treasury: 900,
+    marketId: 2,
+    marketById: (id: number) => (id === 2 ? { name: "Salt Exchange", centerBurgId: 7 } : undefined),
+    localProduction: [
+      { goodId: 1, units: 5 },
+      { goodId: 2, units: 30 },
+      { goodId: 3, units: 12 }
+    ],
+    goodNameById: (id: number) => ({ 1: "Wool", 2: "Salt", 3: "Fish" })[id]
+  };
+
+  it("ranks goods by units and caps the list", () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ goodId: i + 1, units: i + 1 }));
+    const economy = readEconomy({
+      ...base,
+      localProduction: many,
+      goodNameById: (id: number) => `Good ${id}`
+    });
+    expect(economy.topGoods).toHaveLength(MAX_TOP_GOODS);
+    expect(economy.topGoods[0]).toEqual({ id: 12, name: "Good 12", units: 12 });
+  });
+
+  it("names the burg's market and flags it as the centre", () => {
+    const economy = readEconomy(base);
+    expect(economy.marketName).toBe("Salt Exchange");
+    expect(economy.isMarketCentre).toBe(true);
+    expect(readEconomy({ ...base, burgId: 8 }).isMarketCentre).toBe(false);
+  });
+
+  it("bands the treasury rather than exposing the raw figure", () => {
+    expect(readEconomy({ ...base, treasury: -10 }).treasuryBand).toBe("poor");
+    expect(readEconomy({ ...base, treasury: 100 }).treasuryBand).toBe("modest");
+    expect(readEconomy({ ...base, treasury: 900 }).treasuryBand).toBe("prosperous");
+    expect(readEconomy({ ...base, treasury: 99999 }).treasuryBand).toBe("rich");
+    expect(readEconomy({ ...base, treasury: undefined }).treasuryBand).toBe("modest");
+  });
+
+  it("degrades safely when the economy sim has not run", () => {
+    const economy = readEconomy({
+      ...base,
+      tradeRole: undefined,
+      marketId: undefined,
+      localProduction: [],
+      treasury: undefined
+    });
+    expect(economy.topGoods).toEqual([]);
+    expect(economy.marketId).toBeUndefined();
+    expect(economy.marketName).toBeUndefined();
+    expect(economy.isMarketCentre).toBe(false);
+    expect(economy.tradeRole).toBeUndefined();
+  });
+
+  it("skips goods with no name", () => {
+    const economy = readEconomy({ ...base, goodNameById: (id: number) => (id === 2 ? "Salt" : undefined) });
+    expect(economy.topGoods).toEqual([{ id: 2, name: "Salt", units: 30 }]);
+  });
+});

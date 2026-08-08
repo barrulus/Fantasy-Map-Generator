@@ -360,6 +360,58 @@ export function readClimate(input: {
   };
 }
 
+export const MAX_TOP_GOODS = 5;
+
+export interface Economy {
+  tradeRole?: "hub" | "waystation";
+  marketId?: number;
+  marketName?: string;
+  isMarketCentre: boolean;
+  topGoods: { id: number; name: string; units: number }[];
+  treasuryBand: "poor" | "modest" | "prosperous" | "rich";
+}
+
+/**
+ * Treasury is banded rather than passed through: the raw figure is a sim-internal
+ * quantity that drifts as the economy sim changes, but the band survives that.
+ */
+function bandTreasury(treasury: number | undefined): Economy["treasuryBand"] {
+  if (treasury === undefined) return "modest";
+  if (treasury < 0) return "poor";
+  if (treasury < 500) return "modest";
+  if (treasury < 5000) return "prosperous";
+  return "rich";
+}
+
+export function readEconomy(input: {
+  burgId: number;
+  tradeRole?: "hub" | "waystation";
+  treasury?: number;
+  marketId?: number;
+  marketById: (id: number) => { name?: string; centerBurgId?: number } | undefined;
+  localProduction: { goodId: number; units: number }[];
+  goodNameById: (id: number) => string | undefined;
+}): Economy {
+  const { burgId, tradeRole, treasury, marketId, marketById, localProduction, goodNameById } = input;
+
+  const market = marketId === undefined ? undefined : marketById(marketId);
+
+  const topGoods = localProduction
+    .map(({ goodId, units }) => ({ id: goodId, name: goodNameById(goodId), units }))
+    .filter((g): g is { id: number; name: string; units: number } => Boolean(g.name))
+    .sort((a, b) => b.units - a.units)
+    .slice(0, MAX_TOP_GOODS);
+
+  return {
+    tradeRole,
+    marketId: market ? marketId : undefined,
+    marketName: market?.name,
+    isMarketCentre: market?.centerBurgId === burgId,
+    topGoods,
+    treasuryBand: bandTreasury(treasury)
+  };
+}
+
 export interface BurgContext {
   burg: {
     i: number;
@@ -380,6 +432,7 @@ export interface BurgContext {
   hydrology: Hydrology;
   terrain: Terrain;
   climate: Climate;
+  economy: Economy;
 }
 
 export interface Corridor {
@@ -558,6 +611,23 @@ export function buildBurgContext(burg: Burg): BurgContext {
     biomeNameById: id => biomes[id]?.name
   });
 
+  const economy = readEconomy({
+    burgId: burg.i,
+    tradeRole: burg.tradeRole,
+    treasury: burg.treasury,
+    marketId: burg.market,
+    marketById: id => pack.markets?.find(m => m.i === id),
+    // Local production records carry a goodId and units but no recipe; deals (dealId)
+    // and manufacturing records (which also carry a recipe) are a different shape and
+    // are not settlement-defining.
+    localProduction: (burg.production ?? []).flatMap(record =>
+      "goodId" in record && "units" in record && !("recipe" in record)
+        ? [{ goodId: record.goodId, units: record.units }]
+        : []
+    ),
+    goodNameById: id => pack.goods?.find(g => g.i === id)?.name
+  });
+
   return {
     burg: {
       i: burg.i,
@@ -577,6 +647,7 @@ export function buildBurgContext(burg: Burg): BurgContext {
     approaches,
     hydrology,
     terrain,
-    climate
+    climate,
+    economy
   };
 }

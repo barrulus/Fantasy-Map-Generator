@@ -51,6 +51,11 @@ const ctx = (over: Partial<BurgContext> = {}): BurgContext =>
       biome: "Temperate deciduous forest",
       biomeMix: [{ name: "Temperate deciduous forest", share: 1 }]
     },
+    economy: {
+      isMarketCentre: false,
+      topGoods: [],
+      treasuryBand: "modest"
+    },
     ...over
   }) as BurgContext;
 
