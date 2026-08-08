@@ -683,6 +683,7 @@ async function updateBurgPreview(burg: Burg): Promise<void> {
   container.innerHTML = "";
   const frame = document.createElement("iframe");
   frame.style.width = "100%";
+  frame.style.height = "320px"; // iframe doesn't negotiate size with content; explicit height required
   frame.style.maxWidth = "60vw";
   frame.style.maxHeight = "60vh";
   frame.style.border = "none";
