@@ -275,3 +275,80 @@ describe("readClimate", () => {
     expect(readClimate({ ...base, biomeNameById: () => undefined }).biome).toBe("");
   });
 });
+
+import { readCorridor } from "./burg-context";
+
+describe("readCorridor", () => {
+  // A straight run of 4 cells, 1 world unit apart, distanceScale 1 => 1km per step
+  const cellsP = [
+    [0, 0],
+    [1, 0],
+    [2, 0],
+    [3, 0]
+  ] as [number, number][];
+
+  const base = {
+    routeCells: [0, 1, 2, 3],
+    cellsP,
+    cellsR: [0, 0, 0, 0],
+    cellsG: [0, 1, 2, 3],
+    cellsBiome: [5, 5, 6, 6],
+    gridTemp: [10, 8, 4, -3],
+    biomeNameById: (id: number) => ({ 5: "Grassland", 6: "Taiga" })[id],
+    heightExponent: 2,
+    distanceScale: 1
+  };
+
+  it("measures the sampled distance along the route", () => {
+    expect(readCorridor({ ...base, cellsH: [20, 20, 20, 20] }).sampledKm).toBe(3);
+  });
+
+  it("reports a climbing corridor as an ascent with a positive delta", () => {
+    const c = readCorridor({ ...base, cellsH: [20, 30, 40, 50] });
+    expect(c.elevationDeltaM).toBeGreaterThan(0);
+    expect(c.relief).toBe("ascent");
+  });
+
+  it("reports a corridor descending from mountains toward the burg as a descent", () => {
+    const c = readCorridor({ ...base, cellsH: [50, 40, 30, 20] });
+    expect(c.elevationDeltaM).toBeLessThan(0);
+    expect(c.relief).toBe("descent");
+  });
+
+  it("recognises a valley: both ends above the middle", () => {
+    expect(readCorridor({ ...base, cellsH: [45, 25, 25, 45] }).relief).toBe("valley");
+  });
+
+  it("recognises a ridge: both ends below the middle", () => {
+    expect(readCorridor({ ...base, cellsH: [22, 48, 48, 22] }).relief).toBe("ridge");
+  });
+
+  it("calls a level corridor flat", () => {
+    expect(readCorridor({ ...base, cellsH: [30, 30, 30, 30] }).relief).toBe("flat");
+  });
+
+  it("flags a corridor following a river and names the river", () => {
+    const c = readCorridor({ ...base, cellsH: [30, 30, 30, 30], cellsR: [0, 4, 4, 4] });
+    expect(c.followsRiver).toBe(true);
+    expect(c.riverId).toBe(4);
+  });
+
+  it("does not flag a river touched by a single cell", () => {
+    const c = readCorridor({ ...base, cellsH: [30, 30, 30, 30], cellsR: [0, 4, 0, 0] });
+    expect(c.followsRiver).toBe(false);
+  });
+
+  it("lists distinct biomes in the order encountered and the coldest temperature", () => {
+    const c = readCorridor({ ...base, cellsH: [30, 30, 30, 30] });
+    expect(c.biomes).toEqual(["Grassland", "Taiga"]);
+    expect(c.minTempC).toBe(-3); // drives "icy pass"
+  });
+
+  it("degrades safely on a one-cell corridor", () => {
+    const c = readCorridor({ ...base, routeCells: [0], cellsH: [30, 30, 30, 30] });
+    expect(c.sampledKm).toBe(0);
+    expect(c.elevationDeltaM).toBe(0);
+    expect(c.maxGradient).toBe(0);
+    expect(c.relief).toBe("flat");
+  });
+});

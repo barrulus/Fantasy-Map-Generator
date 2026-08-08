@@ -244,6 +244,101 @@ export interface BurgContext {
   climate: Climate;
 }
 
+export interface Corridor {
+  sampledKm: number;
+  elevationDeltaM: number;
+  maxGradient: number;
+  relief: "descent" | "ascent" | "valley" | "ridge" | "flat";
+  followsRiver: boolean;
+  riverId?: number;
+  biomes: string[];
+  minTempC: number;
+}
+
+/** Metres of height change below which a corridor reads as level. */
+const RELIEF_TOLERANCE_M = 40;
+
+export function readCorridor(input: {
+  routeCells: number[];
+  cellsH: ArrayLike<number>;
+  cellsP: ArrayLike<[number, number]>;
+  cellsR: ArrayLike<number>;
+  cellsG: ArrayLike<number>;
+  cellsBiome: ArrayLike<number>;
+  gridTemp: ArrayLike<number>;
+  biomeNameById: (id: number) => string | undefined;
+  heightExponent: number;
+  distanceScale: number;
+}): Corridor {
+  const { routeCells, cellsH, cellsP, cellsR, cellsG, cellsBiome, gridTemp, biomeNameById } = input;
+  const { heightExponent, distanceScale } = input;
+
+  const heights = routeCells.map(id => elevationMetres(Number(cellsH[id] ?? 0), heightExponent));
+
+  const biomes: string[] = [];
+  let minTempC = Number.POSITIVE_INFINITY;
+  const riverCounts = new Map<number, number>();
+
+  for (const id of routeCells) {
+    const name = biomeNameById(Number(cellsBiome[id] ?? 0));
+    if (name && biomes.at(-1) !== name && !biomes.includes(name)) biomes.push(name);
+
+    const temp = Number(gridTemp[Number(cellsG[id] ?? 0)] ?? 0);
+    if (temp < minTempC) minTempC = temp;
+
+    const river = Number(cellsR[id] ?? 0);
+    if (river) riverCounts.set(river, (riverCounts.get(river) ?? 0) + 1);
+  }
+  if (!Number.isFinite(minTempC)) minTempC = 0;
+
+  let sampledKm = 0;
+  let maxGradient = 0;
+  for (let i = 1; i < routeCells.length; i++) {
+    const a = cellsP[routeCells[i - 1]];
+    const b = cellsP[routeCells[i]];
+    if (!a || !b) continue;
+    const stepKm = Math.hypot(b[0] - a[0], b[1] - a[1]) * (distanceScale || 1);
+    sampledKm += stepKm;
+    if (stepKm > 0) {
+      const gradient = Math.abs(heights[i] - heights[i - 1]) / (stepKm * 1000);
+      if (gradient > maxGradient) maxGradient = gradient;
+    }
+  }
+
+  const elevationDeltaM = heights.length > 1 ? heights.at(-1)! - heights[0] : 0;
+
+  // A river only counts as followed when the corridor runs along it, not merely crosses it.
+  let followsRiver = false;
+  let riverId: number | undefined;
+  for (const [id, count] of riverCounts) {
+    if (count >= 2) {
+      followsRiver = true;
+      riverId = id;
+      break;
+    }
+  }
+
+  const relief = ((): Corridor["relief"] => {
+    if (heights.length < 3) {
+      if (elevationDeltaM > RELIEF_TOLERANCE_M) return "ascent";
+      if (elevationDeltaM < -RELIEF_TOLERANCE_M) return "descent";
+      return "flat";
+    }
+    const middle = heights.slice(1, -1);
+    const midMin = Math.min(...middle);
+    const midMax = Math.max(...middle);
+    const first = heights[0];
+    const last = heights.at(-1) as number;
+    if (first - midMin > RELIEF_TOLERANCE_M && last - midMin > RELIEF_TOLERANCE_M) return "valley";
+    if (midMax - first > RELIEF_TOLERANCE_M && midMax - last > RELIEF_TOLERANCE_M) return "ridge";
+    if (elevationDeltaM > RELIEF_TOLERANCE_M) return "ascent";
+    if (elevationDeltaM < -RELIEF_TOLERANCE_M) return "descent";
+    return "flat";
+  })();
+
+  return { sampledKm, elevationDeltaM, maxGradient, relief, followsRiver, riverId, biomes, minTempC };
+}
+
 /** The only function here that reads globals. Everything above it is pure. */
 export function buildBurgContext(burg: Burg): BurgContext {
   const { cells, features, routes, biomes, cultures } = pack;
