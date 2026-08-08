@@ -227,7 +227,7 @@ function renderDialog(): void {
   ensureEl("regenerateBurgNames").addEventListener("click", regenerateNames);
   ensureEl("addNewBurg").addEventListener("click", () => void Controllers.BurgCreator.toggle());
   ensureEl("addNewSkyBurg").addEventListener("click", () => void Controllers.BurgCreator.toggleSky());
-  ensureEl("burgsExport").addEventListener("click", downloadBurgsData);
+  ensureEl("burgsExport").addEventListener("click", () => void downloadBurgsData());
   ensureEl("burgNamesImport").addEventListener("click", renameBurgsInBulk);
   ensureEl("burgsListToLoad").addEventListener("change", function (this: HTMLInputElement) {
     uploadFile(this, importBurgNames);
@@ -675,11 +675,11 @@ function showBurgsChart(): void {
   });
 }
 
-function downloadBurgsData(): void {
+async function downloadBurgsData(): Promise<void> {
   let data = `Id,Burg,Province,Province Full Name,State,State Full Name,Culture,Religion,Group,Population,X,Y,Latitude,Longitude,Elevation (${heightUnit.value}),Altitude (ft),Temperature,Temperature likeness,Capital,Port,Citadel,Walls,Plaza,Temple,Shanty Town,Emblem,Preview link\n`; // headers
   const valid = pack.burgs.filter(b => b.i && !b.removed); // all valid burgs
 
-  valid.forEach(b => {
+  for (const b of valid) {
     data += `${b.i},`;
     data += `${b.name},`;
     const province = pack.cells.province[b.cell];
@@ -712,10 +712,10 @@ function downloadBurgsData(): void {
     data += b.temple ? "temple," : ",";
     data += b.shanty ? "shanty town," : ",";
     data += b.coa ? `${JSON.stringify(b.coa).replace(/"/g, "").replace(/,/g, ";")},` : ",";
-    data += Burgs.getPreview(b).link;
+    data += (await Burgs.getPreview(b)).link;
 
     data += "\n";
-  });
+  }
 
   const name = `${getFileName("Burgs")}.csv`;
   downloadFile(data, name);

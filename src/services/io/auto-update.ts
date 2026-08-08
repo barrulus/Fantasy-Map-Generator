@@ -1111,7 +1111,8 @@ export function resolveVersionConflicts(mapVersion: string, data: string[]): voi
 
       const b = burg as typeof burg & { MFCG?: number };
       if (b.MFCG) {
-        burg.link = Burgs.getPreview(burg)?.link ?? undefined;
+        // burg.link is the user's custom-override channel; generated preview URLs are
+        // derived on demand from the group's preview generator instead of being baked in.
         delete b.MFCG;
       }
     });

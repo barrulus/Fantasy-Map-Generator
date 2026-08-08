@@ -2,11 +2,11 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   cellSlotAfterRemoval,
   groundSlotOnPlacement,
-  transferTreasuryOnRemoval,
   nearestBurgId,
   skyburgAltitude,
   skyburgGroupFromPopulation,
-  skyburgPlacementWeight
+  skyburgPlacementWeight,
+  transferTreasuryOnRemoval
 } from "./burgs-generator";
 
 // ---------------------------------------------------------------------------

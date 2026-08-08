@@ -394,7 +394,7 @@ function updateBurgValues(): void {
   if (b.coa) COArenderer.trigger(coaID, b.coa);
   ensureEl("burgEmblem").setAttribute("href", `#${coaID}`);
 
-  updateBurgPreview(b);
+  void updateBurgPreview(b);
 }
 
 function dragBurgLabel(this: SVGTextElement, event: any): void {
@@ -468,7 +468,7 @@ function changePopulation(): void {
     ensureEl<HTMLInputElement>("burgPopulation").valueAsNumber / populationRate / urbanization,
     4
   );
-  updateBurgPreview(burg);
+  void updateBurgPreview(burg);
 }
 
 function toggleFeature(this: HTMLElement): void {
@@ -489,7 +489,7 @@ function toggleFeature(this: HTMLElement): void {
   ensureEl("burgEditAnchorStyle").style.display = burg.port ? "inline-block" : "none";
   ensureEl("burgAltitudeRow").style.display = burg.flying ? "block" : "none";
   updateTradeRoleControl(burg);
-  updateBurgPreview(burg);
+  void updateBurgPreview(burg);
 }
 
 function updateTradeRoleControl(burg: any): void {
@@ -669,8 +669,8 @@ function editGroupAnchorStyle(): void {
   editStyle("anchors", g.id);
 }
 
-function updateBurgPreview(burg: Burg): void {
-  const preview = Burgs.getPreview(burg).preview;
+async function updateBurgPreview(burg: Burg): Promise<void> {
+  const preview = (await Burgs.getPreview(burg)).preview;
   if (!preview) {
     ensureEl("burgPreviewSection").style.display = "none";
     return;
@@ -678,35 +678,38 @@ function updateBurgPreview(burg: Burg): void {
 
   ensureEl("burgPreviewSection").style.display = "block";
 
-  // recreate object to force reload (Chrome bug)
+  // recreate the element to force reload (Chrome bug)
   const container = ensureEl("burgPreviewObject");
   container.innerHTML = "";
-  const object = document.createElement("object");
-  object.style.width = "100%";
-  object.style.maxWidth = "60vw";
-  object.style.maxHeight = "60vh";
-  object.data = preview;
-  container.insertBefore(object, null);
+  const frame = document.createElement("iframe");
+  frame.style.width = "100%";
+  frame.style.maxWidth = "60vw";
+  frame.style.maxHeight = "60vh";
+  frame.style.border = "none";
+  frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+  frame.src = preview;
+  container.insertBefore(frame, null);
 }
 
-function openBurgLink(): void {
+async function openBurgLink(): Promise<void> {
   const id = getSelectedId();
   const burg = pack.burgs[id];
-  const link = Burgs.getPreview(burg).link;
+  const link = (await Burgs.getPreview(burg)).link;
   if (link) openURL(link);
 }
 
-function setCustomPreview(): void {
+async function setCustomPreview(): Promise<void> {
   const id = getSelectedId();
   const burg = pack.burgs[id];
+  const current = (await Burgs.getPreview(burg)).link || "";
 
   prompt(
     "Provide custom URL to the burg map. It can be a link to a generator or just an image. Leave empty to use the default map preview",
-    { default: Burgs.getPreview(burg).link || "", required: false },
+    { default: current, required: false },
     link => {
       if (link) burg.link = String(link);
       else delete burg.link;
-      updateBurgPreview(burg);
+      void updateBurgPreview(burg);
     }
   );
 }

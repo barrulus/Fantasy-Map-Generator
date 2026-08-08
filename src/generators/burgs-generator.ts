@@ -1,6 +1,8 @@
 import { select } from "d3";
 import { quadtree } from "d3-quadtree";
+import { buildSettlemakerUrl } from "@/services/previews/settlemaker";
 import { each, ensureEl, findClosestCell, gauss, minmax, normalize, P, rn } from "../utils";
+import { buildBurgContext } from "./burg-context";
 import { type CultureType, DEFAULT_CULTURE_TYPE } from "./cultures-generator";
 import { NON_NAVIGABLE_LAKE_GROUPS } from "./features";
 import type { ProductionRecord } from "./production-generator";
@@ -1382,18 +1384,34 @@ class BurgModule {
     return { link, preview: `${link}&preview=1` };
   }
 
-  getPreview(burg: Burg): { link: string | null; preview: string | null } {
-    const previewGeneratorsMap: Record<string, (burg: Burg) => { link: string | null; preview: string | null }> = {
+  async getPreview(burg: Burg): Promise<{ link: string | null; preview: string | null }> {
+    const previewGeneratorsMap: Record<
+      string,
+      (
+        burg: Burg
+      ) => { link: string | null; preview: string | null } | Promise<{ link: string | null; preview: string | null }>
+    > = {
       "watabou-city": (burg: Burg) => this.createWatabouCityLinks(burg),
       "watabou-village": (burg: Burg) => this.createWatabouVillageLinks(burg),
-      "watabou-dwelling": (burg: Burg) => this.createWatabouDwellingLinks(burg)
+      "watabou-dwelling": (burg: Burg) => this.createWatabouDwellingLinks(burg),
+      settlemaker: (burg: Burg) =>
+        buildSettlemakerUrl(buildBurgContext(burg), {
+          urbanDensity,
+          trade: burg.tradeRole === "hub"
+        })
     };
     if (burg.link) return { link: burg.link, preview: burg.link };
 
     const group = options.burgs.groups.find((g: any) => g.name === burg.group);
     if (!group?.preview || !previewGeneratorsMap[group.preview]) return { link: null, preview: null };
 
-    return previewGeneratorsMap[group.preview](burg);
+    try {
+      return await previewGeneratorsMap[group.preview](burg);
+    } catch (error) {
+      // Never throw into the editor: a broken preview must not take the dialog down.
+      ERROR && console.error("Failed to build burg preview", error);
+      return { link: null, preview: null };
+    }
   }
 
   add([x, y]: [number, number], options?: { flying?: boolean; altitude?: number }) {
