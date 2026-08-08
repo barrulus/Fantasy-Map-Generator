@@ -46,7 +46,11 @@ const ctx = (over: Partial<BurgContext> = {}): BurgContext =>
       meanGradient: 0,
       setting: "plain"
     },
-    climate: { temperatureC: 14, biome: "Temperate deciduous forest" },
+    climate: {
+      temperatureC: 14,
+      biome: "Temperate deciduous forest",
+      biomeMix: [{ name: "Temperate deciduous forest", share: 1 }]
+    },
     ...over
   }) as BurgContext;
 
@@ -78,7 +82,7 @@ describe("toSettlemakerInput", () => {
   it("omits optional fields rather than sending null", () => {
     const bare = ctx({
       hydrology: { coastal: false, lakeside: false, rivers: [], waterFeatures: [] },
-      climate: { temperatureC: 5, biome: "" },
+      climate: { temperatureC: 5, biome: "", biomeMix: [] },
       burg: { ...ctx().burg, culture: undefined }
     });
     const input = toSettlemakerInput(bare, {});

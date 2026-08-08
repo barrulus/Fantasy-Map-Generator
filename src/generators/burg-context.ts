@@ -329,6 +329,7 @@ export function readTerrain(input: {
 export interface Climate {
   temperatureC: number;
   biome: string;
+  biomeMix: { name: string; share: number }[];
 }
 
 export function readClimate(input: {
@@ -340,9 +341,22 @@ export function readClimate(input: {
 }): Climate {
   const { window: win, cellsG, cellsBiome, gridTemp, biomeNameById } = input;
   const gridCell = Number(cellsG[win.center] ?? 0);
+
+  const counts = new Map<string, number>();
+  for (const id of win.cellIds) {
+    const name = biomeNameById(Number(cellsBiome[id] ?? 0));
+    if (!name) continue;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const total = win.cellIds.length;
+  const biomeMix = total
+    ? [...counts.entries()].map(([name, count]) => ({ name, share: count / total })).sort((a, b) => b.share - a.share)
+    : [];
+
   return {
     temperatureC: Number(gridTemp[gridCell] ?? 0),
-    biome: biomeNameById(Number(cellsBiome[win.center] ?? 0)) ?? ""
+    biome: biomeNameById(Number(cellsBiome[win.center] ?? 0)) ?? "",
+    biomeMix
   };
 }
 

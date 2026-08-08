@@ -342,6 +342,41 @@ describe("readClimate", () => {
   });
 });
 
+describe("readClimate biome mix", () => {
+  const base = {
+    window: { center: 0, cellIds: [0, 1, 2, 3], radiusKm: 12 },
+    cellsG: [0, 1, 2, 3],
+    cellsBiome: [5, 5, 5, 6],
+    gridTemp: [14, 14, 14, 14],
+    biomeNameById: (id: number) => ({ 5: "Grassland", 6: "Taiga" })[id]
+  };
+
+  it("reports window composition sorted by descending share", () => {
+    const mix = readClimate(base).biomeMix;
+    expect(mix).toEqual([
+      { name: "Grassland", share: 0.75 },
+      { name: "Taiga", share: 0.25 }
+    ]);
+  });
+
+  it("produces shares summing to 1", () => {
+    const total = readClimate(base).biomeMix.reduce((sum, entry) => sum + entry.share, 0);
+    expect(total).toBeCloseTo(1, 6);
+  });
+
+  it("returns a single entry when the window is uniform", () => {
+    expect(readClimate({ ...base, cellsBiome: [5, 5, 5, 5] }).biomeMix).toEqual([{ name: "Grassland", share: 1 }]);
+  });
+
+  it("skips biomes with no name rather than emitting blanks", () => {
+    const mix = readClimate({
+      ...base,
+      biomeNameById: (id: number) => (id === 5 ? "Grassland" : undefined)
+    }).biomeMix;
+    expect(mix).toEqual([{ name: "Grassland", share: 0.75 }]);
+  });
+});
+
 import { readCorridor } from "./burg-context";
 
 describe("readCorridor", () => {
