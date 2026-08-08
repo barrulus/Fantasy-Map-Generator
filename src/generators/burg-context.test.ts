@@ -9,7 +9,9 @@ import {
   LARGE_HARBOUR_MIN_POPULATION,
   type RouteGroup,
   readApproaches,
+  readClimate,
   readHydrology,
+  readTerrain,
   scaledPopulation
 } from "./burg-context";
 
@@ -238,5 +240,38 @@ describe("readHydrology", () => {
 
   it("treats a harbor cell as coastal even without the port flag", () => {
     expect(readHydrology({ ...base, isPort: false }).coastal).toBe(true);
+  });
+});
+
+describe("readTerrain", () => {
+  it("reports the burg cell's own elevation in metres", () => {
+    const t = readTerrain({
+      window: { center: 1, cellIds: [0, 1, 2], radiusKm: 12 },
+      cellsH: [20, 30, 40],
+      heightExponent: 2
+    });
+    expect(t.elevationM).toBe(144); // (30-18)^2
+  });
+});
+
+describe("readClimate", () => {
+  const base = {
+    window: { center: 1, cellIds: [0, 1, 2], radiusKm: 12 },
+    cellsG: [0, 7, 3], // burg cell 1 maps to grid cell 7
+    cellsBiome: [1, 5, 5],
+    gridTemp: [0, 0, 0, 0, 0, 0, 0, 14],
+    biomeNameById: (id: number) => ({ 1: "Hot desert", 5: "Temperate deciduous forest" })[id]
+  };
+
+  it("reads temperature through the cell's grid index", () => {
+    expect(readClimate(base).temperatureC).toBe(14);
+  });
+
+  it("names the burg cell's biome", () => {
+    expect(readClimate(base).biome).toBe("Temperate deciduous forest");
+  });
+
+  it("falls back to an empty biome name when the id is unknown", () => {
+    expect(readClimate({ ...base, biomeNameById: () => undefined }).biome).toBe("");
   });
 });

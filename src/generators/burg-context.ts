@@ -185,3 +185,32 @@ export function readHydrology(input: {
     ...(harbourSize !== undefined && { harbourSize })
   };
 }
+
+export interface Terrain {
+  elevationM: number;
+}
+
+export function readTerrain(input: { window: CellWindow; cellsH: ArrayLike<number>; heightExponent: number }): Terrain {
+  const { window: win, cellsH, heightExponent } = input;
+  return { elevationM: elevationMetres(Number(cellsH[win.center] ?? 0), heightExponent) };
+}
+
+export interface Climate {
+  temperatureC: number;
+  biome: string;
+}
+
+export function readClimate(input: {
+  window: CellWindow;
+  cellsG: ArrayLike<number>;
+  cellsBiome: ArrayLike<number>;
+  gridTemp: ArrayLike<number>;
+  biomeNameById: (biomeId: number) => string | undefined;
+}): Climate {
+  const { window: win, cellsG, cellsBiome, gridTemp, biomeNameById } = input;
+  const gridCell = Number(cellsG[win.center] ?? 0);
+  return {
+    temperatureC: Number(gridTemp[gridCell] ?? 0),
+    biome: biomeNameById(Number(cellsBiome[win.center] ?? 0)) ?? ""
+  };
+}
