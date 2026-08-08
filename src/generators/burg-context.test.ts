@@ -595,7 +595,7 @@ describe("readEconomy", () => {
     treasury: 900,
     marketId: 2,
     marketById: (id: number) => (id === 2 ? { name: "Salt Exchange", centerBurgId: 7 } : undefined),
-    localProduction: [
+    producedGoods: [
       { goodId: 1, units: 5 },
       { goodId: 2, units: 30 },
       { goodId: 3, units: 12 }
@@ -603,11 +603,26 @@ describe("readEconomy", () => {
     goodNameById: (id: number) => ({ 1: "Wool", 2: "Salt", 3: "Fish" })[id]
   };
 
+  it("sums units per good, so a burg that both gathers and manufactures one good lists it once", () => {
+    const economy = readEconomy({
+      ...base,
+      producedGoods: [
+        { goodId: 2, units: 30 }, // gathered
+        { goodId: 2, units: 12 }, // manufactured
+        { goodId: 1, units: 5 }
+      ]
+    });
+    expect(economy.topGoods).toEqual([
+      { id: 2, name: "Salt", units: 42 },
+      { id: 1, name: "Wool", units: 5 }
+    ]);
+  });
+
   it("ranks goods by units and caps the list", () => {
     const many = Array.from({ length: 12 }, (_, i) => ({ goodId: i + 1, units: i + 1 }));
     const economy = readEconomy({
       ...base,
-      localProduction: many,
+      producedGoods: many,
       goodNameById: (id: number) => `Good ${id}`
     });
     expect(economy.topGoods).toHaveLength(MAX_TOP_GOODS);
@@ -634,7 +649,7 @@ describe("readEconomy", () => {
       ...base,
       tradeRole: undefined,
       marketId: undefined,
-      localProduction: [],
+      producedGoods: [],
       treasury: undefined
     });
     expect(economy.topGoods).toEqual([]);

@@ -407,15 +407,21 @@ export function readEconomy(input: {
   treasury?: number;
   marketId?: number;
   marketById: (id: number) => { name?: string; centerBurgId?: number } | undefined;
-  localProduction: { goodId: number; units: number }[];
+  producedGoods: { goodId: number; units: number }[];
   goodNameById: (id: number) => string | undefined;
 }): Economy {
-  const { burgId, tradeRole, treasury, marketId, marketById, localProduction, goodNameById } = input;
+  const { burgId, tradeRole, treasury, marketId, marketById, producedGoods, goodNameById } = input;
 
   const market = marketId === undefined ? undefined : marketById(marketId);
 
-  const topGoods = localProduction
-    .map(({ goodId, units }) => ({ id: goodId, name: goodNameById(goodId), units }))
+  // A burg can both gather and manufacture the same good, so sum per good before ranking.
+  const unitsByGood = new Map<number, number>();
+  for (const { goodId, units } of producedGoods) {
+    unitsByGood.set(goodId, (unitsByGood.get(goodId) ?? 0) + units);
+  }
+
+  const topGoods = [...unitsByGood.entries()]
+    .map(([goodId, units]) => ({ id: goodId, name: goodNameById(goodId), units }))
     .filter((g): g is { id: number; name: string; units: number } => Boolean(g.name))
     .sort((a, b) => b.units - a.units)
     .slice(0, MAX_TOP_GOODS);
@@ -652,13 +658,11 @@ export function buildBurgContext(burg: Burg): BurgContext {
     treasury: burg.treasury,
     marketId: burg.market,
     marketById: id => indexById(pack.markets).get(id),
-    // Local production records carry a goodId and units but no recipe; deals (dealId)
-    // and manufacturing records (which also carry a recipe) are a different shape and
-    // are not settlement-defining.
-    localProduction: (burg.production ?? []).flatMap(record =>
-      "goodId" in record && "units" in record && !("recipe" in record)
-        ? [{ goodId: record.goodId, units: record.units }]
-        : []
+    // Both gathered (LocalRecord) and manufactured (MfgRecord) output counts: a tannery
+    // or smithy characterises a settlement more than its hinterland's raw yield does.
+    // Both carry goodId and units; DealRecord carries neither and drops out here.
+    producedGoods: (burg.production ?? []).flatMap(record =>
+      "goodId" in record && "units" in record ? [{ goodId: record.goodId, units: record.units }] : []
     ),
     goodNameById: id => indexById(pack.goods).get(id)?.name
   });
