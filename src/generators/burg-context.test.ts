@@ -323,6 +323,22 @@ describe("readCorridor", () => {
     expect(readCorridor({ ...base, cellsH: [22, 48, 48, 22] }).relief).toBe("ridge");
   });
 
+  it("classifies a valley even when the overall delta would read as an ascent", () => {
+    // metres: [729, 49, 49, 1764]; elevationDeltaM = +1035 (well over tolerance) yet both
+    // ends sit far above the middle, so valley must be checked before ascent/descent.
+    const c = readCorridor({ ...base, cellsH: [45, 25, 25, 60] });
+    expect(c.elevationDeltaM).toBeGreaterThan(0);
+    expect(c.relief).toBe("valley");
+  });
+
+  it("classifies a ridge even when the overall delta would read as an ascent", () => {
+    // metres: [16, 900, 900, 484]; elevationDeltaM = +468 (well over tolerance) yet the
+    // middle sits far above both ends, so ridge must be checked before ascent/descent.
+    const c = readCorridor({ ...base, cellsH: [22, 48, 48, 40] });
+    expect(c.elevationDeltaM).toBeGreaterThan(0);
+    expect(c.relief).toBe("ridge");
+  });
+
   it("calls a level corridor flat", () => {
     expect(readCorridor({ ...base, cellsH: [30, 30, 30, 30] }).relief).toBe("flat");
   });
