@@ -221,7 +221,9 @@ function bindColumnsPicker(
     popup.id = popupId;
     popup.style.cssText =
       "position: fixed; z-index: 100; background: var(--bg-main, #fff); border: 1px solid #999; " +
-      "border-radius: 4px; padding: 0.4em 0.8em; box-shadow: 0 1px 4px rgba(0,0,0,0.3); max-height: 50vh; overflow-y: auto;";
+      "border-radius: 4px; padding: 0.4em 0.8em; box-shadow: 0 1px 4px rgba(0,0,0,0.3); max-height: 50vh; overflow-y: auto; " +
+      // sizes to its longest label instead of to the gap left before the screen edge, which wrapped labels off their checkbox
+      "width: max-content; white-space: nowrap;";
     popup.innerHTML = columns
       .filter(column => column.hideable !== false)
       .map(
