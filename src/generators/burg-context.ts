@@ -1,4 +1,5 @@
 import { rn } from "../utils";
+import type { Burg } from "./burgs-generator";
 
 /** Compass bearing in degrees, 0 = N, clockwise, on SVG coordinates where y grows downward. */
 export function compassBearing(dx: number, dy: number): number {
@@ -36,6 +37,12 @@ export function hashSeedToInt(s: string): number {
 export function scaledPopulation(population: number, populationRate: number, urbanization: number): number {
   return rn(population * populationRate * urbanization);
 }
+
+/**
+ * Radius of the local window. Sized as a multiple of the settlement's own extent so a
+ * pass or valley on an approach usually falls inside it; see the spec's assumptions.
+ */
+export const DEFAULT_WINDOW_RADIUS_KM = 12;
 
 export interface CellWindow {
   center: number;
@@ -212,5 +219,88 @@ export function readClimate(input: {
   return {
     temperatureC: Number(gridTemp[gridCell] ?? 0),
     biome: biomeNameById(Number(cellsBiome[win.center] ?? 0)) ?? ""
+  };
+}
+
+export interface BurgContext {
+  burg: {
+    i: number;
+    name: string;
+    population: number;
+    seedKey: string;
+    capital: boolean;
+    port: boolean;
+    citadel: boolean;
+    walls: boolean;
+    plaza: boolean;
+    temple: boolean;
+    shanty: boolean;
+    culture?: string;
+  };
+  window: { radiusKm: number; cellCount: number };
+  approaches: Approach[];
+  hydrology: Hydrology;
+  terrain: Terrain;
+  climate: Climate;
+}
+
+/** The only function here that reads globals. Everything above it is pure. */
+export function buildBurgContext(burg: Burg): BurgContext {
+  const { cells, features, routes, biomes, cultures } = pack;
+  const cell = burg.cell;
+
+  const population = scaledPopulation(burg.population ?? 0, populationRate, urbanization);
+  const win = collectWindow(cell, cells.c, cells.p, DEFAULT_WINDOW_RADIUS_KM, distanceScale);
+
+  const routeById = new Map(routes.map(r => [r.i, { group: r.group as RouteGroup, type: r.type, name: r.name }]));
+  // Flying burgs are not on the ground route network.
+  const approaches = burg.flying ? [] : readApproaches(cell, cells.routes, cells.p, routeById);
+
+  const hydrology = readHydrology({
+    window: win,
+    cellsHaven: cells.haven,
+    cellsHarbor: cells.harbor,
+    cellsF: cells.f,
+    cellsP: cells.p,
+    featureTypeById: id => features[id]?.type,
+    approaches,
+    isPort: Number(burg.port ?? 0) > 0,
+    population
+  });
+
+  const terrain = readTerrain({
+    window: win,
+    cellsH: cells.h,
+    heightExponent: Number(heightExponentInput?.value ?? 2)
+  });
+
+  const climate = readClimate({
+    window: win,
+    cellsG: cells.g,
+    cellsBiome: cells.biome,
+    gridTemp: grid.cells.temp,
+    biomeNameById: id => biomes[id]?.name
+  });
+
+  return {
+    burg: {
+      i: burg.i,
+      name: burg.name ?? "",
+      population,
+      seedKey: `${seed}${String(burg.i).padStart(4, "0")}`,
+      capital: Boolean(burg.capital),
+      port: Boolean(burg.port),
+      citadel: Boolean(burg.citadel),
+      walls: Boolean(burg.walls),
+      plaza: Boolean(burg.plaza),
+      temple: Boolean(burg.temple),
+      shanty: Boolean(burg.shanty),
+      culture: burg.culture === undefined ? undefined : cultures[burg.culture]?.name
+    },
+    window: { radiusKm: win.radiusKm, cellCount: win.cellIds.length },
+    approaches,
+    hydrology,
+    terrain,
+    climate
   };
 }
