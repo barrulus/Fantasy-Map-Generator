@@ -237,9 +237,20 @@ function bindColumnsPicker(
       if (checkbox.checked) updated.delete(key);
       else updated.add(key);
       saveHiddenColumns(storageKey, updated);
+
+      // the dialog is positioned by its left edge, so resizing it would slide the button — and the popup
+      // anchored to it — out from under the pointer; hold the right edge still instead
+      const frame = document.getElementById(dialogId)?.closest<HTMLElement>(".ui-dialog");
+      const rightBefore = frame?.getBoundingClientRect().right;
       onChange(updated);
-      // hiding/showing a column can reflow the fit-content dialog under the popup; re-anchor to the button
-      requestAnimationFrame(() => positionPopup());
+      requestAnimationFrame(() => {
+        if (frame && rightBefore !== undefined) {
+          const shift = rightBefore - frame.getBoundingClientRect().right;
+          const left = Number.parseFloat(getComputedStyle(frame).left) || 0;
+          if (shift) frame.style.left = `${Math.max(0, left + shift)}px`;
+        }
+        positionPopup();
+      });
     });
     button.insertAdjacentElement("afterend", popup);
     const positionPopup = () => {
