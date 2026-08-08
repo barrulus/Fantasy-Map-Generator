@@ -29,7 +29,8 @@ export interface AzgaarBurgInput {
   trade?: boolean;
 }
 
-export const LAND_ROUTE_GROUPS = new Set<string>(["roads", "trails", "traderoutes"]);
+/** traderoutes are maritime lanes in this fork, not land roads — see SEA_TRADE_GROUPS. */
+export const LAND_ROUTE_GROUPS = new Set<string>(["roads", "trails"]);
 
 /**
  * The narrow projection: everything settlemaker declares today, nothing else.

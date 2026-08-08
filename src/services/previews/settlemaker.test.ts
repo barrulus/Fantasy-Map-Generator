@@ -98,7 +98,7 @@ describe("toSettlemakerInput", () => {
     expect("urbanDensity" in input).toBe(false);
   });
 
-  it("sends land approaches as roadBearings and drops sea and air ones", () => {
+  it("sends land approaches as roadBearings and drops sea, trade and air ones", () => {
     const input = toSettlemakerInput(
       ctx({
         approaches: [
@@ -111,10 +111,11 @@ describe("toSettlemakerInput", () => {
       }),
       {}
     );
+    // traderoutes are port-to-port sea lanes; drawing them as roads would send
+    // approaches out into open water.
     expect(input.roadBearings).toEqual([
       { bearing_deg: 90, route_id: "1", kind: "roads" },
-      { bearing_deg: 0, route_id: "4", kind: "trails" },
-      { bearing_deg: 45, route_id: "5", kind: "traderoutes" }
+      { bearing_deg: 0, route_id: "4", kind: "trails" }
     ]);
   });
 
@@ -193,21 +194,25 @@ describe("buildSettlemakerUrl", () => {
 
   it("falls back to flat tier when encoded payload exceeds budget", async () => {
     // Craft a burg with massive data that exceeds the 8KB budget even after compression:
-    // - 5000+ approaches with unique random types to resist DEFLATE
+    // - 5000+ approaches with high-entropy types to resist DEFLATE
     // - Large culture string with low compressibility
-    const approaches = Array.from({ length: 5000 }, (_, i) => {
-      // Create non-compressible type strings using random UUIDs
-      const rand = Math.random().toString(36).slice(2);
-      return {
-        routeId: i,
-        group: (["roads", "trails", "traderoutes"] as const)[i % 3],
-        type: `${rand}${i}${rand}`,
-        bearingDeg: (i * 71) % 360,
-        through: i % 2 === 0
-      };
-    });
-    // Large culture with random data to defeat compression
-    const culture = Array.from({ length: 500 }, (_, i) => `${i}_${Math.random()}`).join("|");
+    // The noise is a deterministic index-derived hash, not Math.random(): a fixture that
+    // varies run to run under a size threshold is a latent flake.
+    const noise = (n: number) => {
+      let x = (n * 2654435761) >>> 0;
+      x ^= x >>> 15;
+      x = Math.imul(x, 0x2c1b3c6d) >>> 0;
+      x ^= x >>> 12;
+      return x.toString(36);
+    };
+    const approaches = Array.from({ length: 5000 }, (_, i) => ({
+      routeId: i,
+      group: (["roads", "trails", "traderoutes"] as const)[i % 3],
+      type: `${noise(i)}${i}${noise(i + 7919)}`,
+      bearingDeg: (i * 71) % 360,
+      through: i % 2 === 0
+    }));
+    const culture = Array.from({ length: 500 }, (_, i) => `${i}_${noise(i + 104729)}${noise(i + 15485863)}`).join("|");
 
     const { link } = await buildSettlemakerUrl(
       ctx({
