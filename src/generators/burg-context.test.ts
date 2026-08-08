@@ -3,10 +3,12 @@ import {
   type Approach,
   collectWindow,
   compassBearing,
+  effectiveWindowRadiusKm,
   elevationMetres,
   hashSeedToInt,
   kmToWorldUnits,
   LARGE_HARBOUR_MIN_POPULATION,
+  MIN_WINDOW_RINGS,
   orderRouteCellsOutward,
   type RouteGroup,
   readApproaches,
@@ -133,6 +135,33 @@ describe("collectWindow", () => {
     ] as [number, number][];
     const w = collectWindow(0, ringC, ringP, 5, 1);
     expect(w.cellIds).toHaveLength(3);
+  });
+});
+
+describe("effectiveWindowRadiusKm", () => {
+  it("keeps the metric radius when it already spans several grid rings", () => {
+    // spacing 1 world unit at scale 1 => floor of 2km, well under the 12km intent
+    expect(effectiveWindowRadiusKm(12, 1, 1)).toBe(12);
+  });
+
+  it("floors the radius at MIN_WINDOW_RINGS of grid spacing", () => {
+    // default settings: distanceScale 3, spacing ~10 units => floor of 60km beats 12km
+    expect(effectiveWindowRadiusKm(12, 3, 10)).toBe(MIN_WINDOW_RINGS * 10 * 3);
+  });
+
+  it("keeps the window non-degenerate when spacing exceeds the metric radius", () => {
+    // 12km at distanceScale 3 is 4 world units — less than the 10-unit cell spacing, so
+    // the raw radius would return the burg's own cell alone.
+    const cellsC = [[1], [0, 2], [1]];
+    const cellsP = [
+      [0, 0],
+      [10, 0],
+      [20, 0]
+    ] as [number, number][];
+    expect(collectWindow(0, cellsC, cellsP, 12, 3).cellIds).toEqual([0]);
+
+    const floored = collectWindow(0, cellsC, cellsP, effectiveWindowRadiusKm(12, 3, 10), 3);
+    expect(floored.cellIds.length).toBeGreaterThan(1);
   });
 });
 

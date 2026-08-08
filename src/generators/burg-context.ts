@@ -44,6 +44,20 @@ export function scaledPopulation(population: number, populationRate: number, urb
  */
 export const DEFAULT_WINDOW_RADIUS_KM = 12;
 
+/** Grid rings the window must span even when the metric radius is smaller. */
+export const MIN_WINDOW_RINGS = 2;
+
+/**
+ * At default settings (distanceScale 3, cellsDesired 10000) the metric radius is 4 world
+ * units while cells sit 8-13 units apart, which would collapse the window to the burg's
+ * own cell. Floor it at a couple of grid rings so the window always spans neighbours.
+ * Returns km, because that is what CellWindow.radiusKm records as provenance.
+ */
+export function effectiveWindowRadiusKm(radiusKm: number, distanceScale: number, spacing: number): number {
+  const minKm = MIN_WINDOW_RINGS * (spacing || 0) * (distanceScale || 1);
+  return Math.max(radiusKm, minKm);
+}
+
 export interface CellWindow {
   center: number;
   cellIds: number[];
@@ -549,7 +563,8 @@ export function buildBurgContext(burg: Burg): BurgContext {
   const cell = burg.cell;
 
   const population = scaledPopulation(burg.population ?? 0, populationRate, urbanization);
-  const win = collectWindow(cell, cells.c, cells.p, DEFAULT_WINDOW_RADIUS_KM, distanceScale);
+  const radiusKm = effectiveWindowRadiusKm(DEFAULT_WINDOW_RADIUS_KM, distanceScale, Number(grid?.spacing ?? 0));
+  const win = collectWindow(cell, cells.c, cells.p, radiusKm, distanceScale);
 
   const routeById = new Map(routes.map(r => [r.i, { group: r.group as RouteGroup, type: r.type, name: r.name }]));
   // Flying burgs are not on the ground route network.
