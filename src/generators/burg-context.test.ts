@@ -368,12 +368,14 @@ describe("readClimate biome mix", () => {
     expect(readClimate({ ...base, cellsBiome: [5, 5, 5, 5] }).biomeMix).toEqual([{ name: "Grassland", share: 1 }]);
   });
 
-  it("skips biomes with no name rather than emitting blanks", () => {
-    const mix = readClimate({
-      ...base,
-      biomeNameById: (id: number) => (id === 5 ? "Grassland" : undefined)
-    }).biomeMix;
-    expect(mix).toEqual([{ name: "Grassland", share: 0.75 }]);
+  it("skips unnamed biomes and normalises over the named total, so shares still sum to 1", () => {
+    // base window is 4 cells: three of biome 5, one of biome 6. Naming only 5 leaves
+    // three named cells, and the share is 3/3 — NOT 3/4. The denominator is the named
+    // total, so biomeMix is always a distribution.
+    const named = { ...base, biomeNameById: (id: number) => (id === 5 ? "Grassland" : undefined) };
+    const mix = readClimate(named).biomeMix;
+    expect(mix).toEqual([{ name: "Grassland", share: 1 }]);
+    expect(mix.reduce((sum, entry) => sum + entry.share, 0)).toBeCloseTo(1, 6);
   });
 });
 

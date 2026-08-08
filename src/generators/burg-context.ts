@@ -348,7 +348,7 @@ export function readClimate(input: {
     if (!name) continue;
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
-  const total = win.cellIds.length;
+  const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
   const biomeMix = total
     ? [...counts.entries()].map(([name, count]) => ({ name, share: count / total })).sort((a, b) => b.share - a.share)
     : [];
