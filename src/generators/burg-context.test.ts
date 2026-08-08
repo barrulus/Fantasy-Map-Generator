@@ -253,9 +253,58 @@ describe("readTerrain", () => {
     const t = readTerrain({
       window: { center: 1, cellIds: [0, 1, 2], radiusKm: 12 },
       cellsH: [20, 30, 40],
-      heightExponent: 2
+      cellsP: [
+        [0, 0],
+        [1, 0],
+        [2, 0]
+      ],
+      heightExponent: 2,
+      distanceScale: 1,
+      coastal: false
     });
     expect(t.elevationM).toBe(144); // (30-18)^2
+  });
+});
+
+describe("readTerrain statistics", () => {
+  const cellsP = [
+    [0, 0],
+    [1, 0],
+    [2, 0]
+  ] as [number, number][];
+  const base = {
+    window: { center: 1, cellIds: [0, 1, 2], radiusKm: 12 },
+    cellsP,
+    heightExponent: 2,
+    distanceScale: 1,
+    coastal: false
+  };
+
+  it("reports the window's elevation span and relief", () => {
+    const t = readTerrain({ ...base, cellsH: [20, 30, 40] });
+    expect(t.windowMinM).toBe(4); // (20-18)^2
+    expect(t.windowMaxM).toBe(484); // (40-18)^2
+    expect(t.reliefM).toBe(480);
+  });
+
+  it("calls a coastal burg coast regardless of relief", () => {
+    expect(readTerrain({ ...base, cellsH: [20, 30, 40], coastal: true }).setting).toBe("coast");
+  });
+
+  it("calls a very high burg mountain", () => {
+    expect(readTerrain({ ...base, cellsH: [70, 75, 80] }).setting).toBe("mountain");
+  });
+
+  it("calls a low burg among high ground a valley", () => {
+    expect(readTerrain({ ...base, cellsH: [60, 22, 60] }).setting).toBe("valley");
+  });
+
+  it("calls a flat low burg a plain", () => {
+    expect(readTerrain({ ...base, cellsH: [21, 21, 21] }).setting).toBe("plain");
+  });
+
+  it("reports a mean gradient of zero on level ground", () => {
+    expect(readTerrain({ ...base, cellsH: [21, 21, 21] }).meanGradient).toBe(0);
   });
 });
 

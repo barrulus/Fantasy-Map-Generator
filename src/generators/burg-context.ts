@@ -271,11 +271,59 @@ export function readHydrology(input: {
 
 export interface Terrain {
   elevationM: number;
+  windowMinM: number;
+  windowMaxM: number;
+  reliefM: number;
+  meanGradient: number;
+  setting: "mountain" | "hills" | "plain" | "valley" | "plateau" | "coast";
 }
 
-export function readTerrain(input: { window: CellWindow; cellsH: ArrayLike<number>; heightExponent: number }): Terrain {
-  const { window: win, cellsH, heightExponent } = input;
-  return { elevationM: elevationMetres(Number(cellsH[win.center] ?? 0), heightExponent) };
+const MOUNTAIN_ELEVATION_M = 2000;
+const PLATEAU_ELEVATION_M = 800;
+const HILLS_RELIEF_M = 300;
+
+export function readTerrain(input: {
+  window: CellWindow;
+  cellsH: ArrayLike<number>;
+  cellsP: ArrayLike<[number, number]>;
+  heightExponent: number;
+  distanceScale: number;
+  coastal: boolean;
+}): Terrain {
+  const { window: win, cellsH, cellsP, heightExponent, distanceScale, coastal } = input;
+
+  const elevationM = elevationMetres(Number(cellsH[win.center] ?? 0), heightExponent);
+  const heights = win.cellIds.map(id => elevationMetres(Number(cellsH[id] ?? 0), heightExponent));
+  const windowMinM = Math.min(...heights);
+  const windowMaxM = Math.max(...heights);
+  const reliefM = windowMaxM - windowMinM;
+  const meanM = heights.reduce((sum, h) => sum + h, 0) / heights.length;
+
+  const [cx, cy] = cellsP[win.center] ?? [0, 0];
+  let gradientSum = 0;
+  let gradientCount = 0;
+  for (let i = 0; i < win.cellIds.length; i++) {
+    const id = win.cellIds[i];
+    if (id === win.center) continue;
+    const p = cellsP[id];
+    if (!p) continue;
+    const runM = Math.hypot(p[0] - cx, p[1] - cy) * (distanceScale || 1) * 1000;
+    if (runM <= 0) continue;
+    gradientSum += Math.abs(heights[i] - elevationM) / runM;
+    gradientCount++;
+  }
+  const meanGradient = gradientCount ? gradientSum / gradientCount : 0;
+
+  const setting = ((): Terrain["setting"] => {
+    if (coastal) return "coast";
+    if (elevationM >= MOUNTAIN_ELEVATION_M) return "mountain";
+    if (meanM - elevationM > RELIEF_TOLERANCE_M && reliefM >= HILLS_RELIEF_M) return "valley";
+    if (reliefM >= HILLS_RELIEF_M) return "hills";
+    if (elevationM >= PLATEAU_ELEVATION_M) return "plateau";
+    return "plain";
+  })();
+
+  return { elevationM, windowMinM, windowMaxM, reliefM, meanGradient, setting };
 }
 
 export interface Climate {
@@ -482,7 +530,10 @@ export function buildBurgContext(burg: Burg): BurgContext {
   const terrain = readTerrain({
     window: win,
     cellsH: cells.h,
-    heightExponent
+    cellsP: cells.p,
+    heightExponent,
+    distanceScale,
+    coastal: hydrology.coastal
   });
 
   const climate = readClimate({

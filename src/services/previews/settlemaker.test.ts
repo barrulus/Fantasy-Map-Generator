@@ -38,7 +38,14 @@ const ctx = (over: Partial<BurgContext> = {}): BurgContext =>
       rivers: [],
       waterFeatures: []
     },
-    terrain: { elevationM: 144 },
+    terrain: {
+      elevationM: 144,
+      windowMinM: 4,
+      windowMaxM: 484,
+      reliefM: 480,
+      meanGradient: 0,
+      setting: "plain"
+    },
     climate: { temperatureC: 14, biome: "Temperate deciduous forest" },
     ...over
   }) as BurgContext;
