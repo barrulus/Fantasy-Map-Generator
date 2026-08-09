@@ -48,6 +48,11 @@ slider), which stays crisp at every zoom level.
   asynchronously on resize; per-tick layout commits flash stale content at deep zoom);
   once the gesture settles (~200ms) the layout is committed: `width/height = k·100%`,
   `left = tx`, `top = ty`, transform cleared — smooth while zooming, sharp at rest.
+- Canvas-backed previews (watabou) never commit: resizing clears a canvas to
+  transparent until its next redraw, so their layout is locked at load to a
+  supersample (≤4× pane, bounded by half the GPU texture limit ÷ dpr) and zoom
+  stays a pure transform — crisp to the supersample, softer beyond (cap 2.5×
+  past it), never blank.
 - Pan clamping keeps content covering the viewport (no gaps):
   `tx ∈ [W·(1−k), 0]`, `ty ∈ [H·(1−k), 0]` where W×H is the viewport size.
 - Zoom-toward-point: for cursor at viewport point `(px, py)`, the content point
