@@ -43,8 +43,11 @@ slider), which stays crisp at every zoom level.
   (`height: 320px`, `max-width: 60vw`, `max-height: 60vh`): `overflow: hidden`,
   `position: relative`, receives pointer/wheel events. The iframe keeps
   `pointer-events: none` permanently — the embedded page never captures events.
-- The iframe is absolutely positioned and driven by the transform state:
-  `width/height = k·100%`, `left = tx`, `top = ty` (layout zoom, no CSS scale).
+- The iframe is absolutely positioned and driven by the transform state. Mid-gesture
+  it is CSS-scaled from its last committed layout size (embedded pages re-render
+  asynchronously on resize; per-tick layout commits flash stale content at deep zoom);
+  once the gesture settles (~200ms) the layout is committed: `width/height = k·100%`,
+  `left = tx`, `top = ty`, transform cleared — smooth while zooming, sharp at rest.
 - Pan clamping keeps content covering the viewport (no gaps):
   `tx ∈ [W·(1−k), 0]`, `ty ∈ [H·(1−k), 0]` where W×H is the viewport size.
 - Zoom-toward-point: for cursor at viewport point `(px, py)`, the content point
