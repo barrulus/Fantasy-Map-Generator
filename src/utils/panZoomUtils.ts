@@ -15,7 +15,7 @@ export interface Viewport {
 }
 
 export const MIN_ZOOM = 1;
-export const MAX_ZOOM = 8;
+export const MAX_ZOOM = 16;
 export const PAN_ZOOM_IDENTITY: PanZoom = { k: 1, x: 0, y: 0 };
 
 // Keep the scaled content covering the whole viewport: no gaps at any edge.

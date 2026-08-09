@@ -23,7 +23,7 @@ so browser re-rasterization keeps CSS-transform zoom crisp.
 ## Interaction model
 
 - **Wheel** over the preview zooms toward the cursor position. Scale clamped to
-  [1, 8]. `preventDefault()` so the dialog doesn't scroll while zooming; scrolling
+  [1, 16]. `preventDefault()` so the dialog doesn't scroll while zooming; scrolling
   outside the preview is unaffected.
 - **Drag** pans when zoomed in (`k > 1`). Cursor shows `grab`, `grabbing` while
   dragging. Uses pointer capture so drags survive leaving the pane.
