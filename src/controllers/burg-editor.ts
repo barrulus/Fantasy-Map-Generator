@@ -26,6 +26,8 @@ declare const prompt: (text: string, options: PromptOptions, callback: (value: s
 let selected: Selection<any, any, any, any> | null = null;
 let previewTransform: PanZoom = { ...PAN_ZOOM_IDENTITY };
 let previewMaxZoom = MAX_ZOOM;
+let previewCommittedK = 1;
+let previewSettleTimer = 0;
 
 function open(id: number | string): void {
   if (customization) return;
@@ -685,24 +687,43 @@ function getPreviewViewport(): { width: number; height: number } {
   return { width: container.clientWidth, height: container.clientHeight };
 }
 
+// Zoom rests on the iframe's layout size, not CSS scale: a cross-origin frame is
+// composited as a raster texture, so scaling it blurs even vector content, while a
+// resized viewport makes the embedded page re-render sharp. That re-render is
+// asynchronous though, so mid-gesture the frame is scaled with a cheap transform
+// and the layout size is committed only once the gesture settles — committing per
+// wheel-tick briefly shows the stale canvas in the wrong place (heavy flicker).
 function applyPreviewTransform(): void {
   const container = ensureEl("burgPreviewObject");
   const frame = container.querySelector<HTMLIFrameElement>("iframe");
   if (!frame) return;
   const { k, x, y } = previewTransform;
-  // Zoom by resizing the iframe layout, not CSS scale: a cross-origin frame is
-  // composited as a raster texture, so scaling it blurs even vector content.
-  // The embedded page (settlemaker) refits its SVG to the viewport, staying crisp.
+  frame.style.transformOrigin = "0 0";
+  frame.style.transform = `translate(${x}px, ${y}px) scale(${k / previewCommittedK})`;
+  frame.style.left = "0";
+  frame.style.top = "0";
+  container.style.cursor = k > 1 ? "grab" : "default";
+  clearTimeout(previewSettleTimer);
+  previewSettleTimer = window.setTimeout(commitPreviewTransform, 200);
+}
+
+function commitPreviewTransform(): void {
+  const frame = ensureEl("burgPreviewObject").querySelector<HTMLIFrameElement>("iframe");
+  if (!frame) return;
+  const { k, x, y } = previewTransform;
+  previewCommittedK = k;
   frame.style.width = `${k * 100}%`;
   frame.style.height = `${k * 100}%`;
+  frame.style.transform = "none";
   frame.style.left = `${x}px`;
   frame.style.top = `${y}px`;
-  container.style.cursor = k > 1 ? "grab" : "default";
 }
 
 function resetPreviewZoom(): void {
   previewTransform = { ...PAN_ZOOM_IDENTITY };
-  applyPreviewTransform();
+  clearTimeout(previewSettleTimer);
+  commitPreviewTransform();
+  ensureEl("burgPreviewObject").style.cursor = "default";
 }
 
 function previewPointFromEvent(event: MouseEvent): { x: number; y: number } {
