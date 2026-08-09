@@ -790,7 +790,9 @@ function getPreviewZoomCeiling(previewUrl: string): number {
   if (!previewUrl.includes("watabou.github.io")) return MAX_ZOOM;
   const { width, height } = getPreviewViewport();
   const paneMax = Math.max(width, height, 1);
-  return Math.min(MAX_ZOOM, getGlMaxTextureSize() / (devicePixelRatio * paneMax));
+  // half the reported limit: mfcg's internal render textures pad past the raw canvas
+  // size, so a cap met exactly at MAX_TEXTURE_SIZE still fails inside its render loop
+  return Math.min(MAX_ZOOM, getGlMaxTextureSize() / 2 / (devicePixelRatio * paneMax));
 }
 
 async function updateBurgPreview(burg: Burg): Promise<void> {
