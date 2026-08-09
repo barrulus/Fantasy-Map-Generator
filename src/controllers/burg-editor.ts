@@ -3,6 +3,7 @@ import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-hel
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
+import { PAN_ZOOM_IDENTITY, type PanZoom, panBy, zoomAt } from "@/utils/panZoomUtils";
 import { type Burg, cellSlotAfterRemoval, groundSlotOnPlacement } from "../generators/burgs-generator";
 import { findMegalopolises, megalopolisName } from "../generators/megalopolis";
 import {
@@ -23,6 +24,7 @@ import type { PromptOptions } from "../utils/commonUtils";
 declare const prompt: (text: string, options: PromptOptions, callback: (value: string | number) => void) => void;
 
 let selected: Selection<any, any, any, any> | null = null;
+let previewTransform: PanZoom = { ...PAN_ZOOM_IDENTITY };
 
 function open(id: number | string): void {
   if (customization) return;
@@ -233,14 +235,15 @@ function renderDialog(): void {
             </div>
           </div>
         </div>
-        <div id="burgPreviewSection" data-tip="Burg map preview" style="display: flex; flex-direction: column">
+        <div id="burgPreviewSection" data-tip="Burg map preview: scroll to zoom, drag to pan" style="display: flex; flex-direction: column">
           <div style="display: flex; justify-content: space-between">
             <span>Burg preview:</span>
             <div style="display: flex; gap: 0.5em">
+              <i id="burgPreviewReset" data-tip="Reset preview zoom" class="icon-ccw pointer"></i>
               <i id="burgLinkOpen" data-tip="Open burg map in a new tab" class="icon-link-ext pointer"></i>
             </div>
           </div>
-          <div id="burgPreviewObject" style="pointer-events: none"></div>
+          <div id="burgPreviewObject" style="overflow: hidden; position: relative; touch-action: none"></div>
         </div>
       </div>
       <div id="burgBottom">
@@ -303,6 +306,10 @@ function renderDialog(): void {
     .querySelectorAll<HTMLElement>(".burgFeature")
     .forEach(el => void el.on("click", toggleFeature));
   ensureEl("burgLinkOpen").on("click", () => void openBurgLink());
+  ensureEl("burgPreviewReset").on("click", resetPreviewZoom);
+  ensureEl("burgPreviewObject").on("wheel", onPreviewWheel as EventListener, { passive: false });
+  ensureEl("burgPreviewObject").on("dblclick", onPreviewDoubleClick as EventListener);
+  ensureEl("burgPreviewObject").on("pointerdown", onPreviewPointerDown as EventListener);
 
   ensureEl("burgStyleShow").on("click", showStyleSection);
   ensureEl("burgStyleHide").on("click", hideStyleSection);
@@ -669,6 +676,68 @@ function editGroupAnchorStyle(): void {
   editStyle("anchors", g.id);
 }
 
+function getPreviewViewport(): { width: number; height: number } {
+  const frame = ensureEl("burgPreviewObject").querySelector("iframe");
+  // offsetWidth/Height are the layout (untransformed) size — the k=1 content size
+  return frame ? { width: frame.offsetWidth, height: frame.offsetHeight } : { width: 0, height: 0 };
+}
+
+function applyPreviewTransform(): void {
+  const container = ensureEl("burgPreviewObject");
+  const frame = container.querySelector<HTMLIFrameElement>("iframe");
+  if (!frame) return;
+  const { k, x, y } = previewTransform;
+  frame.style.transform = `translate(${x}px, ${y}px) scale(${k})`;
+  container.style.cursor = k > 1 ? "grab" : "default";
+}
+
+function resetPreviewZoom(): void {
+  previewTransform = { ...PAN_ZOOM_IDENTITY };
+  applyPreviewTransform();
+}
+
+function previewPointFromEvent(event: MouseEvent): { x: number; y: number } {
+  const rect = ensureEl("burgPreviewObject").getBoundingClientRect();
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
+
+function onPreviewWheel(event: WheelEvent): void {
+  event.preventDefault(); // zoom the preview, don't scroll the dialog
+  const factor = Math.exp(-event.deltaY * 0.002);
+  previewTransform = zoomAt(previewTransform, previewPointFromEvent(event), factor, getPreviewViewport());
+  applyPreviewTransform();
+}
+
+function onPreviewDoubleClick(event: MouseEvent): void {
+  previewTransform = zoomAt(previewTransform, previewPointFromEvent(event), 2, getPreviewViewport());
+  applyPreviewTransform();
+}
+
+function onPreviewPointerDown(event: PointerEvent): void {
+  if (previewTransform.k <= 1) return;
+  event.preventDefault();
+  const container = ensureEl("burgPreviewObject");
+  container.setPointerCapture(event.pointerId);
+  container.style.cursor = "grabbing";
+  let last = { x: event.clientX, y: event.clientY };
+
+  const move = (e: Event) => {
+    const p = e as PointerEvent;
+    previewTransform = panBy(previewTransform, p.clientX - last.x, p.clientY - last.y, getPreviewViewport());
+    last = { x: p.clientX, y: p.clientY };
+    applyPreviewTransform();
+  };
+  const up = () => {
+    container.off("pointermove", move);
+    container.off("pointerup", up);
+    container.off("pointercancel", up);
+    container.style.cursor = "grab";
+  };
+  container.on("pointermove", move);
+  container.on("pointerup", up);
+  container.on("pointercancel", up);
+}
+
 async function updateBurgPreview(burg: Burg): Promise<void> {
   const preview = (await Burgs.getPreview(burg)).preview;
   if (!preview) {
@@ -688,8 +757,12 @@ async function updateBurgPreview(burg: Burg): Promise<void> {
   frame.style.maxHeight = "60vh";
   frame.style.border = "none";
   frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+  frame.style.pointerEvents = "none"; // the container owns all interaction
+  frame.style.transformOrigin = "0 0";
+  frame.style.display = "block";
   frame.src = preview;
   container.insertBefore(frame, null);
+  resetPreviewZoom(); // zoom never carries across burgs
 }
 
 async function openBurgLink(): Promise<void> {
