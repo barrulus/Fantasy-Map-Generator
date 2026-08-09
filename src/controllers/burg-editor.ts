@@ -243,7 +243,10 @@ function renderDialog(): void {
               <i id="burgLinkOpen" data-tip="Open burg map in a new tab" class="icon-link-ext pointer"></i>
             </div>
           </div>
-          <div id="burgPreviewObject" style="overflow: hidden; position: relative; touch-action: none"></div>
+          <div
+            id="burgPreviewObject"
+            style="overflow: hidden; position: relative; touch-action: none; height: 320px; max-width: 60vw; max-height: 60vh"
+          ></div>
         </div>
       </div>
       <div id="burgBottom">
@@ -677,9 +680,8 @@ function editGroupAnchorStyle(): void {
 }
 
 function getPreviewViewport(): { width: number; height: number } {
-  const frame = ensureEl("burgPreviewObject").querySelector("iframe");
-  // offsetWidth/Height are the layout (untransformed) size — the k=1 content size
-  return frame ? { width: frame.offsetWidth, height: frame.offsetHeight } : { width: 0, height: 0 };
+  const container = ensureEl("burgPreviewObject");
+  return { width: container.clientWidth, height: container.clientHeight };
 }
 
 function applyPreviewTransform(): void {
@@ -687,7 +689,13 @@ function applyPreviewTransform(): void {
   const frame = container.querySelector<HTMLIFrameElement>("iframe");
   if (!frame) return;
   const { k, x, y } = previewTransform;
-  frame.style.transform = `translate(${x}px, ${y}px) scale(${k})`;
+  // Zoom by resizing the iframe layout, not CSS scale: a cross-origin frame is
+  // composited as a raster texture, so scaling it blurs even vector content.
+  // The embedded page (settlemaker) refits its SVG to the viewport, staying crisp.
+  frame.style.width = `${k * 100}%`;
+  frame.style.height = `${k * 100}%`;
+  frame.style.left = `${x}px`;
+  frame.style.top = `${y}px`;
   container.style.cursor = k > 1 ? "grab" : "default";
 }
 
@@ -751,15 +759,10 @@ async function updateBurgPreview(burg: Burg): Promise<void> {
   const container = ensureEl("burgPreviewObject");
   container.innerHTML = "";
   const frame = document.createElement("iframe");
-  frame.style.width = "100%";
-  frame.style.height = "320px"; // iframe doesn't negotiate size with content; explicit height required
-  frame.style.maxWidth = "60vw";
-  frame.style.maxHeight = "60vh";
+  frame.style.position = "absolute"; // sized/panned by applyPreviewTransform; container owns the pane size
   frame.style.border = "none";
   frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
   frame.style.pointerEvents = "none"; // the container owns all interaction
-  frame.style.transformOrigin = "0 0";
-  frame.style.display = "block";
   frame.src = preview;
   container.insertBefore(frame, null);
   resetPreviewZoom(); // zoom never carries across burgs

@@ -14,11 +14,14 @@ plan with no interaction at all. The only recourse is opening the link in a new 
 
 ## Decision
 
-Implement pan/zoom on the FMG side as a CSS transform on the iframe, driven by
+Implement pan/zoom on the FMG side by resizing the iframe's layout, driven by
 pointer events on the container. Chosen over (a) adding native zoom to settlemaker —
-work in another repo that wouldn't help watabou or custom-image previews — and
-(b) zoom-via-URL-reload — a network round-trip per step. Settlemaker outputs SVG,
-so browser re-rasterization keeps CSS-transform zoom crisp.
+work in another repo that wouldn't help other preview sources — and (b) zoom-via-
+URL-reload — a network round-trip per step. A CSS `transform: scale(...)` was tried
+first and rejected: a cross-origin iframe is composited as a raster texture, so
+scaling it blurs even SVG content. Resizing the iframe instead makes settlemaker
+refit its SVG to the viewport (the same mechanism as its own review-page zoom
+slider), which stays crisp at every zoom level.
 
 ## Interaction model
 
@@ -36,10 +39,12 @@ so browser re-rasterization keeps CSS-transform zoom crisp.
 
 ## Mechanics
 
-- `#burgPreviewObject` becomes the interactive viewport: `overflow: hidden`,
+- `#burgPreviewObject` becomes the interactive viewport and owns the pane size
+  (`height: 320px`, `max-width: 60vw`, `max-height: 60vh`): `overflow: hidden`,
   `position: relative`, receives pointer/wheel events. The iframe keeps
   `pointer-events: none` permanently — the embedded page never captures events.
-- The iframe gets `transform-origin: 0 0` and `transform: translate(tx, ty) scale(k)`.
+- The iframe is absolutely positioned and driven by the transform state:
+  `width/height = k·100%`, `left = tx`, `top = ty` (layout zoom, no CSS scale).
 - Pan clamping keeps content covering the viewport (no gaps):
   `tx ∈ [W·(1−k), 0]`, `ty ∈ [H·(1−k), 0]` where W×H is the viewport size.
 - Zoom-toward-point: for cursor at viewport point `(px, py)`, the content point
