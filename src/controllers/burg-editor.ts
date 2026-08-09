@@ -28,6 +28,7 @@ let previewTransform: PanZoom = { ...PAN_ZOOM_IDENTITY };
 let previewMaxZoom = MAX_ZOOM;
 let previewCommittedK = 1;
 let previewSettleTimer = 0;
+let previewLayoutLocked = false;
 
 function open(id: number | string): void {
   if (customization) return;
@@ -693,6 +694,9 @@ function getPreviewViewport(): { width: number; height: number } {
 // asynchronous though, so mid-gesture the frame is scaled with a cheap transform
 // and the layout size is committed only once the gesture settles — committing per
 // wheel-tick briefly shows the stale canvas in the wrong place (heavy flicker).
+// Canvas-backed generators (watabou) never commit at all: resizing clears a canvas
+// to transparent until the next redraw, so their layout is locked to a supersampled
+// size at load and zoom stays a pure transform of it.
 function applyPreviewTransform(): void {
   const container = ensureEl("burgPreviewObject");
   const frame = container.querySelector<HTMLIFrameElement>("iframe");
@@ -704,10 +708,11 @@ function applyPreviewTransform(): void {
   frame.style.top = "0";
   container.style.cursor = k > 1 ? "grab" : "default";
   clearTimeout(previewSettleTimer);
-  previewSettleTimer = window.setTimeout(commitPreviewTransform, 200);
+  if (!previewLayoutLocked) previewSettleTimer = window.setTimeout(commitPreviewTransform, 200);
 }
 
 function commitPreviewTransform(): void {
+  if (previewLayoutLocked) return;
   const frame = ensureEl("burgPreviewObject").querySelector<HTMLIFrameElement>("iframe");
   if (!frame) return;
   const { k, x, y } = previewTransform;
@@ -722,7 +727,8 @@ function commitPreviewTransform(): void {
 function resetPreviewZoom(): void {
   previewTransform = { ...PAN_ZOOM_IDENTITY };
   clearTimeout(previewSettleTimer);
-  commitPreviewTransform();
+  if (previewLayoutLocked) applyPreviewTransform();
+  else commitPreviewTransform();
   ensureEl("burgPreviewObject").style.cursor = "default";
 }
 
@@ -783,16 +789,13 @@ function getGlMaxTextureSize(): number {
   return glMaxTextureSize;
 }
 
-// Canvas-backed previews (watabou) break past the GPU texture limit: the iframe's
-// layout viewport is pane × k css px, and the canvas backing store multiplies that
-// by devicePixelRatio. Cap zoom to keep it renderable. SVG previews have no limit.
-function getPreviewZoomCeiling(previewUrl: string): number {
-  if (!previewUrl.includes("watabou.github.io")) return MAX_ZOOM;
+// Canvas backing stores multiply layout px by devicePixelRatio, and mfcg's internal
+// render textures pad past the raw canvas size — half the reported GPU limit is the
+// budget that stays allocatable inside its render loop.
+function getPreviewTextureBudgetK(): number {
   const { width, height } = getPreviewViewport();
   const paneMax = Math.max(width, height, 1);
-  // half the reported limit: mfcg's internal render textures pad past the raw canvas
-  // size, so a cap met exactly at MAX_TEXTURE_SIZE still fails inside its render loop
-  return Math.min(MAX_ZOOM, getGlMaxTextureSize() / 2 / (devicePixelRatio * paneMax));
+  return getGlMaxTextureSize() / 2 / (devicePixelRatio * paneMax);
 }
 
 async function updateBurgPreview(burg: Burg): Promise<void> {
@@ -814,7 +817,18 @@ async function updateBurgPreview(burg: Burg): Promise<void> {
   frame.style.pointerEvents = "none"; // the container owns all interaction
   frame.src = preview;
   container.insertBefore(frame, null);
-  previewMaxZoom = getPreviewZoomCeiling(preview);
+
+  previewLayoutLocked = preview.includes("watabou.github.io");
+  if (previewLayoutLocked) {
+    const supersample = Math.max(1, Math.min(4, getPreviewTextureBudgetK()));
+    previewCommittedK = supersample;
+    frame.style.width = `${supersample * 100}%`;
+    frame.style.height = `${supersample * 100}%`;
+    previewMaxZoom = Math.min(MAX_ZOOM, supersample * 2.5);
+  } else {
+    previewCommittedK = 1;
+    previewMaxZoom = MAX_ZOOM;
+  }
   resetPreviewZoom(); // zoom never carries across burgs
 }
 
