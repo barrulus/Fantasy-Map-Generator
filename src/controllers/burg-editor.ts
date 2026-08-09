@@ -703,7 +703,7 @@ function previewPointFromEvent(event: MouseEvent): { x: number; y: number } {
 
 function onPreviewWheel(event: WheelEvent): void {
   event.preventDefault(); // zoom the preview, don't scroll the dialog
-  const factor = Math.exp(-event.deltaY * 0.002);
+  const factor = Math.exp(-event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002));
   previewTransform = zoomAt(previewTransform, previewPointFromEvent(event), factor, getPreviewViewport());
   applyPreviewTransform();
 }

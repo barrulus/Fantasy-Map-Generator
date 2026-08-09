@@ -21,9 +21,13 @@ describe("zoomAt", () => {
     expect(twice.y).toBe(-320);
   });
 
-  it("clamps scale at MAX_ZOOM", () => {
-    const t = zoomAt(PAN_ZOOM_IDENTITY, { x: 0, y: 0 }, 1000, viewport);
+  it("clamps scale at MAX_ZOOM and anchors with the clamped factor", () => {
+    const t = zoomAt(PAN_ZOOM_IDENTITY, { x: 100, y: 80 }, 1000, viewport);
     expect(t.k).toBe(MAX_ZOOM);
+    // offsets must come from the clamped k (ratio 8), not the raw factor (1000):
+    // x = 100 - (100 - 0)·8 = -700, y = 80 - (80 - 0)·8 = -560
+    expect(t.x).toBe(-700);
+    expect(t.y).toBe(-560);
   });
 
   it("clamps scale at MIN_ZOOM and recentres to identity", () => {
