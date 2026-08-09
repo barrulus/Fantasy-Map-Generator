@@ -28,8 +28,16 @@ export function clampPanZoom({ k, x, y }: PanZoom, viewport: Viewport): PanZoom 
 }
 
 // Rescale by factor keeping the content point under `point` (viewport px) fixed.
-export function zoomAt(t: PanZoom, point: { x: number; y: number }, factor: number, viewport: Viewport): PanZoom {
-  const k = minmax(t.k * factor, MIN_ZOOM, MAX_ZOOM);
+// maxK lets a caller lower the ceiling below MAX_ZOOM (e.g. canvas-backed content
+// that cannot render past the GPU texture limit).
+export function zoomAt(
+  t: PanZoom,
+  point: { x: number; y: number },
+  factor: number,
+  viewport: Viewport,
+  maxK = MAX_ZOOM
+): PanZoom {
+  const k = minmax(t.k * factor, MIN_ZOOM, Math.max(MIN_ZOOM, maxK));
   const ratio = k / t.k;
   return clampPanZoom({ k, x: point.x - (point.x - t.x) * ratio, y: point.y - (point.y - t.y) * ratio }, viewport);
 }

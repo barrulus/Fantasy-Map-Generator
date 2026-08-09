@@ -41,6 +41,17 @@ describe("zoomAt", () => {
     const t = zoomAt(cornered, { x: 0, y: 0 }, 0.25, viewport);
     expect(t).toEqual({ k: 1, x: 0, y: 0 });
   });
+
+  it("honours a per-call maxK below MAX_ZOOM, anchoring with the clamped factor", () => {
+    const t = zoomAt(PAN_ZOOM_IDENTITY, { x: 100, y: 80 }, 1000, viewport, 3);
+    // x = 100 - (100 - 0)·3 = -200, y = 80 - (80 - 0)·3 = -160
+    expect(t).toEqual({ k: 3, x: -200, y: -160 });
+  });
+
+  it("never lets maxK drop below MIN_ZOOM", () => {
+    const t = zoomAt(PAN_ZOOM_IDENTITY, { x: 100, y: 80 }, 2, viewport, 0.5);
+    expect(t).toEqual({ k: MIN_ZOOM, x: 0, y: 0 });
+  });
 });
 
 describe("panBy", () => {

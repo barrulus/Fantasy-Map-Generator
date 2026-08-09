@@ -3,7 +3,7 @@ import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-hel
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
-import { PAN_ZOOM_IDENTITY, type PanZoom, panBy, zoomAt } from "@/utils/panZoomUtils";
+import { MAX_ZOOM, PAN_ZOOM_IDENTITY, type PanZoom, panBy, zoomAt } from "@/utils/panZoomUtils";
 import { type Burg, cellSlotAfterRemoval, groundSlotOnPlacement } from "../generators/burgs-generator";
 import { findMegalopolises, megalopolisName } from "../generators/megalopolis";
 import {
@@ -25,6 +25,7 @@ declare const prompt: (text: string, options: PromptOptions, callback: (value: s
 
 let selected: Selection<any, any, any, any> | null = null;
 let previewTransform: PanZoom = { ...PAN_ZOOM_IDENTITY };
+let previewMaxZoom = MAX_ZOOM;
 
 function open(id: number | string): void {
   if (customization) return;
@@ -712,12 +713,18 @@ function previewPointFromEvent(event: MouseEvent): { x: number; y: number } {
 function onPreviewWheel(event: WheelEvent): void {
   event.preventDefault(); // zoom the preview, don't scroll the dialog
   const factor = Math.exp(-event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002));
-  previewTransform = zoomAt(previewTransform, previewPointFromEvent(event), factor, getPreviewViewport());
+  previewTransform = zoomAt(
+    previewTransform,
+    previewPointFromEvent(event),
+    factor,
+    getPreviewViewport(),
+    previewMaxZoom
+  );
   applyPreviewTransform();
 }
 
 function onPreviewDoubleClick(event: MouseEvent): void {
-  previewTransform = zoomAt(previewTransform, previewPointFromEvent(event), 2, getPreviewViewport());
+  previewTransform = zoomAt(previewTransform, previewPointFromEvent(event), 2, getPreviewViewport(), previewMaxZoom);
   applyPreviewTransform();
 }
 
@@ -746,6 +753,25 @@ function onPreviewPointerDown(event: PointerEvent): void {
   container.on("pointercancel", up);
 }
 
+let glMaxTextureSize = 0;
+function getGlMaxTextureSize(): number {
+  if (!glMaxTextureSize) {
+    const gl = document.createElement("canvas").getContext("webgl");
+    glMaxTextureSize = gl ? (gl.getParameter(gl.MAX_TEXTURE_SIZE) as number) : 4096;
+  }
+  return glMaxTextureSize;
+}
+
+// Canvas-backed previews (watabou) break past the GPU texture limit: the iframe's
+// layout viewport is pane × k css px, and the canvas backing store multiplies that
+// by devicePixelRatio. Cap zoom to keep it renderable. SVG previews have no limit.
+function getPreviewZoomCeiling(previewUrl: string): number {
+  if (!previewUrl.includes("watabou.github.io")) return MAX_ZOOM;
+  const { width, height } = getPreviewViewport();
+  const paneMax = Math.max(width, height, 1);
+  return Math.min(MAX_ZOOM, getGlMaxTextureSize() / (devicePixelRatio * paneMax));
+}
+
 async function updateBurgPreview(burg: Burg): Promise<void> {
   const preview = (await Burgs.getPreview(burg)).preview;
   if (!preview) {
@@ -765,6 +791,7 @@ async function updateBurgPreview(burg: Burg): Promise<void> {
   frame.style.pointerEvents = "none"; // the container owns all interaction
   frame.src = preview;
   container.insertBefore(frame, null);
+  previewMaxZoom = getPreviewZoomCeiling(preview);
   resetPreviewZoom(); // zoom never carries across burgs
 }
 
