@@ -1,6 +1,6 @@
 # Fantasy Map Generator (barrulus fork)
 
-A fork of [Azgaar's Fantasy Map Generator](https://github.com/Azgaar/Fantasy-Map-Generator) focused on **larger, denser worlds**: half-million-cell heightmaps, tens of thousands of settlements, a simulated trade network, and globe-aware routing — while staying compatible with upstream `.map` files.
+A fork of [Azgaar's Fantasy Map Generator](https://github.com/Azgaar/Fantasy-Map-Generator) focused on **larger, denser worlds**: half-million-cell heightmaps, tens of thousands of settlements, a simulated trade network, globe-aware routing, and GPU-rendered settlement layers — while staying compatible with upstream `.map` files.
 
 Upstream docs still apply for the basics: [wiki](https://github.com/Azgaar/Fantasy-Map-Generator/wiki) · [data model](https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Data-model).
 
@@ -38,8 +38,41 @@ A 500K-cell map with ~100K burgs generates in ~12 seconds. Getting there require
 - **Generation:** culture and state expansion BFS rewritten to kill GC pressure and stale queue work; cost arrays use `Float64Array` (Float32 silently broke priority-queue staleness checks); deep-depression lake filling rewritten as an O(N log N) priority flood; route lookups (`getRoute`/`hasRoad`/`isCrossroad`) moved from linear scans to O(1) `Map` lookups; old pack buffers are released before regeneration to avoid out-of-memory SIGILLs at high densities.
 - **Rendering & UI:** burg icons and anchors are culled at low zoom; sky burgs are tiered by population for zoom culling; the map hover tooltip short-circuits when the hovered cell hasn't changed.
 - **Editors:** the burgs, states, cultures, religions, rivers, and routes overview dialogs are **paginated** (200 rows per page). Upstream rendered every row at once — with ~20K burgs the dialog froze the UI on open. Sort, filter, and CSV export operate across the full filtered set, not just the visible page.
+- **Column visibility:** those same dialogs share a data-driven table built on one column definition, so each has a **show/hide columns** control. Choices persist per editor in `localStorage`, identifying columns are pinned as non-hideable, and mobile starts with the wide columns hidden.
 
 ![Burgs overview with pagination — page 1 of 98](docs/images/readme-image-2026-05-22_21-34-33.png)
+
+## GPU rendering for burgs
+
+At tens of thousands of settlements the SVG burg layer alone is tens of thousands of DOM nodes, and every pan or zoom repaints them. Burg icons and labels can therefore be rendered on the GPU instead:
+
+- A **renderer-agnostic layer host** interleaves a WebGL canvas between the SVG layers, so the GPU burg layer sits in its correct z-slot rather than on top of the map. Save and export re-unify the split stack, keeping `.map` files loadable by stock upstream.
+- Icons are drawn from a packed texture atlas built from the live burg group styles; labels use an **SDF glyph atlas** so they stay crisp at any zoom (fonts and weights are read from the burg groups, so styling still applies).
+- Hit-testing (click, hover, relocate) runs against a quadtree instead of the DOM, so editing behaves the same as with SVG burgs.
+- Controlled by **Options → WebGL burgs** (`auto` / `on` / `off`); `auto` switches on above ~5000 burgs. Measured on a dense map: pan −55%, zoom −65%, burg DOM nodes 24.5K → 0.
+
+## Multiple burgs per cell & megalopolises
+
+A cell is no longer limited to one settlement. `cells.burg` still records the primary ground burg, with slot helpers for the rest, which lets dense maps place clustered settlements (and sky burgs above ground ones) where upstream would refuse.
+
+Same-cell clusters are derived into a **megalopolis**: below zoom 4 the group renders as a single composite icon and pooled label (population, treasury, production and trade are aggregated onto the anchor), and splits back into its members as you zoom in. Skyburgs are excluded from membership, and composites are gated to the capital tier.
+
+## Burg previews (settlemaker) & preview zoom
+
+The burg editor's map preview is no longer limited to Watabou's generators. Any burg group can pick its preview generator in the **Burg Groups** editor — the Watabou city/village/dwelling generators, or **settlemaker**, which receives far more of the map than a URL of flags can express.
+
+![Burg editor with a settlemaker preview of a coastal capital](docs/images/readme-image-2026-08-11_settlemaker-preview.png)
+
+A burg's **context** is extracted from a local cell window around it — approach bearings for each land route entering or passing through, ocean bearing and harbour size, rivers and lake/sea features, elevation with local relief and terrain setting (mountain / hills / plain / valley / plateau / coast), temperature and biome mix, and economy readings (market centre, top goods, treasury band). The projection to settlemaker's input is deliberately narrow — it sends exactly the fields settlemaker declares today, deflate-compressed and base64url-packed into a single `i=` parameter, with a flat query-string fallback when `CompressionStream` is unavailable or the payload exceeds its ~8KB budget. The seed is derived from the burg's own seed key, so a burg's town map is stable across regenerations of everything else.
+
+**Preview zoom.** Scroll to zoom, drag to pan, double-click to zoom in, and a reset button. Zoom is per-source rather than a plain CSS scale, because scaling a cross-origin frame rasterises it and blurs vector content:
+
+- SVG-backed previews (settlemaker) zoom by cheap transform during the gesture, then commit the iframe's *layout* size once it settles — so the embedded page re-renders sharp, without the flicker of committing every wheel tick.
+- Canvas-backed previews (Watabou) can't be resized without clearing the canvas, so their layout is locked to a supersampled size at load and zoom stays a pure transform, capped to the supersample budget.
+
+Zoom never carries across burgs. The per-source model was submitted upstream as [#1569](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1569).
+
+![The same preview zoomed to 2×, walls and street grid still sharp](docs/images/readme-image-2026-08-11_settlemaker-preview-zoom.png)
 
 ## Trade routes
 
@@ -65,10 +98,12 @@ Burgs can fly. Toggle **Flying** in the burg editor (or _Add sky burg_ from the 
 
 - **States editor:** merge a state down into provinces of a neighbour, and a paint-mode picker to demote a whole state to a province — with demoted provinces coloured and iconed like generated ones.
 - **GeoJSON exports:** standalone, bookmarklet-loadable export scripts in `tools/geojson-exports/`.
+- **Load from JSON:** Full JSON exports can be loaded back as maps (direct deserialisation, no re-graphing).
+- **Map repair tooling:** node/python scripts in `tools/` for `.map` files damaged by line-ending conversion, by stale/desynced feature masks (lakes not rendering), or by an older build's split layer stack.
 
 ## Contributed upstream
 
-Generic improvements are submitted back to Azgaar's repo rather than kept fork-only — e.g. editor pagination ([#1469](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1469)) and a Full-JSON importer ([#1468](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1468)).
+Generic improvements are submitted back to Azgaar's repo rather than kept fork-only — editor pagination ([#1469](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1469)), data-driven editor table columns ([#1564](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1564)), a Voronoi precision fix ([#1559](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1559)), chunk-preload recovery after deploys ([#1560](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1560)), burg-preview zoom ([#1569](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1569)), and a Full-JSON importer ([#1468](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1468), closed unmerged).
 
 ## Development
 
@@ -80,7 +115,7 @@ npm test         # vitest (src/**/*.test.ts)
 npm run lint     # biome (also runs as a pre-commit hook)
 ```
 
-New systems live as TypeScript modules in `src/modules/` (e.g. `burgs-generator`, `routes-generator`, `trade-network-generator`, `air-routes-generator`) with renderers in `src/renderers/`; legacy upstream code remains as vanilla JS in `public/modules/`. The codebase follows upstream's gradual TS migration: world data and styles (state) → generators (model) → editors (controllers) → renderers (view), keeping compatibility with old `.map` files.
+New systems live as TypeScript modules under `src/`: generators in `src/generators/` (e.g. `burgs-generator`, `routes-generator`, `trade-network-generator`, `air-routes-generator`, `megalopolis`, `burg-context`), editor controllers in `src/controllers/`, IO and integrations in `src/services/` (e.g. `services/previews/settlemaker`), and renderers in `src/renderers/`; the remaining legacy upstream code is vanilla JS in `public/`. The codebase follows upstream's gradual TS migration: world data and styles (state) → generators (model) → editors (controllers) → renderers (view), keeping compatibility with old `.map` files.
 
 ## Credits
 
