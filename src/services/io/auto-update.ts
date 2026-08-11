@@ -1068,7 +1068,7 @@ export function resolveVersionConflicts(mapVersion: string, data: string[]): voi
       .each(function (_el, index) {
         const name = this.id;
         const isDefault = name === "towns";
-        options.burgs.groups.push({ name, active: true, order: index + 1, isDefault, preview: "watabou-city" });
+        options.burgs.groups.push({ name, active: true, order: index + 1, isDefault, preview: "settlemaker" });
         if (!this.dataset.icon) this.dataset.icon = "#icon-circle";
 
         const size = Number(this.getAttribute("size") || 2) * 2;

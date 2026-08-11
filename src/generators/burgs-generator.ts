@@ -1030,7 +1030,7 @@ class BurgModule {
         active: true,
         order: 9,
         features: { capital: true },
-        preview: "watabou-city"
+        preview: "settlemaker"
       },
       {
         name: "city",
@@ -1038,7 +1038,7 @@ class BurgModule {
         order: 8,
         percentile: 90,
         min: 5,
-        preview: "watabou-city"
+        preview: "settlemaker"
       },
       {
         name: "fort",
@@ -1076,7 +1076,7 @@ class BurgModule {
         order: 2,
         min: 0.1,
         max: 2,
-        preview: "watabou-village"
+        preview: "settlemaker"
       },
       {
         name: "hamlet",
@@ -1084,7 +1084,7 @@ class BurgModule {
         order: 1,
         features: { plaza: false },
         max: 0.1,
-        preview: "watabou-village"
+        preview: "settlemaker"
       },
       {
         name: "skyburg-capital",
@@ -1115,7 +1115,7 @@ class BurgModule {
         active: true,
         order: 7,
         isDefault: true,
-        preview: "watabou-city"
+        preview: "settlemaker"
       }
     ];
   }
