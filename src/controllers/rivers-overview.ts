@@ -1,5 +1,5 @@
 import { mean, select } from "d3";
-import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, destroyDialog, updateDialog } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
 import {
@@ -14,16 +14,17 @@ import { Controllers } from "@/controllers";
 import type { River } from "@/generators/river-generator";
 import { highlightElement } from "@/renderers/overlays/highlight";
 import { downloadFile, getFileName } from "@/utils";
-import { destroyDialogIfExists, ensureEl, rn } from "../utils";
+import { ensureEl, rn } from "../utils";
 
-const RIVER_COLUMNS: EditorColumn<River>[] = [
-  { key: "locate", width: "1.4em", hideable: false },
+const dialogId = "riversOverview" as const;
+const position = { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" };
+const columns: EditorColumn<River>[] = [
+  { key: "locate", width: "1.4em", permanent: true },
   {
     key: "name",
     label: "River",
     width: "8em",
-    fill: true,
-    hideable: false,
+    permanent: true,
     tip: "Click to sort by river name",
     sortBy: river => river.name || "",
     sortType: "alpha"
@@ -31,7 +32,7 @@ const RIVER_COLUMNS: EditorColumn<River>[] = [
   {
     key: "type",
     label: "Type",
-    width: "4em",
+    width: "5em",
     mobileHidden: true,
     tip: "Click to sort by river type name",
     sortBy: river => river.type || "",
@@ -66,10 +67,10 @@ const RIVER_COLUMNS: EditorColumn<River>[] = [
     label: "Basin",
     width: "9em",
     tip: "Click to sort by river basin",
-    sortBy: river => river.basin,
+    sortBy: river => pack.rivers.find(({ i }) => i === river.basin)?.name || "",
     sortType: "alpha"
   },
-  { key: "actions", width: "3em", hideable: false }
+  { key: "actions", width: "2.2em", permanent: true, align: "right" }
 ];
 
 function getRiversById(): Map<number, River> {
@@ -93,40 +94,37 @@ const riversTable = initEditorTable<River>({
   getData: () => {
     const riversById = getRiversById();
     const filtered = getFilteredRivers(riversById);
-    const columns = RIVER_COLUMNS.map(column =>
+    // the basin accessor runs per comparison, so resolve basin names off the map, not a linear find
+    const sortColumns = columns.map(column =>
       column.key === "basin" ? { ...column, sortBy: (river: River) => riversById.get(river.basin)?.name || "" } : column
     );
-    return sortDataByColumns(ensureEl("riversHeader"), filtered, columns);
+    return sortDataByColumns(dialogId, filtered, sortColumns);
   },
   onUpdate: renderRiversPage
 });
 
 function open(): void {
   if (customization) return;
-  closeDialogs("#riversOverview, .stable");
+  closeDialogs(`#${dialogId}, .stable`);
   if (!layerIsOn("toggleRivers")) toggleRivers();
 
   renderDialog();
   riversTable.reset();
 
-  $("#riversOverview").dialog({
+  $(`#${dialogId}`).dialog({
     title: "Rivers Overview",
     resizable: false,
-    width: fitContent(),
-    position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" },
+    width: "fit-content",
+    position,
     close: closeRiversOverview
   });
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("riversOverview");
+  destroyDialog("riversOverview");
 
   const html = /* html */ `<div id="riversOverview" class="dialog stable editorDialog">
-    <div id="riversBody" class="table">${renderEditorHeader({
-      id: "riversHeader",
-      columns: RIVER_COLUMNS,
-      columnsButtonId: "riversToggleColumns"
-    })}</div>
+    <div id="riversBody" class="table">${renderEditorHeader({ dialogId, columns })}</div>
     <div id="riversFilters" class="editorFilters">
       <label for="riversSearch" data-tip="Filter by name, type or basin">Search: <input id="riversSearch" type="search" /></label>
     </div>
@@ -146,20 +144,19 @@ function renderDialog(): void {
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
-  bindColumnSorting(ensureEl("riversHeader"), riversTable.reset);
-  applyLineHighlighting("riversOverview", ({ target, cellId }) => {
+  bindColumnSorting(dialogId, riversTable.reset);
+  applyLineHighlighting(dialogId, ({ target, cellId }) => {
     const riverId = pack.cells.r[cellId];
     if (riverId) return riverId;
     const river = target.closest<SVGElement>("#rivers [id^='river']");
     return river && /^river\d+$/.test(river.id) ? Number(river.id.slice(5)) : undefined;
   });
-  // add listeners — dropped together with the dialog HTML on close
+
   ensureEl("riversOverviewRefresh").addEventListener("click", riversTable.refresh);
   initColumnVisibility({
-    button: ensureEl("riversToggleColumns"),
-    dialogId: "riversOverview",
-    storageKey: "rivers",
-    columns: RIVER_COLUMNS
+    dialogId,
+    columns,
+    onUpdate: () => updateDialog(dialogId, { width: "fit-content", position })
   });
   ensureEl("addNewRiver").addEventListener("click", () => void Controllers.RiverAutoCreator.toggle());
   ensureEl("riverCreateNew").addEventListener("click", createNewRiver);
@@ -170,14 +167,13 @@ function renderDialog(): void {
 }
 
 function closeRiversOverview(): void {
-  destroyDialogIfExists("riversOverview");
+  destroyDialog("riversOverview");
 }
 
 function createNewRiver(): void {
   void Controllers.RiverCreator.open();
 }
 
-// totals span the full filtered set, not just the current page
 function renderRiversPage(view: TableView<River>): void {
   const body = ensureEl("riversBody");
   body.querySelectorAll(":scope > .states").forEach(row => {
@@ -293,7 +289,6 @@ function toggleBasinsHightlight(): void {
 function downloadRiversData(): void {
   let data = "Id,River,Type,Discharge,Length,Width,Basin\n"; // headers
 
-  // export the full sorted+filtered set (all pages), not the DOM (which only holds the current page)
   const riversById = getRiversById();
   const exported = riversTable.view().all;
 

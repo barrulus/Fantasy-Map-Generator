@@ -1,6 +1,5 @@
 import { csvParse, drag, easeSinIn, select, transition } from "d3";
-import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
-import { fitContent } from "@/components/dialog/fit-content";
+import { closeDialogs, confirmationDialog, destroyDialog, updateDialog } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
 import {
@@ -26,10 +25,8 @@ import {
   abbreviate,
   capitalize,
   debounce,
-  destroyDialogIfExists,
   ensureEl,
   findAllCellsInRadius,
-  fitDialogIfExists,
   getPackPolygon,
   getPointer,
   isLand,
@@ -40,21 +37,17 @@ import {
 } from "../utils";
 
 let culturesManualHistory: string[] = [];
-// brush-selected culture during manual assignment; tracked off-DOM since the selected row may be on another page
 let selectedCultureId: number | null = null;
 
-function getFilteredCultures(): Culture[] {
-  return pack.cultures.filter(c => !c.removed);
-}
-
-const CULTURE_COLUMNS: EditorColumn<Culture>[] = [
-  { key: "color", width: "1.2em", hideable: false },
+const dialogId = "culturesEditor" as const;
+const position = { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" };
+const columns: EditorColumn<Culture>[] = [
+  { key: "color", width: "1.2em", permanent: true },
   {
     key: "name",
     label: "Culture",
-    width: "8em",
-    fill: true,
-    hideable: false,
+    width: "10em",
+    permanent: true,
     tip: "Click to sort by culture name",
     sortBy: culture => culture.name || "",
     sortType: "alpha"
@@ -62,7 +55,7 @@ const CULTURE_COLUMNS: EditorColumn<Culture>[] = [
   {
     key: "type",
     label: "Type",
-    width: "7em",
+    width: "6em",
     mobileHidden: true,
     tip: "Click to sort by type",
     sortBy: culture => culture.type || "",
@@ -79,14 +72,16 @@ const CULTURE_COLUMNS: EditorColumn<Culture>[] = [
   {
     key: "cells",
     label: "Cells",
-    width: "4em",
+    width: "5em",
+    hidden: true,
     tip: "Click to sort by culture cells count",
     sortBy: culture => culture.cells || 0
   },
   {
     key: "expansionism",
     label: "Expansion",
-    width: "8em",
+    width: "5em",
+    hidden: true,
     mobileHidden: true,
     tip: "Click to sort by expansionism",
     sortBy: culture => culture.expansionism || 0
@@ -94,7 +89,7 @@ const CULTURE_COLUMNS: EditorColumn<Culture>[] = [
   {
     key: "area",
     label: "Area",
-    width: "5em",
+    width: "7em",
     mobileHidden: true,
     tip: "Click to sort by culture area",
     sortBy: culture => culture.area || 0
@@ -102,7 +97,7 @@ const CULTURE_COLUMNS: EditorColumn<Culture>[] = [
   {
     key: "population",
     label: "Population",
-    width: "7em",
+    width: "6em",
     defaultSort: "desc",
     tip: "Click to sort by culture population",
     sortBy: culture => (culture.rural || 0) * populationRate + (culture.urban || 0) * populationRate * urbanization
@@ -110,23 +105,29 @@ const CULTURE_COLUMNS: EditorColumn<Culture>[] = [
   {
     key: "emblems",
     label: "Emblems",
-    width: "8em",
+    width: "7em",
+    hidden: true,
     mobileHidden: true,
     tip: "Click to sort by culture emblems shape",
     sortBy: culture => culture.shield || "",
     sortType: "alpha"
   },
-  { key: "actions", width: "4em", hideable: false }
+  { key: "actions", width: "3.2em", permanent: true, align: "right" }
 ];
 
 const culturesTable = initEditorTable<Culture>({
-  getData: () => sortDataByColumns(ensureEl("culturesHeader"), getFilteredCultures(), CULTURE_COLUMNS),
+  getData: () =>
+    sortDataByColumns(
+      dialogId,
+      pack.cultures.filter(c => !c.removed),
+      columns
+    ),
   onUpdate: culturesEditorAddLines
 });
 
 function open(): void {
   if (customization) return;
-  closeDialogs("#culturesEditor, .stable");
+  closeDialogs(`#${dialogId}, .stable`);
   if (!layerIsOn("toggleCultures")) toggleCultures();
   if (layerIsOn("toggleStates")) toggleStates();
   if (layerIsOn("toggleBiomes")) toggleBiomes();
@@ -138,23 +139,19 @@ function open(): void {
   drawCultureCenters();
   culturesTable.reset();
 
-  $("#culturesEditor").dialog({
+  $(`#${dialogId}`).dialog({
     title: "Cultures Editor",
     resizable: false,
-    width: fitContent(),
+    width: "fit-content",
     close: closeCulturesEditor,
-    position: { my: "right top", at: "right-10 top+10", of: "svg" }
+    position
   });
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("culturesEditor");
+  destroyDialog("culturesEditor");
   const editorHtml = /* html */ `<div id="culturesEditor" class="dialog stable editorDialog">
-    <div id="culturesBody" class="table" data-type="absolute">${renderEditorHeader({
-      id: "culturesHeader",
-      columns: CULTURE_COLUMNS,
-      columnsButtonId: "culturesToggleColumns"
-    })}</div>
+    <div id="culturesBody" class="table" data-type="absolute">${renderEditorHeader({ dialogId, columns })}</div>
 
     <div id="culturesFooter" class="totalLine">
       <div data-tip="Cultures number" style="margin-left: 12px">Cultures:&nbsp;<span id="culturesFooterCultures">0</span></div>
@@ -195,15 +192,14 @@ function renderDialog(): void {
   </div>`;
 
   ensureEl("dialogs").insertAdjacentHTML("beforeend", editorHtml);
-  bindColumnSorting(ensureEl("culturesHeader"), culturesTable.reset);
-  applyLineHighlighting("culturesEditor", ({ cellId }) => pack.cells.culture[cellId]);
+  bindColumnSorting(dialogId, culturesTable.reset);
+  applyLineHighlighting(dialogId, ({ cellId }) => pack.cells.culture[cellId]);
 
   ensureEl("culturesEditorRefresh").addEventListener("click", refreshCulturesEditor);
   initColumnVisibility({
-    button: ensureEl("culturesToggleColumns"),
-    dialogId: "culturesEditor",
-    storageKey: "cultures",
-    columns: CULTURE_COLUMNS
+    dialogId,
+    columns,
+    onUpdate: () => updateDialog(dialogId, { width: "fit-content", position })
   });
   ensureEl("culturesEditStyle").addEventListener("click", () => editStyle("cults"));
   ensureEl("culturesLegend").addEventListener("click", toggleLegend);
@@ -250,9 +246,7 @@ function culturesEditorAddLines(view: TableView<Culture>): void {
   let totalArea = 0;
   let totalPopulation = 0;
 
-  const emblemShapeGroup =
-    ensureEl<HTMLSelectElement>("emblemShape").selectedOptions[0]?.parentElement?.getAttribute("label");
-  const selectShape = emblemShapeGroup === "Diversiform";
+  const selectShape = canSelectCultureEmblemShape();
 
   // totals span the full filtered set, not just the current page
   for (const c of view.all) {
@@ -292,25 +286,25 @@ function culturesEditorAddLines(view: TableView<Culture>): void {
           </div>
           <select class="cultureType placeholder" data-col="type">${getTypeOptions(c.type)}</select>
           <div data-col="base">
-            <span data-tip="Click to re-generate names for burgs with this culture assigned" class="icon-arrows-cw hide"></span>
+            <span data-tip="Click to re-generate names for burgs with this culture assigned" class="icon-arrows-cw"></span>
             <select data-tip="Culture namesbase. Click to change. Click on arrows to re-generate names"
               class="cultureBase">${getBaseOptions(c.base)}</select>
           </div>
           <div data-col="cells">
-            <span data-tip="Cells count" class="icon-check-empty hide"></span>
-            <div data-tip="Cells count" class="cultureCells hide">${c.cells}</div>
+            <span data-tip="Cells count" class="icon-check-empty"></span>
+            <div data-tip="Cells count" class="cultureCells">${c.cells}</div>
           </div>
           <div data-col="expansionism">
-            <span class="icon-resize-full placeholder hide"></span>
-            <input class="cultureExpan placeholder hide" type="number" />
+            <span class="icon-resize-full placeholder"></span>
+            <input class="cultureExpan placeholder" type="number" />
           </div>
           <div data-col="area">
-            <span data-tip="Culture area" class="icon-map-o hide"></span>
-            <div data-tip="Culture area" class="cultureArea hide">${si(area)} ${unit}</div>
+            <span data-tip="Culture area" class="icon-map-o"></span>
+            <div data-tip="Culture area" class="cultureArea">${si(area)} ${unit}</div>
           </div>
           <div data-col="population">
-            <span data-tip="${populationTip}" class="icon-male hide"></span>
-            <div data-tip="${populationTip}" class="culturePopulation hide pointer">${si(population)}</div>
+            <span data-tip="${populationTip}" class="icon-male"></span>
+            <div data-tip="${populationTip}" class="culturePopulation pointer">${si(population)}</div>
           </div>
           <div data-col="emblems">${getShapeOptions(selectShape, c.shield)}</div>
           <div data-col="actions"></div>
@@ -340,19 +334,19 @@ function culturesEditorAddLines(view: TableView<Culture>): void {
         <select data-tip="Culture type. Defines growth model. Click to change"
           class="cultureType" data-col="type">${getTypeOptions(c.type)}</select>
         <div data-col="base">
-          <span data-tip="Click to re-generate names for burgs with this culture assigned" class="icon-arrows-cw hide"></span>
+          <span data-tip="Click to re-generate names for burgs with this culture assigned" class="icon-arrows-cw"></span>
           <select data-tip="Culture namesbase. Click to change. Click on arrows to re-generate names"
             class="cultureBase">${getBaseOptions(c.base)}</select>
         </div>
         <div data-col="cells">
-          <span data-tip="Cells count" class="icon-check-empty hide"></span>
-          <div data-tip="Cells count" class="cultureCells hide">${c.cells}</div>
+          <span data-tip="Cells count" class="icon-check-empty"></span>
+          <div data-tip="Cells count" class="cultureCells">${c.cells}</div>
         </div>
         <div data-col="expansionism">
-          <span data-tip="Culture expansionism. Defines competitive size" class="icon-resize-full hide"></span>
+          <span data-tip="Culture expansionism. Defines competitive size" class="icon-resize-full"></span>
           <input
             data-tip="Culture expansionism. Defines competitive size. Click to change, then click Recalculate to apply change"
-            class="cultureExpan hide"
+            class="cultureExpan"
             type="number"
             min="0"
             max="99"
@@ -361,18 +355,18 @@ function culturesEditorAddLines(view: TableView<Culture>): void {
           />
         </div>
         <div data-col="area">
-          <span data-tip="Culture area" class="icon-map-o hide"></span>
-          <div data-tip="Culture area" class="cultureArea hide">${si(area)} ${unit}</div>
+          <span data-tip="Culture area" class="icon-map-o"></span>
+          <div data-tip="Culture area" class="cultureArea">${si(area)} ${unit}</div>
         </div>
         <div data-col="population">
-          <span data-tip="${populationTip}" class="icon-male hide"></span>
-          <div data-tip="${populationTip}" class="culturePopulation hide pointer">${si(population)}</div>
+          <span data-tip="${populationTip}" class="icon-male"></span>
+          <div data-tip="${populationTip}" class="culturePopulation pointer">${si(population)}</div>
         </div>
         <div data-col="emblems">${getShapeOptions(selectShape, c.shield)}</div>
         <div data-col="actions">
-          <span data-tip="Locate the culture" class="icon-target hide"></span>
-          <span data-tip="Lock culture" class="icon-lock${c.lock ? "" : "-open"} hide"></span>
-          <span data-tip="Remove culture" class="icon-trash-empty hide"></span>
+          <span data-tip="Locate the culture" class="icon-target"></span>
+          <span data-tip="Lock culture" class="icon-lock${c.lock ? "" : "-open"}"></span>
+          <span data-tip="Remove culture" class="icon-trash-empty"></span>
         </div>
       </div>`;
   }
@@ -443,13 +437,20 @@ function culturesEditorAddLines(view: TableView<Culture>): void {
     .querySelectorAll("div > span.icon-lock-open")
     .forEach($el => void $el.addEventListener("click", updateLockStatus));
 
-  setModeHiddenColumns("culturesEditor", selectShape ? [] : ["emblems"]);
+  setModeHiddenColumns(
+    dialogId,
+    customization === 4
+      ? columns.filter(column => !column.permanent).map(column => column.key)
+      : selectShape
+        ? []
+        : ["emblems"]
+  );
 
   if (ensureEl("culturesBody").dataset.type === "percentage") {
     ensureEl("culturesBody").dataset.type = "absolute";
     togglePercentageMode();
   }
-  fitDialogIfExists("culturesEditor");
+  updateDialog(dialogId, { width: "fit-content", position });
 }
 
 function getTypeOptions(type: string): string {
@@ -476,7 +477,7 @@ function getShapeOptions(selectShape: boolean, selected: string): string {
   const options = shapes.map(
     shape => `<option ${shape === selected ? "selected" : ""} value="${shape}">${capitalize(shape)}</option>`
   );
-  return `<select data-tip="Emblem shape associated with culture. Click to change" class="cultureEmblems hide">${options}</select>`;
+  return `<select data-tip="Emblem shape associated with culture. Click to change" class="cultureEmblems">${options}</select>`;
 }
 
 const cultureHighlightOn = debounce((event: any) => {
@@ -920,18 +921,17 @@ function enterCultureManualAssignent(): void {
   ensureEl("culturesManuallyButtons").style.display = "inline-block";
   select("#debug").select("#cultureCenters").style("display", "none");
 
-  ensureEl("culturesEditor")
-    .querySelectorAll(".hide")
-    .forEach(el => {
-      el.classList.add("hidden");
-    });
+  setModeHiddenColumns(
+    dialogId,
+    columns.filter(column => !column.permanent).map(column => column.key)
+  );
   ensureEl("culturesFooter").style.display = "none";
   ensureEl("culturesBody")
     .querySelectorAll<HTMLElement>("div > input, select, span, svg")
     .forEach(e => {
       e.style.pointerEvents = "none";
     });
-  $("#culturesEditor").dialog({ position: { my: "right top", at: "right-10 top+10", of: "svg" } });
+  $(`#${dialogId}`).dialog({ position });
 
   tip("Click on culture to select, drag the circle to change culture", true);
   select<SVGElement, unknown>("#viewbox")
@@ -1043,18 +1043,14 @@ function exitCulturesManualAssignment(close?: string): void {
   });
   ensureEl("culturesManuallyButtons").style.display = "none";
 
-  ensureEl("culturesEditor")
-    .querySelectorAll(".hide")
-    .forEach(el => {
-      el.classList.remove("hidden");
-    });
+  setModeHiddenColumns(dialogId, canSelectCultureEmblemShape() ? [] : ["emblems"]);
   ensureEl("culturesFooter").style.display = "block";
   ensureEl("culturesBody")
     .querySelectorAll<HTMLElement>("div > input, select, span, svg")
     .forEach(e => {
       e.style.removeProperty("pointer-events");
     });
-  if (!close) $("#culturesEditor").dialog({ position: { my: "right top", at: "right-10 top+10", of: "svg" } });
+  if (!close) $(`#${dialogId}`).dialog({ position });
 
   select("#debug").select("#cultureCenters").style("display", null);
   applyDefaultViewboxEvents();
@@ -1062,6 +1058,11 @@ function exitCulturesManualAssignment(close?: string): void {
   const selected = ensureEl("culturesBody").querySelector("div.selected");
   if (selected) selected.classList.remove("selected");
   selectedCultureId = null;
+}
+
+function canSelectCultureEmblemShape(): boolean {
+  const group = ensureEl<HTMLSelectElement>("emblemShape").selectedOptions[0]?.parentElement?.getAttribute("label");
+  return group === "Diversiform";
 }
 
 function saveCulturesManualSnapshot(): void {

@@ -1,5 +1,5 @@
 import { drag, interpolateString, max, pack as packLayout, select, stratify } from "d3";
-import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog, updateDialog } from "@/components/dialog/dialog-helpers";
 import { fitContent } from "@/components/dialog/fit-content";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
@@ -28,10 +28,8 @@ import { fog, unfog } from "@/renderers/overlays/fogging";
 import { highlightElement } from "@/renderers/overlays/highlight";
 import { applyOption, downloadFile, getArea, getAreaUnit, getFileName, speak } from "@/utils";
 import {
-  destroyDialogIfExists,
   ensureEl,
   findAllCellsInRadius,
-  fitDialogIfExists,
   formatPrice,
   getAdjective,
   getMixedColor,
@@ -48,23 +46,25 @@ import {
 
 let statesManualHistory: string[] = [];
 
+const dialogId = "statesEditor" as const;
+const position = { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" };
+
 function getFilteredStatesData(): State[] {
   return pack.states.filter(s => !s.removed);
 }
 
 const STATE_COLUMNS: EditorColumn<State>[] = [
-  { key: "color", width: "1.2em", hideable: false },
+  { key: "color", width: "1.2em", permanent: true },
   {
     key: "name",
     label: "State",
     width: "8em",
-    fill: true,
-    hideable: false,
+    permanent: true,
     tip: "Click to sort by state name",
     sortBy: s => s.name || "",
     sortType: "alpha"
   },
-  { key: "emblem", width: "1.4em", hideable: false },
+  { key: "emblem", width: "1.4em", permanent: true },
   {
     key: "form",
     label: "Form",
@@ -135,7 +135,7 @@ const STATE_COLUMNS: EditorColumn<State>[] = [
     key: "type",
     label: "Type",
     width: "6em",
-    hideable: false,
+    permanent: true,
     tip: "Click to sort by state type",
     sortBy: s => s.type || "",
     sortType: "alpha"
@@ -144,15 +144,15 @@ const STATE_COLUMNS: EditorColumn<State>[] = [
     key: "expansionism",
     label: "Expansion",
     width: "7em",
-    hideable: false,
+    permanent: true,
     tip: "Click to sort by state expansion value",
     sortBy: s => s.expansionism || 0
   },
-  { key: "actions", width: "6em", hideable: false }
+  { key: "actions", width: "6em", permanent: true }
 ];
 
 const statesTable = initEditorTable<State>({
-  getData: () => sortDataByColumns(ensureEl("statesHeader"), getFilteredStatesData(), STATE_COLUMNS),
+  getData: () => sortDataByColumns(dialogId, getFilteredStatesData(), STATE_COLUMNS),
   onUpdate: renderStatesPage
 });
 
@@ -180,12 +180,11 @@ function open(): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("statesEditor");
+  destroyDialog("statesEditor");
   const editorHtml = /* html */ `<div id="statesEditor" class="dialog stable editorDialog">
     <div id="statesBodySection" class="table" data-type="absolute">${renderEditorHeader({
-      id: "statesHeader",
-      columns: STATE_COLUMNS,
-      columnsButtonId: "statesToggleColumns"
+      dialogId,
+      columns: STATE_COLUMNS
     })}</div>
 
     <div id="statesFooter" class="totalLine">
@@ -247,19 +246,18 @@ function renderDialog(): void {
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", editorHtml);
-  bindColumnSorting(ensureEl("statesHeader"), statesTable.reset);
+  bindColumnSorting(dialogId, statesTable.reset);
   applyLineHighlighting("statesEditor", ({ cellId }) =>
     pack.cells.h[cellId] < 20 ? undefined : pack.cells.state[cellId]
   );
   ensureEl("statesEditorRefresh").addEventListener("click", refreshStatesEditor);
   initColumnVisibility({
-    button: ensureEl("statesToggleColumns"),
-    dialogId: "statesEditor",
-    storageKey: "states",
-    columns: STATE_COLUMNS
+    dialogId,
+    columns: STATE_COLUMNS,
+    onUpdate: () => updateDialog(dialogId, { width: fitContent(), position })
   });
   // type/expansionism are owned by the regenerate-mode toggle, not the user's column picker
-  setModeHiddenColumns("statesEditor", ["type", "expansionism"]);
+  setModeHiddenColumns(dialogId, ["type", "expansionism"]);
   ensureEl("statesEditStyle").addEventListener("click", () => editStyle("regions"));
   ensureEl("statesLegend").addEventListener("click", toggleLegend);
   ensureEl("statesPercentage").addEventListener("click", togglePercentageMode);
@@ -515,7 +513,7 @@ function renderStatesPage(view: TableView<State>): void {
     ensureEl("statesBodySection").dataset.type = "absolute";
     togglePercentageMode();
   }
-  fitDialogIfExists("statesEditor");
+  updateDialog(dialogId, { width: fitContent(), position });
 }
 
 function getCultureOptions(culture: number): string {
@@ -698,7 +696,7 @@ function editStateName(state: number): void {
 }
 
 function renderNameEditor(): void {
-  destroyDialogIfExists("stateNameEditor");
+  destroyDialog("stateNameEditor");
   const nameEditorHtml = /* html */ `    <div id="stateNameEditor" class="dialog" data-state="0">
       <div>
         <div data-tip="State short name" class="label">Short name:</div>
@@ -1397,7 +1395,7 @@ function populateBrushStateSelect(): void {
   const sel = ensureEl("statesManuallyState") as HTMLSelectElement | null;
   if (!sel) return;
   const states = sortDataByColumns(
-    ensureEl("statesHeader"),
+    dialogId,
     pack.states.filter((s: any) => !s.removed),
     STATE_COLUMNS
   );
@@ -1929,7 +1927,7 @@ function openStateMergeDialog(): void {
   // Mirror the editor's active sort so the merge list reads in the same order the user is
   // looking at (e.g. by culture), instead of always by state id.
   const validStates = sortDataByColumns(
-    ensureEl("statesHeader"),
+    dialogId,
     pack.states.filter(s => s.i && !s.removed),
     STATE_COLUMNS
   );

@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildTracks,
   type EditorColumn,
-  initColumnVisibility,
+  getLastVisibleIndex,
   initEditorTable,
+  invertColumnVisibility,
   loadHiddenColumns,
   renderEditorHeader,
-  saveHiddenColumns,
-  setModeHiddenColumns
+  restoreDefaultColumnVisibility,
+  saveHiddenColumns
 } from "./table";
 
 const items = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
@@ -78,7 +79,7 @@ describe("mobile defaults", () => {
 
 describe("hidden columns persistence", () => {
   const COLUMNS = [
-    { key: "name", label: "Name", hideable: false },
+    { key: "name", label: "Name", permanent: true },
     { key: "population", label: "Population" },
     { key: "treasury", label: "Treasury" }
   ];
@@ -87,65 +88,104 @@ describe("hidden columns persistence", () => {
     const store = new Map<string, string>();
     (globalThis as Record<string, unknown>).localStorage = {
       getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => void store.set(k, v)
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k)
     };
   });
 
   it("round-trips the hidden set", () => {
-    saveHiddenColumns("burgs", new Set(["treasury"]));
-    expect(loadHiddenColumns("burgs", COLUMNS)).toEqual(new Set(["treasury"]));
+    saveHiddenColumns("burgsOverview", new Set(["treasury"]), COLUMNS);
+    expect(loadHiddenColumns("burgsOverview", COLUMNS)).toEqual(new Set(["treasury"]));
   });
 
   it("defaults to all visible", () => {
-    expect(loadHiddenColumns("burgs", COLUMNS).size).toBe(0);
+    expect(loadHiddenColumns("burgsOverview", COLUMNS).size).toBe(0);
   });
 
-  it("drops unknown and non-hideable keys on load", () => {
-    saveHiddenColumns("burgs", new Set(["name", "ghost", "population"]));
-    expect(loadHiddenColumns("burgs", COLUMNS)).toEqual(new Set(["population"]));
+  it("defaults hidden columns to not visible", () => {
+    const columns = [...COLUMNS, { key: "type", label: "Type", hidden: true }];
+    expect(loadHiddenColumns("burgsOverview", columns)).toEqual(new Set(["type"]));
+  });
+
+  it("applies newly hidden defaults over legacy stored visibility", () => {
+    localStorage.setItem("columnsHidden:statesEditor", "[]");
+    const columns = [...COLUMNS, { key: "type", label: "Type", hidden: true }];
+    expect(loadHiddenColumns("statesEditor", columns)).toEqual(new Set(["type"]));
+  });
+
+  it("drops unknown and permanent keys on load", () => {
+    saveHiddenColumns("burgsOverview", new Set(["name", "ghost", "population"]), COLUMNS);
+    expect(loadHiddenColumns("burgsOverview", COLUMNS)).toEqual(new Set(["population"]));
   });
 
   it("survives corrupted storage", () => {
-    localStorage.setItem("columnsHidden:burgs", "{not json");
-    expect(loadHiddenColumns("burgs", COLUMNS).size).toBe(0);
+    localStorage.setItem("columnsHidden:burgsOverview", "{not json");
+    expect(loadHiddenColumns("burgsOverview", COLUMNS).size).toBe(0);
   });
 
   const MOBILE_COLUMNS = [
-    { key: "name", label: "Name", hideable: false },
+    { key: "name", label: "Name", permanent: true },
     { key: "population", label: "Population", mobileHidden: true },
     { key: "treasury", label: "Treasury" }
   ];
 
   it("defaults to mobileHidden columns when nothing is stored and MOBILE is true", () => {
     (globalThis as Record<string, unknown>).MOBILE = true;
-    expect(loadHiddenColumns("burgs", MOBILE_COLUMNS)).toEqual(new Set(["population"]));
+    expect(loadHiddenColumns("burgsOverview", MOBILE_COLUMNS)).toEqual(new Set(["population"]));
   });
 
   it("defaults to nothing hidden when nothing is stored and MOBILE is false", () => {
     (globalThis as Record<string, unknown>).MOBILE = false;
-    expect(loadHiddenColumns("burgs", MOBILE_COLUMNS).size).toBe(0);
+    expect(loadHiddenColumns("burgsOverview", MOBILE_COLUMNS).size).toBe(0);
   });
 
   it("honours an explicitly stored empty array over mobile defaults", () => {
     (globalThis as Record<string, unknown>).MOBILE = true;
-    saveHiddenColumns("burgs", new Set());
-    expect(loadHiddenColumns("burgs", MOBILE_COLUMNS).size).toBe(0);
+    saveHiddenColumns("burgsOverview", new Set(), MOBILE_COLUMNS);
+    expect(loadHiddenColumns("burgsOverview", MOBILE_COLUMNS).size).toBe(0);
   });
 
   it("honours an explicitly stored set over mobile defaults", () => {
     (globalThis as Record<string, unknown>).MOBILE = true;
-    saveHiddenColumns("burgs", new Set(["treasury"]));
-    expect(loadHiddenColumns("burgs", MOBILE_COLUMNS)).toEqual(new Set(["treasury"]));
+    saveHiddenColumns("burgsOverview", new Set(["treasury"]), MOBILE_COLUMNS);
+    expect(loadHiddenColumns("burgsOverview", MOBILE_COLUMNS)).toEqual(new Set(["treasury"]));
+  });
+
+  it("combines hidden and mobileHidden defaults on mobile", () => {
+    (globalThis as Record<string, unknown>).MOBILE = true;
+    const columns = [...MOBILE_COLUMNS, { key: "type", label: "Type", hidden: true }];
+    expect(loadHiddenColumns("burgsOverview", columns)).toEqual(new Set(["population", "type"]));
+  });
+
+  it("remembers when a default-hidden column is explicitly shown", () => {
+    const columns = [...COLUMNS, { key: "type", label: "Type", hidden: true }];
+    saveHiddenColumns("statesEditor", new Set(), columns);
+    expect(loadHiddenColumns("statesEditor", columns).size).toBe(0);
+  });
+
+  it("restores the default visibility after a saved override", () => {
+    const columns = [...COLUMNS, { key: "type", label: "Type", hidden: true }];
+    saveHiddenColumns("statesEditor", new Set(["treasury"]), columns);
+
+    expect(restoreDefaultColumnVisibility("statesEditor", columns)).toEqual(new Set(["type"]));
+    expect(loadHiddenColumns("statesEditor", columns)).toEqual(new Set(["type"]));
+  });
+
+  it("inverts configurable column visibility and persists it", () => {
+    const columns = [...COLUMNS, { key: "type", label: "Type", hidden: true }];
+    saveHiddenColumns("statesEditor", new Set(["treasury"]), columns);
+
+    expect(invertColumnVisibility("statesEditor", columns)).toEqual(new Set(["population", "type"]));
+    expect(loadHiddenColumns("statesEditor", columns)).toEqual(new Set(["population", "type"]));
   });
 });
 
 const COLUMNS = [
-  { key: "locate", width: "1.4em", hideable: false },
+  { key: "locate", width: "1.4em", permanent: true },
   {
     key: "name",
     label: "Route",
     width: "8em",
-    fill: true,
     sortBy: (r: { name: string }) => r.name,
     sortType: "alpha" as const
   },
@@ -157,16 +197,16 @@ const COLUMNS = [
     sortBy: (r: { length: number }) => r.length,
     defaultSort: "desc" as const
   },
-  { key: "actions", width: "4em", hideable: false }
+  { key: "actions", width: "4em", permanent: true }
 ];
 
 describe("buildTracks", () => {
   it("emits one track per visible column, in order", () => {
-    expect(buildTracks(COLUMNS, new Set())).toBe("1.4em minmax(8em, 1fr) 8em 6em 4em");
+    expect(buildTracks(COLUMNS, new Set())).toBe("1.4em 8em 8em 6em 4em");
   });
 
   it("drops the tracks of hidden columns", () => {
-    expect(buildTracks(COLUMNS, new Set(["group", "length"]))).toBe("1.4em minmax(8em, 1fr) 4em");
+    expect(buildTracks(COLUMNS, new Set(["group", "length"]))).toBe("1.4em 8em 4em");
   });
 
   it("falls back to auto for a column with no declared width", () => {
@@ -174,125 +214,58 @@ describe("buildTracks", () => {
   });
 });
 
-describe("renderEditorHeader", () => {
-  const html = renderEditorHeader({ id: "routesHeader", columns: COLUMNS, columnsButtonId: "routesToggleColumns" });
-
-  it("gives every column a cell tagged with its key", () => {
-    const container = document.createElement("div");
-    container.innerHTML = html;
-    const header = container.firstElementChild as HTMLElement;
-    expect(header.id).toBe("routesHeader");
-    expect(Array.from(header.children).map(cell => (cell as HTMLElement).dataset.col)) //
-      .toEqual(["locate", "name", "group", "length", "actions"]);
+describe("getLastVisibleIndex", () => {
+  it("returns the index of the last column that is not hidden", () => {
+    expect(getLastVisibleIndex(COLUMNS, new Set(["length", "actions"]))).toBe(2);
   });
 
-  it("marks sortable columns and their sort type", () => {
-    const container = document.createElement("div");
-    container.innerHTML = html;
-    const name = container.querySelector<HTMLElement>('[data-col="name"]')!;
-    expect(name.classList.contains("sortable")).toBe(true);
-    expect(name.classList.contains("alphabetically")).toBe(true);
-    expect(name.dataset.sortby).toBe("name");
-  });
-
-  it("leaves structural columns unsortable", () => {
-    const container = document.createElement("div");
-    container.innerHTML = html;
-    const locate = container.querySelector<HTMLElement>('[data-col="locate"]')!;
-    expect(locate.classList.contains("sortable")).toBe(false);
-    expect(locate.dataset.sortby).toBeUndefined();
-  });
-
-  it("applies the initial sort icon to the default-sorted column", () => {
-    const container = document.createElement("div");
-    container.innerHTML = html;
-    expect(container.querySelector('[data-col="length"]')!.className).toContain("icon-sort-number-down");
-  });
-
-  it("puts the columns button in the last cell", () => {
-    const container = document.createElement("div");
-    container.innerHTML = html;
-    const button = container.querySelector<HTMLElement>("#routesToggleColumns")!;
-    expect(button.closest("[data-col]")!.getAttribute("data-col")).toBe("actions");
-  });
-
-  it("anchors the button to the last non-hideable column, even if it isn't last overall", () => {
-    const columns: EditorColumn[] = [
-      { key: "locate", hideable: false },
-      { key: "name", label: "Name", hideable: false },
-      { key: "extra", label: "Extra" }
-    ];
-    const container = document.createElement("div");
-    container.innerHTML = renderEditorHeader({ id: "h", columns, columnsButtonId: "toggle" });
-    const button = container.querySelector<HTMLElement>("#toggle")!;
-    expect(button.closest("[data-col]")!.getAttribute("data-col")).toBe("name");
+  it("returns -1 when every column is hidden", () => {
+    expect(getLastVisibleIndex(COLUMNS, new Set(COLUMNS.map(column => column.key)))).toBe(-1);
   });
 });
 
-describe("mode-hidden columns", () => {
-  const COLUMNS: EditorColumn[] = [
-    { key: "name", label: "Name", hideable: false },
-    { key: "population", label: "Population" },
-    { key: "treasury", label: "Treasury" },
-    { key: "actions", hideable: false }
-  ];
+describe("renderEditorHeader", () => {
+  const html = renderEditorHeader({ dialogId: "routesOverview", columns: COLUMNS });
 
-  let dialog: HTMLElement;
-  let button: HTMLButtonElement;
-
-  const hiddenKeys = () => {
-    const style = document.getElementById("modeTestColumnsStyle") as HTMLStyleElement;
-    const matches = [...(style?.textContent ?? "").matchAll(/data-col="([^"]+)"/g)];
-    return new Set(matches.map(m => m[1]));
-  };
-
-  beforeEach(() => {
-    const store = new Map<string, string>();
-    (globalThis as Record<string, unknown>).localStorage = {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => void store.set(k, v)
-    };
-    document.body.innerHTML = "";
-    dialog = document.createElement("div");
-    dialog.id = "modeTest";
-    button = document.createElement("button");
-    dialog.appendChild(button);
-    document.body.appendChild(dialog);
+  it("wraps the cells in a header div with the given id", () => {
+    expect(html.startsWith('<div id="routesOverviewHeader" class="header">')).toBe(true);
+    expect(html.endsWith("</div>")).toBe(true);
   });
 
-  afterEach(() => {
-    document.getElementById("modeTestColumnsStyle")?.remove();
+  it("gives every column a cell tagged with its key", () => {
+    for (const key of ["locate", "name", "group", "length", "actions"]) {
+      expect(html.includes(`data-col="${key}"`)).toBe(true);
+    }
   });
 
-  it("unions mode-hidden keys with the user's stored choice", () => {
-    saveHiddenColumns("modeTest", new Set(["population"]));
-    initColumnVisibility({ button, dialogId: "modeTest", storageKey: "modeTest", columns: COLUMNS });
-    setModeHiddenColumns("modeTest", ["treasury"]);
-    expect(hiddenKeys()).toEqual(new Set(["population", "treasury"]));
+  it("marks sortable columns and their sort type", () => {
+    expect(html.includes('data-col="name" class="sortable alphabetically" data-sortby="name"')).toBe(true);
   });
 
-  it("restores the mode-hidden columns when set back to an empty list, keeping the user's choice", () => {
-    saveHiddenColumns("modeTest", new Set(["population"]));
-    initColumnVisibility({ button, dialogId: "modeTest", storageKey: "modeTest", columns: COLUMNS });
-    setModeHiddenColumns("modeTest", ["treasury"]);
-    expect(hiddenKeys()).toEqual(new Set(["population", "treasury"]));
-
-    setModeHiddenColumns("modeTest", []);
-    expect(hiddenKeys()).toEqual(new Set(["population"]));
+  it("leaves structural columns unsortable", () => {
+    const locateCell = html.slice(html.indexOf('data-col="locate"'), html.indexOf('data-col="name"'));
+    expect(locateCell.includes("sortable")).toBe(false);
+    expect(locateCell.includes("data-sortby")).toBe(false);
   });
 
-  it("keeps the columns picker's checkboxes reflecting only the user's stored choice, not mode-hidden additions", () => {
-    saveHiddenColumns("modeTest", new Set(["population"]));
-    initColumnVisibility({ button, dialogId: "modeTest", storageKey: "modeTest", columns: COLUMNS });
-    setModeHiddenColumns("modeTest", ["treasury"]);
+  it("applies the initial sort icon to the default-sorted column", () => {
+    expect(html.includes('data-col="length" class="sortable icon-sort-number-down" data-sortby="length"')).toBe(true);
+  });
 
-    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    const popup = document.getElementById("modeTestColumnsPicker")!;
-    const population = popup.querySelector<HTMLInputElement>('input[data-key="population"]')!;
-    const treasury = popup.querySelector<HTMLInputElement>('input[data-key="treasury"]')!;
-    // population is the user's own hidden choice: unchecked
-    expect(population.checked).toBe(false);
-    // treasury is only mode-hidden, never stored by the user: still checked
-    expect(treasury.checked).toBe(true);
+  it("puts the columns button in the last cell", () => {
+    const actionsCell = html.slice(html.indexOf('data-col="actions"'));
+    expect(actionsCell.includes('id="routesOverviewColumnsButton"')).toBe(true);
+  });
+
+  it("anchors the button to the last initially visible column", () => {
+    const columns: EditorColumn[] = [
+      { key: "locate", permanent: true },
+      { key: "name", label: "Name", permanent: true },
+      { key: "extra", label: "Extra", hidden: true }
+    ];
+    const anchored = renderEditorHeader({ dialogId: "example", columns });
+    const nameCell = anchored.slice(anchored.indexOf('data-col="name"'), anchored.indexOf('data-col="extra"'));
+    expect(nameCell.includes('id="exampleColumnsButton"')).toBe(true);
+    expect(anchored.slice(anchored.indexOf('data-col="extra"')).includes('id="exampleColumnsButton"')).toBe(false);
   });
 });

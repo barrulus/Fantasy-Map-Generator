@@ -1,11 +1,11 @@
 // The Cell Info panel: everything known about the cell under the cursor
 import { select } from "d3";
+import { destroyDialog } from "@/components/dialog/dialog-helpers";
 import type { Feature } from "@/generators/features";
 import type { Point } from "@/generators/voronoi";
 import {
   convertTemperature,
   debounce,
-  destroyDialogIfExists,
   ensureEl,
   findClosestCell,
   findGridCell,
@@ -49,7 +49,7 @@ function cleanup(): void {
   select<SVGGElement, unknown>("#viewbox").on(".cellInfo", null);
   const viewboxTop = document.getElementById("viewboxTop");
   if (viewboxTop) select<SVGGElement, unknown>(viewboxTop as unknown as SVGGElement).on(".cellInfo", null);
-  destroyDialogIfExists("cellInfo");
+  destroyDialog("cellInfo");
 }
 
 function renderDialog(): void {

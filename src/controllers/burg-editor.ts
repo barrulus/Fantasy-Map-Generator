@@ -1,24 +1,14 @@
 import { type Selection, select } from "d3";
-import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
 import { drawLabels } from "@/renderers/labels/labels-renderer";
+import { getHeight, openURL, speak } from "@/utils";
 import { MAX_ZOOM, PAN_ZOOM_IDENTITY, type PanZoom, panBy, zoomAt } from "@/utils/panZoomUtils";
 import { type Burg, cellSlotAfterRemoval, groundSlotOnPlacement } from "../generators/burgs-generator";
 import { findMegalopolises, megalopolisName } from "../generators/megalopolis";
-import {
-  convertTemperature,
-  destroyDialogIfExists,
-  ensureEl,
-  getHeight,
-  getPointer,
-  getTemperatureLikeness,
-  openURL,
-  rand,
-  rn,
-  speak
-} from "../utils";
+import { convertTemperature, ensureEl, getPointer, getTemperatureLikeness, rand, rn } from "../utils";
 import type { PromptOptions } from "../utils/commonUtils";
 
 declare const prompt: (text: string, options: PromptOptions, callback: (value: string | number) => void) => void;
@@ -52,7 +42,7 @@ function open(id: number | string): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("burgEditor");
+  destroyDialog("burgEditor");
   const editorHtml = /* html */ `<div id="burgEditor" class="dialog" data-burg-id="${getSelectedId()}">
       <div id="burgBody" style="padding-bottom: 0.3em">
         <div style="display: flex; align-items: center">
@@ -654,15 +644,11 @@ function getPreviewViewport(): { width: number; height: number } {
   return { width: container.clientWidth, height: container.clientHeight };
 }
 
-// Zoom rests on the iframe's layout size, not CSS scale: a cross-origin frame is
-// composited as a raster texture, so scaling it blurs even vector content, while a
-// resized viewport makes the embedded page re-render sharp. That re-render is
-// asynchronous though, so mid-gesture the frame is scaled with a cheap transform
-// and the layout size is committed only once the gesture settles — committing per
-// wheel-tick briefly shows the stale canvas in the wrong place (heavy flicker).
-// Canvas-backed generators (watabou) never commit at all: resizing clears a canvas
-// to transparent until the next redraw, so their layout is locked to a supersampled
-// size at load and zoom stays a pure transform of it.
+// mid-gesture the frame is scaled with a cheap transform; the layout size is committed
+// only once the gesture settles, as generators re-render asynchronously on resize.
+// canvas-backed generators (watabou) never commit at all: resizing clears their canvas
+// to transparent until the next redraw, so their layout is locked at a supersampled
+// size on load and zoom stays a pure transform of it
 function applyPreviewTransform(): void {
   const container = ensureEl("burgPreviewObject");
   const frame = container.querySelector<HTMLIFrameElement>("iframe");
@@ -704,7 +690,7 @@ function previewPointFromEvent(event: MouseEvent): { x: number; y: number } {
 }
 
 function onPreviewWheel(event: WheelEvent): void {
-  event.preventDefault(); // zoom the preview, don't scroll the dialog
+  event.preventDefault();
   const factor = Math.exp(-event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002));
   previewTransform = zoomAt(
     previewTransform,
@@ -736,14 +722,14 @@ function onPreviewPointerDown(event: PointerEvent): void {
     applyPreviewTransform();
   };
   const up = () => {
-    container.off("pointermove", move);
-    container.off("pointerup", up);
-    container.off("pointercancel", up);
+    container.removeEventListener("pointermove", move);
+    container.removeEventListener("pointerup", up);
+    container.removeEventListener("pointercancel", up);
     container.style.cursor = "grab";
   };
-  container.on("pointermove", move);
-  container.on("pointerup", up);
-  container.on("pointercancel", up);
+  container.addEventListener("pointermove", move);
+  container.addEventListener("pointerup", up);
+  container.addEventListener("pointercancel", up);
 }
 
 let glMaxTextureSize = 0;
@@ -755,9 +741,7 @@ function getGlMaxTextureSize(): number {
   return glMaxTextureSize;
 }
 
-// Canvas backing stores multiply layout px by devicePixelRatio, and mfcg's internal
-// render textures pad past the raw canvas size — half the reported GPU limit is the
-// budget that stays allocatable inside its render loop.
+// half the reported limit: the generator's internal render textures pad past the raw canvas size
 function getPreviewTextureBudgetK(): number {
   const { width, height } = getPreviewViewport();
   const paneMax = Math.max(width, height, 1);
@@ -777,10 +761,10 @@ async function updateBurgPreview(burg: Burg): Promise<void> {
   const container = ensureEl("burgPreviewObject");
   container.innerHTML = "";
   const frame = document.createElement("iframe");
-  frame.style.position = "absolute"; // sized/panned by applyPreviewTransform; container owns the pane size
+  frame.style.position = "absolute";
   frame.style.border = "none";
+  frame.style.pointerEvents = "none";
   frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
-  frame.style.pointerEvents = "none"; // the container owns all interaction
   frame.src = preview;
   container.insertBefore(frame, null);
 
@@ -795,7 +779,7 @@ async function updateBurgPreview(burg: Burg): Promise<void> {
     previewCommittedK = 1;
     previewMaxZoom = MAX_ZOOM;
   }
-  resetPreviewZoom(); // zoom never carries across burgs
+  resetPreviewZoom();
 }
 
 async function openBurgLink(): Promise<void> {
