@@ -15,6 +15,9 @@ import "./draw-measurers";
 import "./draw-scalebar";
 import "./draw-temperature";
 import "./labeling/label-collision";
+// after the labels layer registers, so it reconciles with the label DOM already in place
+import "./labels/labels-renderer";
+import "./labeling/zoom-extras";
 import "./webgl-burg-icons";
 import "./webgl-burg-labels";
 import "./layer-host";

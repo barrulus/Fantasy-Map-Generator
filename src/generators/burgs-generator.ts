@@ -44,8 +44,6 @@ export interface Burg {
   altitude?: number;
   tradeRole?: "hub" | "waystation";
   tradeRoleManual?: boolean;
-  labelDx?: number; // GPU-label x offset from anchor (map units); set by drag-to-reposition
-  labelDy?: number; // GPU-label y offset from anchor (map units)
   production?: ProductionRecord[]; // per-burg production/trade records from the last production run
   product?: number; // gross product from the last production run
   treasury?: number; // accumulated cash balance
