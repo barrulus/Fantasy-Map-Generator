@@ -289,6 +289,12 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
       options.mapSize ??= 100;
       options.latitude ??= 50;
       options.prec ??= 100;
+      // A saved options object from before these existed replaces the defaults wholesale above.
+      // resolveVersionConflicts rebuilds both, but its pre-1.11 blocks toggle layers on the way
+      // there, and turnButtonOn -> ViewportLayers.renderNow() reads options.labels.groups — so a
+      // very old map threw before its own migration could run.
+      options.labels ??= Labels.getDefaultOptions();
+      options.burgs ??= { groups: Burgs.getDefaultGroups() };
       // setting 16 and 17 (temperature) are part of options now, kept as "" in newer versions for compatibility
       if (settings[16]) options.temperatureEquator = +settings[16];
       if (settings[17]) options.temperatureNorthPole = options.temperatureSouthPole = +settings[17];
