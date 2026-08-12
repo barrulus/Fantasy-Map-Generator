@@ -1,5 +1,5 @@
 "use strict";
-// Azgaar (azgaar.fmg@yandex.com). Minsk, 2017-2023. MIT License
+// Azgaar and contributors, 2017-2026. MIT License
 // https://github.com/Azgaar/Fantasy-Map-Generator
 
 // set debug options
@@ -76,7 +76,7 @@ let prec = viewbox.append("g").attr("id", "prec").style("display", "none");
 let population = viewbox.append("g").attr("id", "population");
 let emblems = viewbox.append("g").attr("id", "emblems").style("display", "none");
 let icons = viewbox.append("g").attr("id", "icons");
-let labels = viewbox.append("g").attr("id", "labels");
+let labels = viewbox.append("g").attr("id", "labels").attr("font-size", "100px");
 let burgIcons = icons.append("g").attr("id", "burgIcons");
 let anchors = icons.append("g").attr("id", "anchors");
 let armies = viewbox.append("g").attr("id", "armies");
@@ -103,10 +103,6 @@ coastline.append("g").attr("id", "lake_island");
 
 terrs.append("g").attr("id", "oceanHeights");
 terrs.append("g").attr("id", "landHeights");
-
-labels.append("g").attr("id", "states");
-labels.append("g").attr("id", "addedLabels");
-let burgLabels = labels.append("g").attr("id", "burgLabels");
 
 // population groups
 population.append("g").attr("id", "rural");
@@ -165,11 +161,11 @@ let options = {
   latitude: 50, // North-South map shift in %, 50 is centered on equator
   longitude: 50, // West-East map shift in %, 50 is centered on prime meridian
   prec: 100, // precipitation modifier in %
-  stateLabelsMode: "auto",
   showBurgPreview: true,
   burgs: {
     groups: JSON.safeParse(localStorage.getItem("burg-groups")) || Burgs.getDefaultGroups()
   },
+  labels: JSON.safeParse(localStorage.getItem("options-labels")) || Labels.getDefaultOptions(),
   trade: {
     animation: JSON.safeParse(localStorage.getItem("trade-animation")) || TradeAnimation.getDefaultOptions()
   },
@@ -177,106 +173,19 @@ let options = {
 };
 
 // global style object; in v2.0 to be used for all map styles and render settings
-let style = { burgLabels: {}, burgIcons: {}, anchors: {}, routes: {} };
+let style = { labels: { groups: {} }, burgIcons: {}, anchors: {}, routes: {} };
 
 let color = d3.scaleSequential(d3.interpolateSpectral); // default color scheme
 const lineGen = d3.line().curve(d3.curveBasis); // d3 line generator with default curve interpolation
 
-// d3 zoom behavior
+// current map view transform, written by the zoom handlers in src/components/zoom.ts
 let scale = 1;
 let viewX = 0;
 let viewY = 0;
 
-// Expose the live viewbox transform to ES modules (e.g. the WebGL burg renderer),
+// Expose the live viewbox transform to ES modules (e.g. the WebGL burg renderers),
 // which can't see classic-script `let` globals by bare name or via window.
 window.getMapTransform = () => ({scale, viewX, viewY});
-
-let rafId = null;
-let pendingScaleChange = false;
-let pendingPositionChange = false;
-
-// Defer the expensive label/emblem/marker rescale: while the user is actively
-// zooming we do only the cheap per-frame work (the viewbox transform + scale bar);
-// invokeActiveZooming() runs ONCE, ~120ms after the last scale change. On big maps
-// this removes the per-frame Style+Layout (~7s over a wheel-zoom gesture at 80K burgs).
-// Every gesture (wheel, drag-zoom, pinch, programmatic transition) funnels through
-// zoomRaf, so this one funnel covers them all.
-// NOTE: a render-quality bracket (optimizeSpeed + dropping filters during the gesture)
-// was prototyped here and removed — it regressed light/moderate maps (two extra
-// full-map re-rasters at gesture start/end outweighed the per-frame savings) and barely
-// dented heavy-map paint. Revisit as a map-size-gated option alongside the WebGL work.
-let interactionSettleTimer = null;
-function scheduleActiveZooming() {
-  clearTimeout(interactionSettleTimer);
-  interactionSettleTimer = setTimeout(invokeActiveZooming, 120);
-}
-
-function zoomRaf() {
-  const { k, x, y } = d3.event.transform;
-
-  const isScaleChanged = Boolean(scale - k);
-  const isPositionChanged = Boolean(viewX - x || viewY - y);
-  if (!isScaleChanged && !isPositionChanged) return;
-
-  scale = k;
-  viewX = x;
-  viewY = y;
-
-  // Coalesce multiple zoom events into one paint.
-  // While a RAF is pending, keep updating latest transform state and OR-change flags.
-  // The scheduled RAF consumes these accumulated flags and then resets them.
-  pendingScaleChange = pendingScaleChange || isScaleChanged;
-  pendingPositionChange = pendingPositionChange || isPositionChanged;
-
-  if (rafId) return;
-  rafId = requestAnimationFrame(() => {
-    rafId = null;
-
-    // Safely clears these flags for future renders
-    const didScaleChange = pendingScaleChange;
-    const didPositionChange = pendingPositionChange;
-    pendingScaleChange = false;
-    pendingPositionChange = false;
-
-    // Uses global values, so each frame always draws using the latest positioning values
-    viewbox.attr("transform", `translate(${viewX} ${viewY}) scale(${scale})`);
-
-    // Compositor: mirror the transform to any #viewboxTop and draw WebGL layers (no SVG repaint).
-    if (window.LayerHost) window.LayerHost.onFrame();
-    else if (window.burgWebglActive && window.burgWebglActive()) window.drawBurgGL(); // fallback pre-init
-
-    if (didPositionChange) {
-      if (layerIsOn("toggleCoordinates")) drawCoordinates();
-    }
-
-    if (customization === 1) {
-      const canvas = findEl("canvas");
-      if (canvas && canvas.style.opacity !== "0") {
-        const img = findEl("imageToConvert");
-        if (img) {
-          const ctx = canvas.getContext("2d");
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.setTransform(scale, 0, 0, scale, viewX, viewY);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        }
-      }
-    }
-
-    if (didScaleChange) {
-      // Scale bar is cheap — keep it live so the gesture feels responsive.
-      drawScaleBar(scaleBar, scale);
-      fitScaleBar(scaleBar, svgWidth, svgHeight);
-      // Defer the heavy rescale/cull to ~120ms after the last scale change.
-      scheduleActiveZooming();
-    }
-
-    if (didPositionChange || didScaleChange) {
-      window.updateMinimap && updateMinimap();
-    }
-  });
-}
-
-const zoom = d3.zoom().scaleExtent([1, 20]).on("zoom", zoomRaf);
 
 var mapCoordinates = {}; // map coordinates on globe
 let populationRate = +ensureEl("populationRateInput").value;
@@ -370,6 +279,10 @@ oceanLayers
   .attr("height", graphHeight);
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // binds the zoom behaviour and its handlers (see src/components/viewbox-events.ts), so it has to
+  // run before checkLoadParameters - deep links (MFCG, a stored view position) zoom the map on load
+  applyDefaultViewboxEvents();
+
   if (!location.hostname) {
     const wiki = "https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Run-FMG-locally";
     alertMessage.innerHTML = /* html */ `Fantasy Map Generator cannot run serverless. Follow the <a href="${wiki}" target="_blank">instructions</a> on how you can easily run a local web-server`;
@@ -389,7 +302,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     hideLoading();
     await checkLoadParameters();
   }
-  applyDefaultViewboxEvents();
   initiateAutosave();
   initTourPromptButton();
 });
@@ -532,7 +444,7 @@ function toggleAssistant() {
           const bubble = document.getElementById("chat-widget-minimized");
           if (bubble) {
             bubble.dataset.tip = "Click to open the Assistant";
-            bubble.on("mouseover", showDataTip);
+            bubble.addEventListener("mouseover", showDataTip);
           }
         }, 5000);
       });
@@ -609,7 +521,7 @@ function findBurgForMFCG(params) {
   }
   if (params.get("name") && params.get("name") != "null") b.name = params.get("name");
 
-  const label = burgLabels.select("[data-id='" + burgId + "']");
+  const label = labels.select("[data-label-type='burg'][data-id='" + burgId + "']");
   if (label.size()) {
     label
       .text(b.name)
@@ -621,343 +533,7 @@ function findBurgForMFCG(params) {
   }
 
   zoomTo(b.x, b.y, 8, 1600);
-  invokeActiveZooming();
   tip("Here stands the glorious city of " + b.name, true, "success", 15000);
-}
-
-// Zoom to a specific point
-function zoomTo(x, y, z = 8, d = 2000) {
-  const transform = d3.zoomIdentity.translate(x * -z + svgWidth / 2, y * -z + svgHeight / 2).scale(z);
-  svg.transition().duration(d).call(zoom.transform, transform);
-}
-
-// Reset zoom to initial
-function resetZoom(d = 1000) {
-  svg.transition().duration(d).call(zoom.transform, d3.zoomIdentity);
-}
-
-// Bundled UI modules call these wrappers instead of using the legacy d3 selection directly
-function panMap(x, y) {
-  zoom.translateBy(svg, x, y);
-}
-
-function setMapZoom(value) {
-  zoom.scaleTo(svg, value);
-}
-
-function changeMapZoom(factor) {
-  zoom.scaleBy(svg, factor);
-}
-
-// active zooming feature
-function invokeActiveZooming() {
-  // Resync the cached transform vars with d3's zoom state before using `scale` below. On map load
-  // the SVG is rebuilt and d3's zoom transform resets, but these module vars (exposed via
-  // getMapTransform and consumed by the WebGL burg/label layers) are only updated by the zoom
-  // handler (zoomRaf). Without this they stay stale after a load, so the GPU layers render offset
-  // from the SVG until the first pan/zoom re-syncs them. See docs .../2026-07-21-bug-capital-label-never-visible.md
-  const zt = d3.zoomTransform(svg.node());
-  if (scale !== zt.k || viewX !== zt.x || viewY !== zt.y) {
-    scale = zt.k;
-    viewX = zt.x;
-    viewY = zt.y;
-    viewbox.attr("transform", `translate(${viewX} ${viewY}) scale(${scale})`);
-    if (window.LayerHost) window.LayerHost.onFrame();
-  }
-
-  const isOptimized = shapeRendering.value === "optimizeSpeed";
-
-  if (coastline.select("#sea_island").size() && +coastline.select("#sea_island").attr("auto-filter")) {
-    // toggle shade/blur filter for coatline on zoom
-    const filter = scale > 1.5 && scale <= 2.6 ? null : scale > 2.6 ? "url(#blurFilter)" : "url(#dropShadow)";
-    coastline.select("#sea_island").attr("filter", filter);
-  }
-
-  // rescale labels on zoom
-  if (layerIsOn("toggleLabels")) {
-    const tiers = window.labelTiers;
-    labels.selectAll("g").each(function () {
-      if (this.id === "burgLabels") {
-        if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) return; // GPU owns burg labels
-        if (!tiers) return; // TS bundle not loaded yet; leave the shells alone
-
-        // Megalopolis composite swap (SVG path only): below the split zoom show one
-        // composite icon+label per multi-burg cell and hide the individual members.
-        // Composites follow the capital tier gate (MIN_ZOOM), like capital labels.
-        if (window.Megalopolis) {
-          const compositeMode = scale < window.Megalopolis.SPLIT_ZOOM;
-          const compositeVisible = compositeMode && scale >= window.Megalopolis.MIN_ZOOM;
-          document
-            .querySelectorAll("#burgIcons .megalopolis-member, #burgLabels .megalopolis-member")
-            .forEach(el => (el.style.display = compositeMode ? "none" : ""));
-          document
-            .querySelectorAll("#burgIcons .megalopolis-composite, #burgLabels .megalopolis-composite")
-            .forEach(el => (el.style.display = compositeVisible ? "" : "none"));
-        }
-
-        // Non-capital burg labels yield to surviving state-label obstacles. #states is earlier in
-        // DOM order than #burgLabels, so `labels.selectAll("g").each` (document order) always
-        // processes and publishes the states branch's obstacles before we get here in the SAME
-        // invokeActiveZooming call — no extra sequencing needed. Capitals (tier rank 0) are exempt
-        // and never consulted below. SCREEN coordinates (getBoundingClientRect space), same frame
-        // the obstacles were published in.
-        const obstacles = window.getStateLabelObstacles ? window.getStateLabelObstacles() : [];
-        const mapRect = obstacles.length ? svg.node().getBoundingClientRect() : null;
-        const CHAR_WIDTH_EM = 0.5; // rough average glyph-width-to-font-size ratio, good enough for a collision box
-
-        for (const sub of this.children) {
-          const d = +sub.dataset.size;
-          let currentPx = null;
-          // Size is clamped per tier for legibility and never culls. Only min-zoom hides a tier,
-          // so a capital with a small preset font shows from its min-zoom like the tier promises.
-          if (rescaleLabels.checked) {
-            currentPx = window.labelPxForGroup(sub.id, d, scale);
-            const next = String(rn(window.svgLabelFontSize(currentPx, scale), 2));
-            if (sub.getAttribute("font-size") !== next) sub.setAttribute("font-size", next);
-          } else if (Number.isFinite(d)) {
-            // Unclamped: raw d*scale. Guard NaN authored sizes here — the curved branch above is
-            // already safe because labelPxForGroup() catches NaN and returns the tier's startPx.
-            currentPx = d * scale;
-            const next = String(rn(window.svgLabelFontSize(currentPx, scale), 2));
-            if (sub.getAttribute("font-size") !== next) sub.setAttribute("font-size", next);
-          }
-          const minZoomSub = +sub.dataset.minZoom || tiers.groupMinZoom(sub.id);
-          if (hideLabels.checked && scale < minZoomSub) sub.classList.add("hidden");
-          else sub.classList.remove("hidden");
-
-          // Icon-clearance lift: labels are constant-on-screen-size (rescale curve above) while
-          // the matching #burgIcons tier grows in map space with zoom, so a fixed em dy (the old
-          // model) stops clearing the icon past a certain zoom. Recompute the on-screen clearance
-          // every frame from the icon's actual current radius and apply it as a group transform
-          // (cheap — one per tier, ~13 groups — instead of touching every text node's dy).
-          // draw-burg-labels.ts now always writes dy=0 for burg text, so this is the only offset.
-          let offsetPx = 0;
-          if (window.labelIconOffsetPx) {
-            const iconEl = burgIcons.node() && burgIcons.node().querySelector(`:scope > g#${sub.id}`);
-            const iconDiameter = iconEl ? parseFloat(getComputedStyle(iconEl).fontSize) || 1 : 1;
-            offsetPx = window.labelIconOffsetPx(iconDiameter, scale);
-          }
-          const offsetMap = scale > 0 ? offsetPx / scale : 0;
-          if (offsetMap) sub.setAttribute("transform", `translate(0 ${rn(-offsetMap, 2)})`);
-          else sub.removeAttribute("transform");
-
-          // Obstacle avoidance: skip the capital tier entirely (never hidden by anything) and
-          // skip when there's nothing to avoid or nothing left visible after the min-zoom gate.
-          if (!mapRect || tiers.groupRank(sub.id) === 0 || sub.classList.contains("hidden")) continue;
-          if (!Number.isFinite(currentPx) || currentPx <= 0) continue;
-
-          // Read every candidate's approximate screen rect first (anchor + on-screen px + text
-          // length — no per-node getBoundingClientRect on thousands of nodes), then decide, then
-          // write classes, same read/write split as the state collision pass below.
-          const boxes = [];
-          for (const el of sub.children) {
-            if (el.tagName !== "text") continue;
-            const x = +el.getAttribute("x");
-            const y = +el.getAttribute("y");
-            if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-            const halfW = ((el.textContent || "").length * currentPx * CHAR_WIDTH_EM) / 2;
-            const halfH = currentPx / 2;
-            // Subtract offsetPx to match the group's translate(0 -offsetMap) lift above — the
-            // collision box must reflect where the label is actually drawn on screen.
-            const screenX = mapRect.left + x * scale + viewX;
-            const screenY = mapRect.top + y * scale + viewY - offsetPx;
-            boxes.push({
-              id: el.id,
-              left: screenX - halfW,
-              top: screenY - halfH,
-              right: screenX + halfW,
-              bottom: screenY + halfH
-            });
-          }
-          if (!boxes.length || !window.filterAgainstObstacles) continue;
-
-          const survivors = window.filterAgainstObstacles(boxes, obstacles);
-          for (const box of boxes) {
-            const el = document.getElementById(box.id);
-            if (!el) continue;
-            if (survivors.has(box.id)) el.classList.remove("hidden");
-            else el.classList.add("hidden");
-          }
-        }
-        return;
-      }
-      if (this.id === "states") {
-        if (!tiers) return; // TS bundle not loaded yet; leave the group alone
-
-        // State labels are sized like vanilla's generic label groups (see the #addedLabels-style
-        // branch below), NOT via the burg screen-space decay curve. draw-state-labels.ts fits
-        // each label's font-size (a % of this group's font-size) to its territory at draw time,
-        // in MAP units — so the group's own font-size must stay in map units too, or every label
-        // scales past the size it was fitted to and overflows into neighbours/the sea. This is
-        // the damped map-space formula vanilla uses: at scale 1 it equals the authored size
-        // exactly (matching draw-state-labels.ts's calibration), and it shrinks in map units as
-        // you zoom in so the on-screen size stays fitted to the (now larger) territory.
-        const desired = +this.dataset.size;
-        if (Number.isFinite(desired) && rescaleLabels.checked) {
-          const relative = Math.max(rn((desired + desired / scale) / 2, 2), 1);
-          if (this.getAttribute("font-size") !== String(relative)) this.setAttribute("font-size", relative);
-        }
-
-        // Size never culls (see label-sizing.ts) — min-zoom/max-zoom are the only gates, same
-        // idea as burg tiers' min-zoom. States also get a max-zoom: they're tuned to stop
-        // shrinking (REST_PX.states) rather than asymptote to illegibility, so they need an
-        // explicit upper gate to disappear instead of lingering tiny at deep zoom.
-        const minZoom = +this.dataset.minZoom || 0;
-        const maxZoom = +this.dataset.maxZoom || tiers.groupMaxZoom("states");
-        const hidden = hideLabels.checked && (scale < minZoom || scale > maxZoom);
-        if (hidden) this.classList.add("hidden");
-        else this.classList.remove("hidden");
-
-        // Stale obstacles would blank burg labels for no visible reason once the whole states
-        // group is gated off — clear the published set immediately. The collision pass below
-        // (when it runs) republishes with the actual survivors.
-        if (hidden && window.setStateLabelObstacles) window.setStateLabelObstacles([]);
-
-        // Collision pass: packed small states pile their names on top of each other. Recomputed
-        // from scratch every settle (not just once) so a label hidden at one zoom reappears once
-        // zooming in gives it room again. Skipped entirely when the whole group is gated off by
-        // min/max zoom above (nothing visible to collide), and guarded on the TS global the same
-        // way the sizing code above guards on `tiers`/`groupRestPx`.
-        if (!hidden && window.selectNonOverlapping) {
-          const stateLabelEls = Array.from(this.children).filter(el => el.tagName === "text");
-
-          // Clear any prior collision result before measuring: a label hidden by a previous pass
-          // reports a zero-size rect via getBoundingClientRect, which would wrongly exclude it.
-          for (const el of stateLabelEls) el.classList.remove("hidden");
-
-          // Read ALL rectangles first, then decide, then write classes — interleaving reads and
-          // writes here would force a layout reflow per label.
-          const boxes = [];
-          for (const el of stateLabelEls) {
-            const rect = el.getBoundingClientRect();
-            if (!rect.width || !rect.height) continue;
-
-            const stateId = +el.id.slice("stateLabel".length);
-            const state = pack.states && pack.states[stateId];
-            // Bigger states win contested spots. Fall back to the rendered rect's area (a proxy
-            // for name length/font size) when cell count isn't available (e.g. zero-territory
-            // sky states).
-            const weight = state && Number.isFinite(state.cells) ? state.cells : rect.width * rect.height;
-
-            boxes.push({
-              id: el.id,
-              left: rect.left,
-              top: rect.top,
-              right: rect.right,
-              bottom: rect.bottom,
-              weight
-            });
-          }
-
-          // getBoundingClientRect() approximates curved textPath labels with their axis-aligned
-          // bounding box — not pixel-perfect for a rotated/curved name, but good enough to catch
-          // the overlapping-neighbour case this pass exists for.
-          const keep = window.selectNonOverlapping(boxes);
-          for (const el of stateLabelEls) {
-            if (keep.has(el.id)) el.classList.remove("hidden");
-            else el.classList.add("hidden");
-          }
-
-          // Publish the SURVIVING state labels' rects as obstacles for the burg-label passes
-          // (SVG #burgLabels branch below in this same call, and the WebGL burg-label layer on
-          // its own schedule). Non-capital burg labels must yield to these; capitals are exempt.
-          if (window.setStateLabelObstacles) {
-            const surviving = boxes.filter(box => keep.has(box.id));
-            window.setStateLabelObstacles(surviving);
-          }
-        } else if (!hidden && window.setStateLabelObstacles) {
-          // selectNonOverlapping unavailable (TS bundle not loaded yet): nothing decided, so
-          // there's nothing safe to publish as an obstacle.
-          window.setStateLabelObstacles([]);
-        }
-
-        return;
-      }
-      // labels.selectAll("g") matches ALL descendant <g> elements, not just direct children of
-      // #labels. Burg tier shells (#burgLabels > g#capital, g#city, ...) are already handled
-      // above by the burgLabels branch (per-tier clamp, no size-based cull). Without this guard
-      // each tier shell would ALSO be visited here as a generic label group, and this branch's
-      // damping + 6..60px cull band would overwrite the per-tier clamp — reintroducing the
-      // small-font-capital-hidden bug this branch of work exists to remove.
-      if (this.parentNode && this.parentNode.id === "burgLabels") return;
-      const desired = +this.dataset.size;
-      const relative = Math.max(rn((desired + desired / scale) / 2, 2), 1);
-      if (rescaleLabels.checked) this.setAttribute("font-size", relative);
-
-      // Non-burg label groups (#states, #addedLabels) are NOT burg tiers, so they must not consult
-      // the burg tier table: its unknown-group fallback exists for legacy burg groups and would
-      // hide state labels until zoom 4. Default to 0 (show at every zoom) unless the group itself
-      // declares data-min-zoom — this is exactly what the old BURG_MIN_ZOOM literal did via its
-      // explicit `states: 0` entry.
-      const minZoom = +this.dataset.minZoom || 0;
-      const hidden = hideLabels.checked && (scale < minZoom || relative * scale < 6 || relative * scale > 60);
-      if (hidden) this.classList.add("hidden");
-      else this.classList.remove("hidden");
-    });
-  }
-
-  // cull burg icons + anchors at low zoom to skip ~100K nodes per repaint
-  if (hideLabels.checked && window.labelTiers) {
-    const burgIconsOn = layerIsOn("toggleBurgIcons");
-    for (const group of [burgIcons.node(), anchors.node()]) {
-      if (!group || !burgIconsOn) continue;
-      for (const sub of group.children) {
-        const minZoom = +sub.dataset.minZoom || window.labelTiers.groupMinZoom(sub.id);
-        if (scale < minZoom) sub.classList.add("hidden");
-        else sub.classList.remove("hidden");
-      }
-    }
-  }
-
-  // toggle route visibility by type on zoom
-  if (layerIsOn("toggleRoutes")) {
-    const ROUTE_MIN_ZOOM = {
-      royal: 1, main: 1, major: 1,
-      market: 4, town: 4, local: 4,
-      trail: 7,
-      footpath: 10
-    };
-
-    routes.selectAll("g g").each(function () {
-      const minZoom = ROUTE_MIN_ZOOM[this.id];
-      if (minZoom === undefined) return;
-      if (scale < minZoom) this.classList.add("hidden");
-      else this.classList.remove("hidden");
-    });
-  }
-
-  // rescale emblems on zoom
-  if (layerIsOn("toggleEmblems")) {
-    emblems.selectAll("g").each(function () {
-      const size = this.getAttribute("font-size") * scale;
-      const hidden = hideEmblems.checked && (size < 25 || size > 300);
-      if (hidden) this.classList.add("hidden");
-      else this.classList.remove("hidden");
-      if (!hidden && window.COArenderer && this.children.length && !this.children[0].getAttribute("href"))
-        renderGroupCOAs(this);
-    });
-  }
-
-  // change states halo width
-  if (!customization && !isOptimized) {
-    const desired = +statesHalo.attr("data-width");
-    const haloSize = rn(desired / scale ** 0.8, 2);
-    statesHalo.attr("stroke-width", haloSize).style("display", haloSize > 0.1 ? "block" : "none");
-  }
-
-  // rescale map markers
-  +markers.attr("rescale") &&
-    pack.markers?.forEach(marker => {
-      const { i, x, y, size = 30, hidden } = marker;
-      const el = !hidden && document.getElementById(`marker${i}`);
-      if (!el) return;
-
-      const zoomedSize = Math.max(rn(size / 5 + 24 / scale, 2), 1);
-      el.setAttribute("width", zoomedSize);
-      el.setAttribute("height", zoomedSize);
-      el.setAttribute("x", rn(x - zoomedSize / 2, 1));
-      el.setAttribute("y", rn(y - zoomedSize, 1));
-    });
 }
 
 // add drag to upload logic, pull request from @evyatron
@@ -1009,13 +585,18 @@ void (function addDragToUpload() {
 })();
 
 async function generate(options) {
+  let generationGroupOpen = false;
+
   try {
     const timeStart = performance.now();
     const { seed: precreatedSeed, graph: precreatedGraph } = options || {};
 
     invokeActiveZooming();
     setSeed(precreatedSeed);
-    INFO && console.group("Generated Map " + seed);
+    if (INFO) {
+      console.group("Generated Map " + seed);
+      generationGroupOpen = true;
+    }
 
     applyGraphSize();
     randomizeOptions();
@@ -1076,12 +657,13 @@ async function generate(options) {
     Markers.generate();
     Zones.generate();
 
+    AddedLabels.initiate();
+
     drawScaleBar(scaleBar, scale);
     Names.getMapName();
 
     WARN && console.warn(`TOTAL: ${rn((performance.now() - timeStart) / 1000, 2)}s`);
     showStatistics();
-    INFO && console.groupEnd("Generated Map " + seed);
   } catch (error) {
     ERROR && console.error(error);
     const parsedError = parseError(error);
@@ -1105,6 +687,8 @@ async function generate(options) {
       },
       position: { my: "center", at: "center", of: "svg" }
     });
+  } finally {
+    if (generationGroupOpen) console.groupEnd();
   }
 }
 

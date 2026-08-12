@@ -126,6 +126,8 @@ declare global {
     isValid: (str: string) => boolean;
     safeParse: (str: string) => any;
   }
+  // upstream dropped these in 1.140 after migrating its controllers to addEventListener;
+  // the fork still has ~486 `.on(` call sites, so the shim stays until those are migrated
   interface Node {
     on: (name: string, fn: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => Node;
     off: (name: string, fn: EventListenerOrEventListenerObject) => Node;

@@ -165,7 +165,7 @@
     "opacity": 1,
     "stroke": "#028ac9",
     "stroke-width": 1.01,
-    "filter": "",
+    "filter": null,
     "auto-filter": 0
   },
   "#lake_island": {
@@ -271,13 +271,12 @@
     "stroke-linecap": "butt",
     "stroke-dasharray": "2.5 2.5"
   },
-  "#burgLabels > g#skyburg": {
+  "#labels > #skyburg": {
     "opacity": 1,
     "fill": "#5a3497",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 5,
-    "font-size": 5,
+    "font-size": "5%",
     "font-family": "Almendra SC",
     "data-dy": -0.5,
     "font-weight": "bold"
@@ -301,13 +300,12 @@
     "stroke": "#5a3497",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#skyburg-mid": {
+  "#labels > #skyburg-mid": {
     "opacity": 1,
     "fill": "#5a3497",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 5,
-    "font-size": 5,
+    "font-size": "5%",
     "font-family": "Almendra SC",
     "data-dy": -0.5,
     "font-weight": "bold"
@@ -331,13 +329,12 @@
     "stroke": "#5a3497",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#skyburg-small": {
+  "#labels > #skyburg-small": {
     "opacity": 1,
     "fill": "#5a3497",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 5,
-    "font-size": 5,
+    "font-size": "5%",
     "font-family": "Almendra SC",
     "data-dy": -0.5,
     "font-weight": "bold"
@@ -471,13 +468,12 @@
     "data-y": 93,
     "data-columns": 8
   },
-  "#burgLabels > g#city": {
+  "#labels > #city": {
     "opacity": 1,
     "fill": "#000000",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 6,
-    "font-size": 6,
+    "font-size": "6%",
     "font-family": "Almendra SC",
     "data-dy": -0.4,
     "font-weight": "bold"
@@ -500,13 +496,12 @@
     "stroke": "#3e3e4b",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#town": {
+  "#labels > #town": {
     "opacity": 1,
     "fill": "#000000",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 4,
-    "font-size": 4,
+    "font-size": "4%",
     "font-family": "Almendra SC",
     "data-dy": -0.4,
     "font-weight": "bold"
@@ -529,13 +524,12 @@
     "stroke": "#3e3e4b",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#capital": {
+  "#labels > #capital": {
     "opacity": 1,
     "fill": "#000000",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 7,
-    "font-size": 7,
+    "font-size": "7%",
     "font-family": "Almendra SC",
     "data-dy": -0.4,
     "font-weight": "bold"
@@ -558,13 +552,12 @@
     "stroke": "#3e3e4b",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#fort": {
+  "#labels > #fort": {
     "opacity": 1,
     "fill": "#000000",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dy": -0.4,
     "font-weight": "bold"
@@ -587,13 +580,12 @@
     "stroke": "#3e3e4b",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#monastery": {
+  "#labels > #monastery": {
     "opacity": 1,
     "fill": "#000000",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dy": -0.4,
     "font-weight": "bold"
@@ -616,13 +608,12 @@
     "stroke": "#3e3e4b",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#caravanserai": {
+  "#labels > #caravanserai": {
     "opacity": 1,
     "fill": "#000000",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dy": -0.4,
     "font-weight": "bold"
@@ -645,13 +636,12 @@
     "stroke": "#3e3e4b",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#trading_post": {
+  "#labels > #trading_post": {
     "opacity": 1,
     "fill": "#000000",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dy": -0.4,
     "font-weight": "bold"
@@ -674,13 +664,12 @@
     "stroke": "#3e3e4b",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#village": {
+  "#labels > #village": {
     "opacity": 1,
     "fill": "#000000",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 3,
-    "font-size": 3,
+    "font-size": "3%",
     "font-family": "Almendra SC",
     "data-dy": -0.4,
     "font-weight": "bold"
@@ -703,13 +692,12 @@
     "stroke": "#3e3e4b",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#hamlet": {
+  "#labels > #hamlet": {
     "opacity": 1,
     "fill": "#000000",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dy": -0.4,
     "font-weight": "bold"
@@ -732,27 +720,58 @@
     "stroke": "#3e3e4b",
     "stroke-width": 1.2
   },
-  "#labels > #states": {
+  "#labels > #state": {
     "opacity": 0.5,
     "fill": "#000000",
     "stroke": "#000000",
     "stroke-width": 0,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 21,
-    "font-size": 21,
+    "font-size": "21%",
     "font-family": "Amarante",
     "filter": null
   },
-  "#labels > #addedLabels": {
+  "#labels > #province": {
+    "opacity": 0.5,
+    "fill": "#000000",
+    "stroke": "#000000",
+    "stroke-width": 0,
+    "style": "text-shadow: white 0px 0px 4px",
+    "letter-spacing": 0,
+    "font-size": "6%",
+    "font-family": "Amarante",
+    "filter": null
+  },
+  "#labels > #river": {
+    "opacity": 0.5,
+    "fill": "#000000",
+    "stroke": "#000000",
+    "stroke-width": 0,
+    "style": "text-shadow: white 0px 0px 4px",
+    "letter-spacing": 0,
+    "font-size": "2%",
+    "font-family": "Amarante",
+    "filter": null
+  },
+  "#labels > #route": {
+    "opacity": 0.5,
+    "fill": "#000000",
+    "stroke": "#000000",
+    "stroke-width": 0,
+    "style": "text-shadow: white 0px 0px 4px",
+    "letter-spacing": 0,
+    "font-size": "2%",
+    "font-family": "Amarante",
+    "filter": null
+  },
+  "#labels > #added": {
     "opacity": 1,
     "fill": "#000000",
     "stroke": "#000000",
     "stroke-width": 0,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 18,
-    "font-size": 18,
+    "font-size": "18%",
     "font-family": "Amarante",
     "filter": null
   },

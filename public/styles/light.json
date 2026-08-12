@@ -165,7 +165,7 @@
     "opacity": 1,
     "stroke": "#5e5e5e",
     "stroke-width": 0.4,
-    "filter": "url(#dropShadow)",
+    "filter": null,
     "auto-filter": 1
   },
   "#lake_island": {
@@ -271,13 +271,12 @@
     "stroke-linecap": "butt",
     "stroke-dasharray": "2.5 2.5"
   },
-  "#burgLabels > g#skyburg": {
+  "#labels > #skyburg": {
     "opacity": 1,
     "fill": "#6a0dad",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 5,
-    "font-size": 5,
+    "font-size": "5%",
     "font-family": "Almendra SC",
     "data-dy": -0.5,
     "font-weight": "bold"
@@ -301,13 +300,12 @@
     "stroke": "#6a0dad",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#skyburg-mid": {
+  "#labels > #skyburg-mid": {
     "opacity": 1,
     "fill": "#6a0dad",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 5,
-    "font-size": 5,
+    "font-size": "5%",
     "font-family": "Almendra SC",
     "data-dy": -0.5,
     "font-weight": "bold"
@@ -331,13 +329,12 @@
     "stroke": "#6a0dad",
     "stroke-width": 1.2
   },
-  "#burgLabels > g#skyburg-small": {
+  "#labels > #skyburg-small": {
     "opacity": 1,
     "fill": "#6a0dad",
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 5,
-    "font-size": 5,
+    "font-size": "5%",
     "font-family": "Almendra SC",
     "data-dy": -0.5,
     "font-weight": "bold"
@@ -471,15 +468,14 @@
     "data-y": 62.98,
     "data-columns": 8
   },
-  "#burgLabels > g#capital": {
+  "#labels > #capital": {
     "opacity": 1,
     "fill": "#3e3e4b",
     "stroke": null,
     "stroke-width": null,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 7,
-    "font-size": 7,
+    "font-size": "7%",
     "font-family": "Almendra SC",
     "data-dx": null,
     "data-dy": -0.4,
@@ -506,15 +502,14 @@
     "stroke-width": 0.5,
     "filter": null
   },
-  "#burgLabels > g#city": {
+  "#labels > #city": {
     "opacity": 1,
     "fill": "#3a3a3a",
     "stroke": null,
     "stroke-width": null,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 6,
-    "font-size": 6,
+    "font-size": "6%",
     "font-family": "Almendra SC",
     "data-dx": null,
     "data-dy": -0.4,
@@ -541,15 +536,14 @@
     "stroke-width": 0.5,
     "filter": null
   },
-  "#burgLabels > g#fort": {
+  "#labels > #fort": {
     "opacity": 1,
     "fill": "#3e3e4b",
     "stroke": null,
     "stroke-width": null,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dx": null,
     "data-dy": -0.5,
@@ -576,15 +570,14 @@
     "stroke-width": 1.2,
     "filter": null
   },
-  "#burgLabels > g#monastery": {
+  "#labels > #monastery": {
     "opacity": 1,
     "fill": "#3e3e4b",
     "stroke": null,
     "stroke-width": null,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dx": null,
     "data-dy": -0.5,
@@ -611,15 +604,14 @@
     "stroke-width": 2,
     "filter": null
   },
-  "#burgLabels > g#caravanserai": {
+  "#labels > #caravanserai": {
     "opacity": 1,
     "fill": "#3e3e4b",
     "stroke": null,
     "stroke-width": null,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dx": null,
     "data-dy": -0.5,
@@ -646,15 +638,14 @@
     "stroke-width": 1.2,
     "filter": null
   },
-  "#burgLabels > g#trading_post": {
+  "#labels > #trading_post": {
     "opacity": 1,
     "fill": "#3e3e4b",
     "stroke": null,
     "stroke-width": null,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dx": null,
     "data-dy": -0.5,
@@ -681,15 +672,14 @@
     "stroke-width": 1.2,
     "filter": null
   },
-  "#burgLabels > g#village": {
+  "#labels > #village": {
     "opacity": 1,
     "fill": "#3e3e4b",
     "stroke": null,
     "stroke-width": null,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 3,
-    "font-size": 3,
+    "font-size": "3%",
     "font-family": "Almendra SC",
     "data-dx": null,
     "data-dy": -0.4,
@@ -716,15 +706,14 @@
     "stroke-width": 1.8,
     "filter": null
   },
-  "#burgLabels > g#hamlet": {
+  "#labels > #hamlet": {
     "opacity": 1,
     "fill": "#3e3e4b",
     "stroke": null,
     "stroke-width": null,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 2,
-    "font-size": 2,
+    "font-size": "2%",
     "font-family": "Almendra SC",
     "data-dx": null,
     "data-dy": -0.4,
@@ -751,15 +740,14 @@
     "stroke-width": 1.6,
     "filter": null
   },
-  "#burgLabels > g#town": {
+  "#labels > #town": {
     "opacity": 1,
     "fill": "#3e3e4b",
     "stroke": null,
     "stroke-width": null,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 4,
-    "font-size": 4,
+    "font-size": "4%",
     "font-family": "Almendra SC",
     "data-dx": null,
     "data-dy": -0.4,
@@ -786,27 +774,58 @@
     "stroke-width": 2,
     "filter": null
   },
-  "#labels > #states": {
+  "#labels > #state": {
     "opacity": 1,
     "fill": "#3e3e3e",
     "stroke": "#000000",
     "stroke-width": 0.3,
     "style": "text-shadow: white 0px 0px 6px",
     "letter-spacing": 0,
-    "data-size": 14,
-    "font-size": 14,
+    "font-size": "14%",
     "font-family": "IM Fell English",
     "filter": null
   },
-  "#labels > #addedLabels": {
+  "#labels > #province": {
+    "opacity": 1,
+    "fill": "#3e3e3e",
+    "stroke": "#000000",
+    "stroke-width": 0.3,
+    "style": "text-shadow: white 0px 0px 6px",
+    "letter-spacing": 0,
+    "font-size": "6%",
+    "font-family": "IM Fell English",
+    "filter": null
+  },
+  "#labels > #river": {
+    "opacity": 1,
+    "fill": "#3e3e3e",
+    "stroke": "#000000",
+    "stroke-width": 0.3,
+    "style": "text-shadow: white 0px 0px 6px",
+    "letter-spacing": 0,
+    "font-size": "2%",
+    "font-family": "IM Fell English",
+    "filter": null
+  },
+  "#labels > #route": {
+    "opacity": 1,
+    "fill": "#3e3e3e",
+    "stroke": "#000000",
+    "stroke-width": 0.3,
+    "style": "text-shadow: white 0px 0px 6px",
+    "letter-spacing": 0,
+    "font-size": "2%",
+    "font-family": "IM Fell English",
+    "filter": null
+  },
+  "#labels > #added": {
     "opacity": 1,
     "fill": "#f24706",
     "stroke": "#701b05",
     "stroke-width": 0.1,
     "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "data-size": 6,
-    "font-size": 6,
+    "font-size": "6%",
     "font-family": "IM Fell English",
     "filter": null
   },

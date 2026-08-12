@@ -15,7 +15,7 @@ import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
 import type { Burg } from "@/generators/burgs-generator";
 import { findMegalopolises, groupedMemberIds, megalopolisName } from "@/generators/megalopolis";
-import { drawBurgLabels } from "@/renderers/draw-burg-labels";
+import { drawLabels } from "@/renderers/labels/labels-renderer";
 import { downloadFile, getFileName, getHeight, getLatitude, getLongitude, uploadFile } from "@/utils";
 import { convertTemperature, ensureEl, getTemperatureLikeness, rn, si } from "../utils";
 
@@ -207,7 +207,7 @@ function renderDialog(): void {
   applyLineHighlighting("burgsOverview", ({ target, cellId }) => {
     const burgId = pack.cells.burg[cellId];
     if (burgId) return burgId;
-    const burg = target.closest<SVGElement>("#burgLabels [data-id], #burgIcons [data-id]");
+    const burg = target.closest<SVGElement>("#labels [data-label-type='burg'][data-id], #burgIcons [data-id]");
     return burg ? Number(burg.dataset.id) : undefined;
   });
 
@@ -426,19 +426,17 @@ function renderBurgsPage(view: TableView<Burg>): void {
 
 function burgHighlightOn(event: Event): void {
   const burg = +(event.target as HTMLElement).dataset.id!;
-  const label = select("#burgLabels").select(`[data-id='${burg}']`);
+  const label = select("#labels").select(`[data-label-type='burg'][data-id='${burg}']`);
   if (label.size()) label.classed("drag", true);
 }
 
 function burgHighlightOff(): void {
-  select("#burgLabels").selectAll("text.drag").classed("drag", false);
+  select("#labels").selectAll("text[data-label-type='burg'].drag").classed("drag", false);
 }
 
 function zoomIntoBurg(this: HTMLElement): void {
   const burg = +(this.closest(".states") as HTMLElement).dataset.id!;
-  const label = document.querySelector(`#burgLabels [data-id='${burg}']`)!;
-  const x = +label.getAttribute("x")!;
-  const y = +label.getAttribute("y")!;
+  const { x, y } = pack.burgs[burg];
   zoomTo(x, y, 8, 2000);
 }
 
@@ -478,6 +476,7 @@ function triggerBurgRemove(this: HTMLElement): void {
     onConfirm: () => {
       Burgs.remove(burgId);
       burgsTable.refresh();
+      drawLabels();
     }
   });
 }
@@ -490,7 +489,7 @@ function regenerateNames(): void {
   }
 
   if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
-  else if (layerIsOn("toggleLabels")) drawBurgLabels();
+  else drawLabels();
   burgsTable.refresh();
 }
 
@@ -780,7 +779,7 @@ function importBurgNames(dataLoaded: string): void {
     for (let i = 0; i < change.length; i++) {
       const id = change[i].id;
       pack.burgs[id].name = change[i].name;
-      select("#burgLabels").select(`[data-id='${id}']`).text(change[i].name);
+      drawLabels();
     }
     if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
     burgsTable.refresh();
@@ -804,6 +803,7 @@ function triggerAllBurgsRemove(): void {
     confirm: "Remove",
     onConfirm: () => {
       pack.burgs.filter(b => b.i && !(b.capital || b.lock)).forEach(b => void Burgs.remove(b.i));
+      drawLabels();
       burgsTable.refresh();
     }
   });

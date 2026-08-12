@@ -3,26 +3,26 @@ import { fitContent } from "@/components/dialog/fit-content";
 
 /**
  * @param id - The ID of the element to retrieve
- * @typeParam T - The type of the element to retrieve, extending HTMLElement
+ * @typeParam T - The type of the element to retrieve, HTMLElement unless a SVG element is requested
  * @returns The element with the specified ID, cast to the specified type
  */
-export const ensureEl = <T extends HTMLElement>(id: string): T => {
+export const ensureEl = <T extends Element = HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
   if (!el) {
     // TODO: throw an error instead of logging it, and handle it properly in the caller
     ERROR && console.error(`Element with id "${id}" not found.`);
     // TOBE: throw new Error(`Element with id "${id}" not found.`);
   }
-  return el as T;
+  return el as unknown as T;
 };
 
 /**
  * @param id - The ID of the element to retrieve
- * @typeParam T - The type of the element to retrieve, extending HTMLElement
+ * @typeParam T - The type of the element to retrieve, HTMLElement unless a SVG element is requested
  * @returns The element with the specified ID, cast to the specified type, or null if not found
  */
-export const findEl = <T extends HTMLElement>(id: string): T | null => {
-  return document.getElementById(id) as T | null;
+export const findEl = <T extends Element = HTMLElement>(id: string): T | null => {
+  return document.getElementById(id) as unknown as T | null;
 };
 
 /**
@@ -78,6 +78,7 @@ export const getPointer = (event: any, node?: Element | null): [number, number] 
 
 /**
  * Generate a unique ID for a given core string
+ * @deprecated Unwanted DOM dependency
  * @param {string} core - The core string for the ID
  * @param {number} [i=1] - The starting index
  * @returns {string} - The unique ID

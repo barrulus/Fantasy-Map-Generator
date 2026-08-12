@@ -6,11 +6,6 @@ declare global {
   var drawBurgIcons: () => void;
 }
 
-interface BurgGroup {
-  name: string;
-  order: number;
-}
-
 const burgIconsRenderer = (): void => {
   TIME && console.time("drawBurgIcons");
   createIconGroups();
@@ -27,7 +22,7 @@ const burgIconsRenderer = (): void => {
   const megaIds = new Set<number>();
   for (const m of megas.values()) for (const b of m.members) megaIds.add(b.i);
 
-  for (const { name } of options.burgs.groups as BurgGroup[]) {
+  for (const { name } of options.burgs.groups) {
     const burgsInGroup = pack.burgs.filter(b => b.group === name && !b.removed);
     if (!burgsInGroup.length) continue;
 
