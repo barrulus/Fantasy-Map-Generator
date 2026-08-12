@@ -1431,9 +1431,18 @@ function updateDemotePickerLabel(): void {
 // reassignment/province creation happens on Apply; this is visual + undoable like a brush stroke.
 function stageStateDemotion(stateId: number): void {
   const ownerId = getBrushStateId();
-  if (!stateId) return tip("Neutral land cannot be demoted to a province", false, "error");
-  if (!ownerId) return tip("Pick a receiving state from the dropdown first", false, "error");
-  if (ownerId === stateId) return tip("A state cannot be demoted into itself", false, "error");
+  if (!stateId) {
+    tip("Neutral land cannot be demoted to a province", false, "error");
+    return;
+  }
+  if (!ownerId) {
+    tip("Pick a receiving state from the dropdown first", false, "error");
+    return;
+  }
+  if (ownerId === stateId) {
+    tip("A state cannot be demoted into itself", false, "error");
+    return;
+  }
 
   saveStatesManualSnapshot();
   const temp = statesBody.select("#temp");
@@ -1479,7 +1488,10 @@ function selectStateOnMapClick(this: any, event: any): void {
 
   // In picker mode, the clicked cell's true owner (from pack, ignoring any staged preview) is the
   // state being demoted into a province.
-  if (isDemotePickerOn()) return stageStateDemotion((pack.cells as any).state[i!]);
+  if (isDemotePickerOn()) {
+    stageStateDemotion((pack.cells as any).state[i!]);
+    return;
+  }
 
   const assigned = select("#statesBody").select("#temp").select(`polygon[data-cell='${i}']`);
   const state = assigned.size() ? +assigned.attr("data-state") : (pack.cells as any).state[i!];

@@ -383,7 +383,8 @@ function buildGroupRanges(visible: Map<number, number>, scale: number): { group:
     const ay = liftedAnchorY(b, scale);
     const laid = layoutLabel(b.name, atlas.metrics, atlas.geom, mapUnits, b.x, ay);
     const packed = packGlyphQuads(laid.quads);
-    const acc = (byGroup[b.group] ||= []) as unknown as number[];
+    byGroup[b.group] ??= [];
+    const acc = byGroup[b.group] as unknown as number[];
     for (let i = 0; i < packed.length; i++) acc.push(packed[i]);
   }
   return Object.entries(byGroup).map(([group, arr]) => ({ group, data: Float32Array.from(arr) }));
