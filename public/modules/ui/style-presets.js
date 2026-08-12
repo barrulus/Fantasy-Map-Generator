@@ -91,7 +91,7 @@ function applyStylePreset(presetJson) {
 
     if (selector.startsWith("#routes ")) {
       const type = selector.split("#").pop();
-      style.routes[type] = styleJSON[selector];
+      style.routes[type] = presetJson[selector];
     }
 
     const el = labelGroup
