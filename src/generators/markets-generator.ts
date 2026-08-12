@@ -5,8 +5,8 @@ import { minmax } from "../utils";
 import { getColors, getRandomColor } from "../utils/colorUtils";
 import type { Burg } from "./burgs-generator";
 import type { DemandCategory, Good } from "./goods-generator";
-import { findMegalopolises, groupedMemberIds, pooledPopulation } from "./megalopolis";
 import { DEMAND_PRIORITY, DEMAND_TARGET_FACTORS } from "./goods-generator";
+import { findMegalopolises, groupedMemberIds, pooledPopulation } from "./megalopolis";
 
 const PRICE_FLOOR_FACTOR = 0.1;
 const PRICE_CEILING_FACTOR = 5.0;

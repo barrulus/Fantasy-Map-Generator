@@ -1,5 +1,5 @@
 import { drag, mean, min, polygonArea, polygonLength, type Selection, select } from "d3";
-import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
@@ -8,7 +8,7 @@ import { drawBiomes } from "@/renderers/draw-biomes";
 import { drawBorders } from "@/renderers/draw-borders";
 import { getFeaturePath } from "@/renderers/draw-features";
 import { getArea, getAreaUnit, speak } from "@/utils";
-import { destroyDialogIfExists, ensureEl, findEl, getPackPolygon, rand, rn, si, unique } from "../utils";
+import { ensureEl, findEl, getPackPolygon, rand, rn, si, unique } from "../utils";
 import { getHeight } from "../utils/unitUtils";
 
 let selectedLake: Selection<SVGElement, unknown, HTMLElement, unknown>;
@@ -36,7 +36,7 @@ function open(element: SVGElement): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("lakeEditor");
+  destroyDialog("lakeEditor");
 
   const html = /* html */ `<div id="lakeEditor" class="dialog">
     <div id="lakeBody" style="padding-bottom: 0.3em">
@@ -99,16 +99,16 @@ function renderDialog(): void {
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
 
   // add listeners — dropped together with the dialog HTML on close
-  ensureEl("lakeName").on("input", changeName);
-  ensureEl("lakeNameSpeak").on("click", () => speak(ensureEl<HTMLInputElement>("lakeName").value));
-  ensureEl("lakeNameCulture").on("click", generateNameCulture);
-  ensureEl("lakeNameRandom").on("click", generateNameRandom);
-  ensureEl("lakeGroup").on("change", changeLakeGroup);
-  ensureEl("lakeGroupAdd").on("click", toggleNewGroupInput);
-  ensureEl("lakeGroupName").on("change", createNewGroup);
-  ensureEl("lakeGroupRemove").on("click", removeLakeGroup);
-  ensureEl("lakeEditStyle").on("click", editGroupStyle);
-  ensureEl("lakeLegend").on("click", editLakeLegend);
+  ensureEl("lakeName").addEventListener("input", changeName);
+  ensureEl("lakeNameSpeak").addEventListener("click", () => speak(ensureEl<HTMLInputElement>("lakeName").value));
+  ensureEl("lakeNameCulture").addEventListener("click", generateNameCulture);
+  ensureEl("lakeNameRandom").addEventListener("click", generateNameRandom);
+  ensureEl("lakeGroup").addEventListener("change", changeLakeGroup);
+  ensureEl("lakeGroupAdd").addEventListener("click", toggleNewGroupInput);
+  ensureEl("lakeGroupName").addEventListener("change", createNewGroup);
+  ensureEl("lakeGroupRemove").addEventListener("click", removeLakeGroup);
+  ensureEl("lakeEditStyle").addEventListener("click", editGroupStyle);
+  ensureEl("lakeLegend").addEventListener("click", editLakeLegend);
 }
 
 function getLake(): Feature {
@@ -341,7 +341,7 @@ function editLakeLegend(): void {
 function closeLakesEditor(): void {
   select("#debug").select("#vertices").remove();
   applyDefaultViewboxEvents();
-  destroyDialogIfExists("lakeEditor");
+  destroyDialog("lakeEditor");
 }
 
 export const LakesEditor = { open };

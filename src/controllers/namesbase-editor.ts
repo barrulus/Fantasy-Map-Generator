@@ -1,8 +1,8 @@
 import { max as d3max, min as d3min, mean, median } from "d3";
-import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { tip } from "@/components/tooltips";
 import { downloadFile, getFileName, speak, uploadFile } from "@/utils";
-import { destroyDialogIfExists, ensureEl, openURL, rn, unique } from "../utils";
+import { ensureEl, openURL, rn, unique } from "../utils";
 
 function open(): void {
   if (customization) return;
@@ -21,7 +21,7 @@ function open(): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("namesbaseEditor");
+  destroyDialog("namesbaseEditor");
   const editorHtml = /* html */ `<div id="namesbaseEditor" class="dialog stable textual">
       <div id="namesbaseBasesTop">
         <span>Select base: </span>
@@ -106,32 +106,36 @@ function renderDialog(): void {
 
   const uploader = ensureEl<HTMLInputElement>("namesbaseToLoad");
 
-  ensureEl("namesbaseSelect").on("change", updateInputs);
-  ensureEl("namesbaseTextarea").on("change", updateNamesData);
-  ensureEl("namesbaseUpdateExamples").on("click", updateExamples);
-  ensureEl("namesbaseExamples").on("click", updateExamples);
-  ensureEl("namesbaseName").on("input", e => updateBaseName((e.target as HTMLInputElement).value));
-  ensureEl("namesbaseMin").on("input", e => updateBaseMin((e.target as HTMLInputElement).value));
-  ensureEl("namesbaseMax").on("input", e => updateBaseMax((e.target as HTMLInputElement).value));
-  ensureEl("namesbaseDouble").on("input", e => updateBaseDuplication((e.target as HTMLInputElement).value));
-  ensureEl("namesbaseAdd").on("click", namesbaseAdd);
-  ensureEl("namesbaseAnalyze").on("click", analyzeNamesbase);
-  ensureEl("namesbaseDefault").on("click", namesbaseRestoreDefault);
-  ensureEl("namesbaseDownload").on("click", namesbaseDownload);
-  ensureEl("namesbaseUpload").on("click", () => {
-    uploader.on("change", e => uploadFile(e.target as HTMLInputElement, d => namesbaseUpload(d, true)), { once: true });
-    uploader.click();
-  });
-  ensureEl("namesbaseUploadExtend").on("click", () => {
-    uploader.on("change", e => uploadFile(e.target as HTMLInputElement, d => namesbaseUpload(d, false)), {
+  ensureEl("namesbaseSelect").addEventListener("change", updateInputs);
+  ensureEl("namesbaseTextarea").addEventListener("change", updateNamesData);
+  ensureEl("namesbaseUpdateExamples").addEventListener("click", updateExamples);
+  ensureEl("namesbaseExamples").addEventListener("click", updateExamples);
+  ensureEl("namesbaseName").addEventListener("input", e => updateBaseName((e.target as HTMLInputElement).value));
+  ensureEl("namesbaseMin").addEventListener("input", e => updateBaseMin((e.target as HTMLInputElement).value));
+  ensureEl("namesbaseMax").addEventListener("input", e => updateBaseMax((e.target as HTMLInputElement).value));
+  ensureEl("namesbaseDouble").addEventListener("input", e =>
+    updateBaseDuplication((e.target as HTMLInputElement).value)
+  );
+  ensureEl("namesbaseAdd").addEventListener("click", namesbaseAdd);
+  ensureEl("namesbaseAnalyze").addEventListener("click", analyzeNamesbase);
+  ensureEl("namesbaseDefault").addEventListener("click", namesbaseRestoreDefault);
+  ensureEl("namesbaseDownload").addEventListener("click", namesbaseDownload);
+  ensureEl("namesbaseUpload").addEventListener("click", () => {
+    uploader.addEventListener("change", e => uploadFile(e.target as HTMLInputElement, d => namesbaseUpload(d, true)), {
       once: true
     });
     uploader.click();
   });
-  ensureEl("namesbaseCA").on("click", () =>
+  ensureEl("namesbaseUploadExtend").addEventListener("click", () => {
+    uploader.addEventListener("change", e => uploadFile(e.target as HTMLInputElement, d => namesbaseUpload(d, false)), {
+      once: true
+    });
+    uploader.click();
+  });
+  ensureEl("namesbaseCA").addEventListener("click", () =>
     openURL("https://cartographyassets.com/asset-category/specific-assets/azgaars-generator/namebases/")
   );
-  ensureEl("namesbaseSpeak").on("click", () => speak(ensureEl("namesbaseExamples").textContent ?? ""));
+  ensureEl("namesbaseSpeak").addEventListener("click", () => speak(ensureEl("namesbaseExamples").textContent ?? ""));
 }
 
 function closeNamesbaseEditor(): void {

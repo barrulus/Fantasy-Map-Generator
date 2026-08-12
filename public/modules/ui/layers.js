@@ -43,6 +43,7 @@ function getDefaultPresets() {
     provinces: [
       "toggleBorders",
       "toggleBurgIcons",
+      "toggleLabels",
       "toggleLakes",
       "toggleProvinces",
       "toggleRivers",
@@ -251,7 +252,7 @@ function drawLayers() {
   if (layerIsOn("toggleGoods")) drawGoods();
   if (layerIsOn("toggleMarketsLayer")) drawMarketsLayer();
   if (layerIsOn("toggleEmblems")) drawEmblems();
-  if (layerIsOn("toggleLabels")) drawLabels();
+  drawLabels();
   if (layerIsOn("toggleBurgIcons")) drawBurgIcons();
   if (layerIsOn("toggleMilitary")) drawMilitary();
   if (layerIsOn("toggleMarkers")) drawMarkers();
@@ -585,18 +586,9 @@ function drawProvinces() {
     bodyPaths.push(getGappedFillPaths("province", fill, waterGap, color, index));
   });
 
-  const labels = provinces
-    .filter(p => p.i && !p.removed)
-    .map(p => {
-      const [x, y] = p.pole || cells.p[p.center];
-      return /* html */ `<text x="${x}" y="${y}" id="provinceLabel${p.i}">${p.name}</text>`;
-    });
-
   ensureEl("provs").innerHTML = /* html */ `
     <g id='provincesBody'>${bodyPaths.join("")}</g>
-    <g id='provinceLabels'>${labels.join("")}</g>
   `;
-  ensureEl("provinceLabels").style.display = ensureEl("provs").dataset.labels === "1" ? "block" : "none";
 
   TIME && console.timeEnd("drawProvinces");
 }
@@ -828,12 +820,17 @@ function toggleRoutes(event) {
 }
 
 function toggleSkyburgs() {
-  const SKYBURG_GROUPS = "#skyburg-capital, #skyburg, #skyburg-mid, #skyburg-small";
+  const SKYBURG_NAMES = ["skyburg-capital", "skyburg", "skyburg-mid", "skyburg-small"];
   // data-layer-off is what the GPU renderers read: `display` on these shells is also the per-tier
-  // zoom gate (invokeActiveZooming's .hidden class), so it can't tell "layer off" from "zoomed out".
+  // zoom gate, so it can't tell "layer off" from "zoomed out"
   const setOff = off => {
-    for (const sel of [burgIcons, burgLabels]) {
-      sel.selectAll(SKYBURG_GROUPS).style("display", off ? "none" : null).attr("data-layer-off", off ? "true" : null);
+    const shells = SKYBURG_NAMES.flatMap(name => [
+      burgIcons.select(`#${name}`),
+      d3.select(`#labels > #labels-${name}`)
+    ]);
+    for (const shell of shells) {
+      if (shell.empty()) continue;
+      shell.style("display", off ? "none" : null).attr("data-layer-off", off ? "true" : null);
     }
     routes.select("#airroutes").style("display", off ? "none" : null);
   };
@@ -956,28 +953,15 @@ function toggleTrade(event) {
 function toggleLabels(event) {
   if (!layerIsOn("toggleLabels")) {
     turnButtonOn("toggleLabels");
-    $("#labels").fadeIn();
-    // don't redraw labels as they are not stored in data yet
-    if (labels.selectAll("text").size() === 0) drawLabels();
-    // ...but that text-count guard only ever sees the STATE labels when the GPU owns burg labels,
-    // so burg labels would never be rebuilt after the toggle-off cleared their canvas — they'd
-    // reappear only on the next zoom frame. Rebuild them explicitly (cheap: no SVG text emitted).
-    else if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) drawBurgLabels();
     if (event && isCtrlClick(event)) editStyle("labels");
     if (window.LayerHost) window.LayerHost.reconcile();
   } else {
     if (event && isCtrlClick(event)) return editStyle("labels");
     turnButtonOff("toggleLabels");
-    $("#labels").fadeOut();
-    // burg labels are GPU-drawn: fading #labels leaves the canvas painted, so wipe it too
+    // burg labels are GPU-drawn: clearing the SVG leaves the canvas painted, so wipe it too
     if (window.LayerHost) window.LayerHost.reconcile();
   }
-}
-
-function drawLabels() {
-  drawStateLabels();
-  drawBurgLabels();
-  invokeActiveZooming();
+  drawLabels();
 }
 
 function toggleBurgIcons(event) {
@@ -1088,11 +1072,13 @@ function layerIsOn(el) {
 function turnButtonOff(el) {
   ensureEl(el).classList.add("buttonoff");
   getCurrentPreset();
+  ViewportLayers.renderNow();
 }
 
 function turnButtonOn(el) {
   ensureEl(el).classList.remove("buttonoff");
   getCurrentPreset();
+  ViewportLayers.renderNow();
 }
 
 // move layers on mapLayers dragging (jquery sortable)

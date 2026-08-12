@@ -1,5 +1,5 @@
 import { drag, select, sum } from "d3";
-import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import type { FillBoxElement } from "@/components/fill-box";
 import { clearMainTip, showMainTip, tip } from "@/components/tooltips";
@@ -10,7 +10,7 @@ import { clearLegend, drawLegend } from "@/renderers/draw-legend";
 import { moveCircle, removeCircle } from "@/renderers/overlays/brush-circle";
 import { fog, unfog } from "@/renderers/overlays/fogging";
 import { downloadFile, findAllCellsInRadius, getArea, getAreaUnit, getFileName } from "@/utils";
-import { destroyDialogIfExists, ensureEl, getPackPolygon, getPointer, rn, si, unique } from "../utils";
+import { ensureEl, getPackPolygon, getPointer, rn, si, unique } from "../utils";
 
 interface ZoneCellDatum {
   cell: number;
@@ -35,7 +35,7 @@ function open(): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("zonesEditor");
+  destroyDialog("zonesEditor");
   const editorHtml = /* html */ `<div id="zonesEditor" class="dialog stable">
       <div id="customHeader" class="header" style="grid-template-columns: 13em 7em 6em 5em 9em">
         <div data-tip="Zone description">Description&nbsp;</div>
@@ -106,20 +106,22 @@ function renderDialog(): void {
   });
 
   const body = ensureEl("zonesBodySection");
-  ensureEl("zonesFilterType").on("click", updateFilters);
-  ensureEl("zonesFilterType").on("change", filterZonesByType);
-  ensureEl("zonesEditorRefresh").on("click", zonesEditorAddLines);
-  ensureEl("zonesEditStyle").on("click", () => editStyle("zones"));
-  ensureEl("zonesLegend").on("click", toggleLegend);
-  ensureEl("zonesPercentage").on("click", togglePercentageMode);
-  ensureEl("zonesManually").on("click", enterZonesManualAssignent);
-  ensureEl("zonesManuallyApply").on("click", applyZonesManualAssignent);
-  ensureEl("zonesManuallyCancel").on("click", cancelZonesManualAssignent);
-  ensureEl("zonesAdd").on("click", addZonesLayer);
-  ensureEl("zonesExport").on("click", downloadZonesData);
-  ensureEl("zonesRemove").on("click", (e: Event) => (e.target as HTMLElement).classList.toggle("pressed"));
+  ensureEl("zonesFilterType").addEventListener("click", updateFilters);
+  ensureEl("zonesFilterType").addEventListener("change", filterZonesByType);
+  ensureEl("zonesEditorRefresh").addEventListener("click", zonesEditorAddLines);
+  ensureEl("zonesEditStyle").addEventListener("click", () => editStyle("zones"));
+  ensureEl("zonesLegend").addEventListener("click", toggleLegend);
+  ensureEl("zonesPercentage").addEventListener("click", togglePercentageMode);
+  ensureEl("zonesManually").addEventListener("click", enterZonesManualAssignent);
+  ensureEl("zonesManuallyApply").addEventListener("click", applyZonesManualAssignent);
+  ensureEl("zonesManuallyCancel").addEventListener("click", cancelZonesManualAssignent);
+  ensureEl("zonesAdd").addEventListener("click", addZonesLayer);
+  ensureEl("zonesExport").addEventListener("click", downloadZonesData);
+  ensureEl("zonesRemove").addEventListener("click", (e: Event) =>
+    (e.target as HTMLElement).classList.toggle("pressed")
+  );
 
-  body.on("click", (ev: Event) => {
+  body.addEventListener("click", (ev: Event) => {
     const line = (ev.target as HTMLElement).closest<HTMLElement>("div.states");
     if (!line) return;
     const zone = pack.zones.find(z => z.i === +line.dataset.id!);
@@ -141,7 +143,7 @@ function renderDialog(): void {
     else if (target.classList.contains("zoneFog")) toggleFog(zone, target.classList);
   });
 
-  body.on("input", (ev: Event) => {
+  body.addEventListener("input", (ev: Event) => {
     const target = ev.target as HTMLInputElement;
     const line = target.closest<HTMLElement>("div.states");
     if (!line) return;
@@ -231,10 +233,10 @@ function zonesEditorAddLines(): void {
   ensureEl("zonesFooterPopulation").innerHTML = si(totalPop);
 
   body.querySelectorAll("div.states").forEach(el => {
-    el.on("mouseenter", zoneHighlightOn);
+    el.addEventListener("mouseenter", zoneHighlightOn);
   });
   body.querySelectorAll("div.states").forEach(el => {
-    el.on("mouseleave", zoneHighlightOff);
+    el.addEventListener("mouseleave", zoneHighlightOff);
   });
 
   if (body.dataset.type === "percentage") {

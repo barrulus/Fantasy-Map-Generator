@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { LabelQuad } from "./label-layout";
 import { GLYPH_STRIDE, packGlyphQuads } from "./label-instances";
+import type { LabelQuad } from "./label-layout";
 
 describe("packGlyphQuads", () => {
   it("interleaves x,y,w,h,u0,v0,u1,v1 per quad", () => {

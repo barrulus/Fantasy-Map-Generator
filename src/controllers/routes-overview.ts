@@ -1,5 +1,5 @@
 import { mean, select } from "d3";
-import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog, updateDialog } from "@/components/dialog/dialog-helpers";
 import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
 import {
   type EditorColumn,
@@ -11,19 +11,20 @@ import {
 } from "@/components/dialog/table";
 import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
-import type { Route } from "@/generators/routes-generator";
+import { type Route, UNNAMED_ROUTE } from "@/generators/routes-generator";
 import { highlightElement } from "@/renderers/overlays/highlight";
 import { downloadFile, getFileName } from "@/utils";
-import { destroyDialogIfExists, ensureEl, rn } from "../utils";
+import { ensureEl, rn } from "../utils";
 
-const ROUTE_COLUMNS: EditorColumn<Route>[] = [
-  { key: "locate", width: "1.4em", hideable: false },
+const dialogId = "routesOverview" as const;
+const position = { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" };
+const columns: EditorColumn<Route>[] = [
+  { key: "locate", width: "1.4em", permanent: true },
   {
     key: "name",
     label: "Route",
-    width: "8em",
-    fill: true,
-    hideable: false,
+    width: "15em",
+    permanent: true,
     tip: "Click to sort by route name",
     sortBy: route => route.name || "",
     sortType: "alpha"
@@ -31,7 +32,7 @@ const ROUTE_COLUMNS: EditorColumn<Route>[] = [
   {
     key: "group",
     label: "Group",
-    width: "8em",
+    width: "7em",
     tip: "Click to sort by route group",
     sortBy: route => route.group || "",
     sortType: "alpha"
@@ -44,7 +45,7 @@ const ROUTE_COLUMNS: EditorColumn<Route>[] = [
     sortBy: route => route.length || 0,
     defaultSort: "desc"
   },
-  { key: "actions", width: "4.5em", hideable: false }
+  { key: "actions", width: "3.2em", permanent: true, align: "right" }
 ];
 
 function getFilteredRoutes(): Route[] {
@@ -52,7 +53,7 @@ function getFilteredRoutes(): Route[] {
   const routes = pack.routes.filter((route: Route) => Boolean(route.points) && route.points.length >= 2);
 
   for (const route of routes) {
-    route.name = route.name || Routes.generateName(route);
+    route.name = route.name || Routes.generateName(route) || UNNAMED_ROUTE;
     route.length = route.length || Routes.getLength(route.i);
   }
 
@@ -66,36 +67,32 @@ function getFilteredRoutes(): Route[] {
 }
 
 const routesTable = initEditorTable<Route>({
-  getData: () => sortDataByColumns(ensureEl("routesHeader"), getFilteredRoutes(), ROUTE_COLUMNS),
+  getData: () => sortDataByColumns(dialogId, getFilteredRoutes(), columns),
   onUpdate: renderRoutesPage
 });
 
 function open(): void {
   if (customization) return;
-  closeDialogs("#routesOverview, .stable");
+  closeDialogs(`#${dialogId}, .stable`);
   if (!layerIsOn("toggleRoutes")) toggleRoutes();
 
   renderDialog();
   routesTable.reset();
 
-  $("#routesOverview").dialog({
+  $(`#${dialogId}`).dialog({
     title: "Routes Overview",
     resizable: false,
-    width: fitContent(),
-    position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" },
+    width: "fit-content",
+    position,
     close: closeRoutesOverview
   });
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("routesOverview");
+  destroyDialog("routesOverview");
 
   const html = /* html */ `<div id="routesOverview" class="dialog stable editorDialog">
-    <div id="routesBody" class="table">${renderEditorHeader({
-      id: "routesHeader",
-      columns: ROUTE_COLUMNS,
-      columnsButtonId: "routesToggleColumns"
-    })}</div>
+    <div id="routesBody" class="table">${renderEditorHeader({ dialogId, columns })}</div>
     <div id="routesFilters" class="editorFilters">
       <label for="routesSearch" data-tip="Filter by name or group">Search: <input id="routesSearch" type="search" /></label>
     </div>
@@ -112,25 +109,24 @@ function renderDialog(): void {
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
-  bindColumnSorting(ensureEl("routesHeader"), routesTable.reset);
+  bindColumnSorting(dialogId, routesTable.reset);
 
   // add listeners — dropped together with the dialog HTML on close
-  ensureEl("routesOverviewRefresh").on("click", routesTable.refresh);
+  ensureEl("routesOverviewRefresh").addEventListener("click", routesTable.refresh);
   initColumnVisibility({
-    button: ensureEl("routesToggleColumns"),
-    dialogId: "routesOverview",
-    storageKey: "routes",
-    columns: ROUTE_COLUMNS
+    dialogId,
+    columns,
+    onUpdate: () => updateDialog(dialogId, { width: "fit-content", position })
   });
-  ensureEl("routesCreateNew").on("click", createNewRoute);
-  ensureEl("routesExport").on("click", downloadRoutesData);
-  ensureEl("routesLockAll").on("click", toggleLockAll);
-  ensureEl("routesRemoveAll").on("click", triggerAllRoutesRemove);
-  ensureEl("routesSearch").on("input", routesTable.reset);
+  ensureEl("routesCreateNew").addEventListener("click", createNewRoute);
+  ensureEl("routesExport").addEventListener("click", downloadRoutesData);
+  ensureEl("routesLockAll").addEventListener("click", toggleLockAll);
+  ensureEl("routesRemoveAll").addEventListener("click", triggerAllRoutesRemove);
+  ensureEl("routesSearch").addEventListener("input", routesTable.reset);
 }
 
 function closeRoutesOverview(): void {
-  destroyDialogIfExists("routesOverview");
+  destroyDialog("routesOverview");
 }
 
 function createNewRoute(): void {
@@ -140,7 +136,7 @@ function createNewRoute(): void {
 // totals span the full filtered set, not just the current page
 function renderRoutesPage(view: TableView<Route>): void {
   const body = ensureEl("routesBody");
-  body.querySelectorAll(":scope > .states").forEach(row => {
+  body.querySelectorAll(".states").forEach(row => {
     row.remove();
   });
   let lines = "";
@@ -175,12 +171,14 @@ function renderRoutesPage(view: TableView<Route>): void {
   ensureEl("routesFooterLength").innerHTML = `${averageLength * distanceScale} ${distanceUnitInput.value}`;
 
   // add listeners
-  body.querySelectorAll("div.states").forEach(el => void el.on("mouseenter", routeHighlightOn));
-  body.querySelectorAll("div.states").forEach(el => void el.on("mouseleave", routeHighlightOff));
-  body.querySelectorAll("div > span.icon-target").forEach(el => void el.on("click", zoomToRoute));
-  body.querySelectorAll("div > span.icon-pencil").forEach(el => void el.on("click", openRouteEditor));
-  body.querySelectorAll("div > span.locks").forEach(el => void el.on("click", toggleLockStatus));
-  body.querySelectorAll("div > span.icon-trash-empty").forEach(el => void el.on("click", triggerRouteRemove));
+  body.querySelectorAll("div.states").forEach(el => void el.addEventListener("mouseenter", routeHighlightOn));
+  body.querySelectorAll("div.states").forEach(el => void el.addEventListener("mouseleave", routeHighlightOff));
+  body.querySelectorAll("div > span.icon-target").forEach(el => void el.addEventListener("click", zoomToRoute));
+  body.querySelectorAll("div > span.icon-pencil").forEach(el => void el.addEventListener("click", openRouteEditor));
+  body.querySelectorAll("div > span.locks").forEach(el => void el.addEventListener("click", toggleLockStatus));
+  body
+    .querySelectorAll("div > span.icon-trash-empty")
+    .forEach(el => void el.addEventListener("click", triggerRouteRemove));
 
   renderEditorPagination(ensureEl("routesFooter"), view, routesTable.goto);
 }

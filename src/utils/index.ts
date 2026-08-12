@@ -40,16 +40,7 @@ import {
   poissonDiscSampler,
   shouldRegenerateGrid
 } from "./graphUtils";
-import {
-  applyOption,
-  destroyDialogIfExists,
-  ensureEl,
-  findEl,
-  fitDialogIfExists,
-  getComposedPath,
-  getNextId,
-  getPointer
-} from "./nodeUtils";
+import { applyOption, ensureEl, findEl, getComposedPath, getNextId, getPointer } from "./nodeUtils";
 import {
   connectVertices,
   findPath,
@@ -126,6 +117,7 @@ declare global {
     isValid: (str: string) => boolean;
     safeParse: (str: string) => any;
   }
+  // dropped upstream in 1.140; kept until the fork's ~486 `.on(` call sites are migrated
   interface Node {
     on: (name: string, fn: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => Node;
     off: (name: string, fn: EventListenerOrEventListenerObject) => Node;
@@ -188,7 +180,6 @@ export {
   convertTemperature,
   createTypedArray,
   debounce,
-  destroyDialogIfExists,
   distanceSquared,
   downloadFile,
   drawCellsValue,
@@ -207,7 +198,6 @@ export {
   findGridCell,
   findPath,
   findPathTree,
-  fitDialogIfExists,
   formatPrice,
   gauss,
   generateDate,

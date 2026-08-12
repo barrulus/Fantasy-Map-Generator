@@ -1,3 +1,4 @@
+import { getGroupStyle } from "@/renderers/labels/label-groups";
 import { authoredSizeFactor } from "./label-sizing";
 import { groupMinZoom, groupRank, groupRestPx, groupStartPx } from "./tier-table";
 
@@ -44,50 +45,46 @@ function readIconDiameter(id: string, root: ParentNode): number {
   return Number.isFinite(size) && size > 0 ? size : DEFAULT_ICON_DIAMETER;
 }
 
-/**
- * Read the authored per-group size.
- *
- * Order matters: `data-size` is what the user styled, while the `font-size` attribute is
- * overwritten on every zoom whenever rescaleLabels is on, so it holds the *current* size rather
- * than the authored one. Reading font-size first would make the size drift with the zoom level.
- */
-function readAuthoredSize(el: SVGGElement): number {
-  const data = parseFloat(el.getAttribute("data-size") || "");
-  if (Number.isFinite(data) && data > 0) return data;
-  const attr = parseFloat(el.getAttribute("font-size") || "");
-  if (Number.isFinite(attr) && attr > 0) return attr;
-  const computed = parseFloat(getComputedStyle(el).fontSize || "");
-  return Number.isFinite(computed) && computed > 0 ? computed : DEFAULT_FONT_SIZE;
+// "6%" of the #labels parent, which zoom.ts holds at ~100px at scale 1, so the number is the
+// authored map-units-per-em the tier tables expect
+function authoredSizeFromStyle(fontSize: unknown): number {
+  const parsed = parseFloat(String(fontSize ?? ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_FONT_SIZE;
 }
 
-/**
- * Read the live #burgLabels group shells into per-group style. The shells stay the style carrier
- * for both renderers, so this is the one place that turns DOM into a decision input.
- */
+/** Per-group style for the burg-label renderers. The DOM is consulted only for the layer-toggle
+ * flag and the sibling icon size; everything else is style data. */
 export function readBurgLabelStyles(root: ParentNode = document): Record<string, GroupStyle> {
   const out: Record<string, GroupStyle> = {};
-  const shells = Array.from(root.querySelectorAll<SVGGElement>("#burgLabels > g"));
-  for (const el of shells) {
-    const stroke = el.getAttribute("stroke");
-    const override = parseFloat(el.getAttribute("data-min-zoom") || "");
-    const fontSize = readAuthoredSize(el);
-    const factor = authoredSizeFactor(el.id, fontSize);
-    out[el.id] = {
-      group: el.id,
-      rank: groupRank(el.id),
+  const burgGroups = options.labels.groups.filter(group => group.type === "burg");
+
+  // matched by id, so user-supplied group names need no selector escaping
+  const shells = new Map<string, SVGGElement>();
+  for (const shell of root.querySelectorAll<SVGGElement>("#labels > g")) {
+    shells.set(shell.id.replace(/^labels-/, ""), shell);
+  }
+
+  for (const group of burgGroups) {
+    const name = group.name;
+    const groupStyle = getGroupStyle({ name, type: "burg" });
+    const shell = shells.get(name);
+    const fontSize = authoredSizeFromStyle(groupStyle["font-size"]);
+    const factor = authoredSizeFactor(name, fontSize);
+    const minZoom = group.zoom?.min;
+
+    out[name] = {
+      group: name,
+      rank: groupRank(name),
       fontSize,
-      minZoom: Number.isFinite(override) ? override : groupMinZoom(el.id),
-      startPx: groupStartPx(el.id) * factor,
-      restPx: groupRestPx(el.id) * factor,
-      fill: el.getAttribute("fill") || "#3e3e4b",
-      halo: stroke || "#ffffff",
-      // A stroke on the shell overrides the width; otherwise fall back to a modest legibility
-      // halo (not 0 — no preset sets a stroke on burg-label groups today, so a 0-width default
-      // silently disabled the halo entirely, and a small capital label needs it to stay readable
-      // painted over a big state name).
-      haloWidth: +(el.getAttribute("stroke-width") || 0.5),
-      hidden: isGroupSwitchedOff(el),
-      iconDiameter: readIconDiameter(el.id, root)
+      minZoom: Number.isFinite(minZoom) ? (minZoom as number) : groupMinZoom(name),
+      startPx: groupStartPx(name) * factor,
+      restPx: groupRestPx(name) * factor,
+      fill: groupStyle.fill || "#3e3e4b",
+      halo: groupStyle.stroke || "#ffffff",
+      // not 0: no preset sets a stroke here, and a 0-width default disables the halo entirely
+      haloWidth: Number(groupStyle["stroke-width"]) || 0.5,
+      hidden: shell ? isGroupSwitchedOff(shell) : false,
+      iconDiameter: readIconDiameter(name, root)
     };
   }
   return out;

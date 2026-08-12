@@ -50,8 +50,8 @@ export function buildLabelBoxes(
     const grouped = groupedIds.has(b.i) && !b.capital;
     out.push({
       id: b.i,
-      x: b.x! + (b.labelDx || 0),
-      y: b.y! + (b.labelDy || 0),
+      x: b.x! + (b.label?.dx || 0),
+      y: b.y! + (b.label?.dy || 0),
       order: s.rank,
       population: b.population || 0,
       halfWEm: advanceOf(b.name) / 2 + geom.originXEm,
@@ -75,8 +75,8 @@ export function buildLabelBoxes(
       const name = megalopolisName(m.anchor);
       out.push({
         id: m.anchor.i,
-        x: m.anchor.x! + (m.anchor.labelDx || 0),
-        y: m.anchor.y! + (m.anchor.labelDy || 0),
+        x: m.anchor.x! + (m.anchor.label?.dx || 0),
+        y: m.anchor.y! + (m.anchor.label?.dy || 0),
         order: 0, // capital-tier priority: the composite label is never collision-dropped
         population: m.population,
         halfWEm: advanceOf(name) / 2 + geom.originXEm,
@@ -204,14 +204,16 @@ export async function rebuildBurgLabelGL(): Promise<void> {
   const burgs = (window as any).pack.burgs as Burg[];
   styles = readBurgLabelStyles();
   // One atlas for the dominant font; group fonts that differ fall back to it visually for v1.
-  // Read weight + family from a representative burg-label group (capital, then any group) rather
-  // than the #burgLabels container: the container carries no font, so it resolves to an inherited
-  // default — never the small-caps family the groups are actually styled with. Include font-weight
-  // so bold burg labels bake bold glyphs (the container path also dropped weight entirely).
+  // read from a styled burg group, not the #labels container: the container carries no font and
+  // resolves to an inherited default. Weight is included so bold groups bake bold glyphs.
+  const burgGroupNames = new Set(options.labels.groups.filter(group => group.type === "burg").map(group => group.name));
   const fontSrc =
-    document.querySelector<SVGGElement>("#burgLabels > g#capital") ||
-    document.querySelector<SVGGElement>("#burgLabels > g") ||
-    document.getElementById("burgLabels") ||
+    document.querySelector<SVGGElement>("#labels > #labels-capital") ||
+    [...burgGroupNames].reduce<SVGGElement | null>(
+      (found, name) => found || document.querySelector<SVGGElement>(`#labels > #labels-${CSS.escape(name)}`),
+      null
+    ) ||
+    document.getElementById("labels") ||
     document.body;
   const cs = getComputedStyle(fontSrc as Element);
   const font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
@@ -241,13 +243,13 @@ function rebuildQuadtree(): void {
     .addAll(boxes);
 }
 
-/** Update one burg's label override (caller already set burg.labelDx/labelDy) and redraw. */
+/** Update one burg's label override (caller already set burg.label.dx/dy) and redraw. */
 export function moveLabelGL(id: number): void {
   const burg = ((window as any).pack.burgs as Burg[])[id];
   const box = boxes.find(b => b.id === id);
   if (burg && box) {
-    box.x = burg.x! + (burg.labelDx || 0);
-    box.y = burg.y! + (burg.labelDy || 0);
+    box.x = burg.x! + (burg.label?.dx || 0);
+    box.y = burg.y! + (burg.label?.dy || 0);
     rebuildQuadtree();
   }
   lastKey = ""; // force visibility/instance rebuild next draw
@@ -275,8 +277,8 @@ export function drawBurgLabelGL(): void {
   const t = (window as any).getMapTransform?.() || { scale: 1, viewX: 0, viewY: 0 };
   const canvas = gl.canvas as HTMLCanvasElement;
   const vp = currentViewport(canvas, t.scale, t.viewX, t.viewY);
-  const hideGate = (window as any).hideLabels?.checked !== false;
-  const rescaleGate = (window as any).rescaleLabels?.checked !== false;
+  const hideGate = !options.labels.showAll;
+  const rescaleGate = options.labels.resizeOnZoom !== false;
 
   // Surviving state labels published by public/main.js's #states branch, in SCREEN coordinates
   // (getBoundingClientRect space — real page pixels). Reproject into this canvas's own local CSS
@@ -381,7 +383,8 @@ function buildGroupRanges(visible: Map<number, number>, scale: number): { group:
     const ay = liftedAnchorY(b, scale);
     const laid = layoutLabel(b.name, atlas.metrics, atlas.geom, mapUnits, b.x, ay);
     const packed = packGlyphQuads(laid.quads);
-    const acc = (byGroup[b.group] ||= []) as unknown as number[];
+    byGroup[b.group] ??= [];
+    const acc = byGroup[b.group] as unknown as number[];
     for (let i = 0; i < packed.length; i++) acc.push(packed[i]);
   }
   return Object.entries(byGroup).map(([group, arr]) => ({ group, data: Float32Array.from(arr) }));

@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  findMegalopolises,
-  groupedMemberIds,
-  megalopolisName,
-  pooledPopulation
-} from "./megalopolis";
+import { findMegalopolises, groupedMemberIds, megalopolisName, pooledPopulation } from "./megalopolis";
 
 const burg = (i: number, cell: number, extra: Record<string, unknown> = {}) =>
   ({ i, cell, x: 0, y: 0, name: `b${i}`, population: 1, ...extra }) as any;

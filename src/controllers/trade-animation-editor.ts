@@ -1,5 +1,5 @@
-import { closeDialogs } from "@/components/dialog/dialog-helpers";
-import { destroyDialogIfExists, ensureEl } from "../utils";
+import { closeDialogs, destroyDialog } from "@/components/dialog/dialog-helpers";
+import { ensureEl } from "../utils";
 
 const DEFAULTS = TradeAnimation.getDefaultOptions();
 const INPUTS = [
@@ -79,13 +79,13 @@ function open(): void {
     resizable: false,
     position: { my: "right top", at: "right-10 top+10", of: "svg" },
     close: () => {
-      destroyDialogIfExists("tradeAnimationEditor");
+      destroyDialog("tradeAnimationEditor");
     }
   });
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("tradeAnimationEditor");
+  destroyDialog("tradeAnimationEditor");
   document.body.insertAdjacentHTML("beforeend", buildDialogHTML());
 
   for (const def of INPUTS) {
@@ -96,7 +96,7 @@ function renderDialog(): void {
     const current = options.trade.animation[key] ?? def.default;
     input.value = String(current);
 
-    input.on("input", e => {
+    input.addEventListener("input", e => {
       // slider-input re-dispatches a bubbling event from its inner controls; ignore those duplicates
       if (e.target !== e.currentTarget) return;
       const value =
@@ -106,7 +106,7 @@ function renderDialog(): void {
       TradeAnimation.restart();
     });
 
-    resetBtn.on("click", () => {
+    resetBtn.addEventListener("click", () => {
       options.trade.animation = { ...options.trade.animation, [key]: def.default };
       input.value = String(def.default);
       localStorage.setItem("trade-animation", JSON.stringify(options.trade.animation));

@@ -1,8 +1,5 @@
 import { minmax } from "./numberUtils";
 
-// Pan/zoom transform for a fixed viewport whose content is viewport-sized at k=1
-// (the burg-editor preview iframe). Transform maps content px c to viewport px c*k + offset.
-
 export interface PanZoom {
   k: number;
   x: number;
@@ -18,7 +15,7 @@ export const MIN_ZOOM = 1;
 export const MAX_ZOOM = 32;
 export const PAN_ZOOM_IDENTITY: PanZoom = { k: 1, x: 0, y: 0 };
 
-// Keep the scaled content covering the whole viewport: no gaps at any edge.
+// keep the scaled content covering the whole viewport
 export function clampPanZoom({ k, x, y }: PanZoom, viewport: Viewport): PanZoom {
   return {
     k,
@@ -27,9 +24,7 @@ export function clampPanZoom({ k, x, y }: PanZoom, viewport: Viewport): PanZoom 
   };
 }
 
-// Rescale by factor keeping the content point under `point` (viewport px) fixed.
-// maxK lets a caller lower the ceiling below MAX_ZOOM (e.g. canvas-backed content
-// that cannot render past the GPU texture limit).
+// rescale by factor keeping the content point under `point` fixed
 export function zoomAt(
   t: PanZoom,
   point: { x: number; y: number },

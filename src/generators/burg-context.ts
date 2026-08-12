@@ -102,7 +102,7 @@ export type RouteGroup = "roads" | "trails" | "searoutes" | "airroutes" | "trade
 
 export interface Approach {
   routeId: number;
-  group: RouteGroup;
+  group: string; // upstream allows custom route groups, so this is not limited to RouteGroup
   type?: string;
   name?: string;
   bearingDeg: number;
@@ -119,7 +119,8 @@ export function readApproaches(
   center: number,
   cellsRoutes: Record<number, Record<number, number>>,
   cellsP: ArrayLike<[number, number]>,
-  routeById: Map<number, { group: RouteGroup; type?: string; name?: string }>
+  // group is a plain string upstream (custom route groups); RouteGroup names the ones we branch on
+  routeById: Map<number, { group: string; type?: string; name?: string }>
 ): Approach[] {
   const connections = cellsRoutes[center];
   if (!connections) return [];
@@ -177,7 +178,7 @@ export interface Hydrology {
 
 export const LARGE_HARBOUR_MIN_POPULATION = 5000;
 
-const SEA_TRADE_GROUPS = new Set<RouteGroup>(["searoutes", "traderoutes"]);
+const SEA_TRADE_GROUPS = new Set<string>(["searoutes", "traderoutes"] satisfies RouteGroup[]);
 
 export function readHydrology(input: {
   window: CellWindow;

@@ -1,5 +1,5 @@
 import { type D3DragEvent, drag, polygonArea, type Selection, select } from "d3";
-import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import type { Feature } from "@/generators/features";
@@ -7,7 +7,7 @@ import { drawBiomes } from "@/renderers/draw-biomes";
 import { drawBorders } from "@/renderers/draw-borders";
 import { getFeaturePath } from "@/renderers/draw-features";
 import { getArea, getAreaUnit } from "@/utils";
-import { destroyDialogIfExists, ensureEl, findEl, getPackPolygon, rn, si, unique } from "../utils";
+import { ensureEl, findEl, getPackPolygon, rn, si, unique } from "../utils";
 
 let selectedCoastline: Selection<SVGElement, unknown, HTMLElement, unknown>;
 
@@ -33,7 +33,7 @@ function open(element: SVGElement): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("coastlineEditor");
+  destroyDialog("coastlineEditor");
 
   const html = /* html */ `<div id="coastlineEditor" class="dialog">
     <button id="coastlineGroupsShow" data-tip="Show the group selection" class="icon-tags"></button>
@@ -50,13 +50,13 @@ function renderDialog(): void {
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
 
   // add listeners — dropped together with the dialog HTML on close
-  ensureEl("coastlineGroupsShow").on("click", showGroupSection);
-  ensureEl("coastlineGroup").on("change", changeCoastlineGroup);
-  ensureEl("coastlineGroupAdd").on("click", toggleNewGroupInput);
-  ensureEl("coastlineGroupName").on("change", createNewGroup);
-  ensureEl("coastlineGroupRemove").on("click", removeCoastlineGroup);
-  ensureEl("coastlineGroupsHide").on("click", hideGroupSection);
-  ensureEl("coastlineEditStyle").on("click", editGroupStyle);
+  ensureEl("coastlineGroupsShow").addEventListener("click", showGroupSection);
+  ensureEl("coastlineGroup").addEventListener("change", changeCoastlineGroup);
+  ensureEl("coastlineGroupAdd").addEventListener("click", toggleNewGroupInput);
+  ensureEl("coastlineGroupName").addEventListener("change", createNewGroup);
+  ensureEl("coastlineGroupRemove").addEventListener("click", removeCoastlineGroup);
+  ensureEl("coastlineGroupsHide").addEventListener("click", hideGroupSection);
+  ensureEl("coastlineEditStyle").addEventListener("click", editGroupStyle);
 }
 
 function getFeature(): Feature {
@@ -270,7 +270,7 @@ function editGroupStyle(): void {
 function closeCoastlineEditor(): void {
   select("#debug").select("#vertices").remove();
   applyDefaultViewboxEvents();
-  destroyDialogIfExists("coastlineEditor");
+  destroyDialog("coastlineEditor");
 }
 
 export const CoastlineVertexEditor = { open };

@@ -1,6 +1,5 @@
 import { pack as packLayout, select, stratify } from "d3";
-import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
-import { fitContent } from "@/components/dialog/fit-content";
+import { closeDialogs, confirmationDialog, updateDialog } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
 import {
@@ -15,20 +14,27 @@ import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
 import type { Burg } from "@/generators/burgs-generator";
 import { findMegalopolises, groupedMemberIds, megalopolisName } from "@/generators/megalopolis";
-import { drawBurgLabels } from "@/renderers/draw-burg-labels";
+import { drawLabels } from "@/renderers/labels/labels-renderer";
 import { downloadFile, getFileName, getHeight, getLatitude, getLongitude, uploadFile } from "@/utils";
 import { convertTemperature, ensureEl, getTemperatureLikeness, rn, si } from "../utils";
 
 type Filters = { stateId?: number | null; cultureId?: number | null };
 
-const BURG_COLUMNS: EditorColumn<Burg>[] = [
-  { key: "locate", width: "1.4em", hideable: false },
+// the GPU layer owns burg labels when it is active; drawLabels would only build SVG it then hides
+function refreshBurgLabels(): void {
+  if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
+  else drawLabels();
+}
+
+const dialogId = "burgsOverview" as const;
+const position = { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" };
+const columns: EditorColumn<Burg>[] = [
+  { key: "locate", width: "0.8em", permanent: true },
   {
     key: "name",
     label: "Burg",
     width: "8em",
-    fill: true,
-    hideable: false,
+    permanent: true,
     tip: "Click to sort by burg name",
     sortBy: b => b.name || "",
     sortType: "alpha"
@@ -36,7 +42,8 @@ const BURG_COLUMNS: EditorColumn<Burg>[] = [
   {
     key: "province",
     label: "Province",
-    width: "7em",
+    width: "8em",
+    hidden: true,
     mobileHidden: true,
     tip: "Click to sort by province name",
     sortType: "alpha",
@@ -48,7 +55,7 @@ const BURG_COLUMNS: EditorColumn<Burg>[] = [
   {
     key: "state",
     label: "State",
-    width: "7.5em",
+    width: "8em",
     tip: "Click to sort by state name",
     sortBy: b => pack.states[b.state!]?.name || "",
     sortType: "alpha"
@@ -56,7 +63,7 @@ const BURG_COLUMNS: EditorColumn<Burg>[] = [
   {
     key: "culture",
     label: "Culture",
-    width: "7.2em",
+    width: "10em",
     mobileHidden: true,
     tip: "Click to sort by culture name",
     sortBy: b => pack.cultures[b.culture!]?.name || "",
@@ -65,7 +72,7 @@ const BURG_COLUMNS: EditorColumn<Burg>[] = [
   {
     key: "group",
     label: "Group",
-    width: "6.5em",
+    width: "6em",
     mobileHidden: true,
     tip: "Click to sort by culture group",
     sortBy: b => b.group || "",
@@ -74,22 +81,23 @@ const BURG_COLUMNS: EditorColumn<Burg>[] = [
   {
     key: "population",
     label: "Population",
-    width: "8em",
+    width: "7em",
     defaultSort: "desc",
     tip: "Click to sort by population",
     sortBy: b => b.population! * populationRate * urbanization
   },
   {
     key: "grossproduct",
-    label: "Gross product",
+    label: "Product",
     width: "6.5em",
+    hidden: true,
     mobileHidden: true,
     tip: "Click to sort by burg product",
     sortBy: b => rn(b.product || 0, 2)
   },
   {
     key: "productpercapita",
-    label: "Product per capita",
+    label: "Wealth",
     width: "6.5em",
     mobileHidden: true,
     tip: "Click to sort by burg wealth (gross product per capita)",
@@ -98,7 +106,7 @@ const BURG_COLUMNS: EditorColumn<Burg>[] = [
   {
     key: "treasury",
     label: "Treasury",
-    width: "5.5em",
+    width: "6.5em",
     mobileHidden: true,
     tip: "Click to sort by burg treasury",
     sortBy: b => rn(b.treasury || 0, 2)
@@ -112,17 +120,17 @@ const BURG_COLUMNS: EditorColumn<Burg>[] = [
     sortType: "alpha",
     sortBy: b => (b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg")
   },
-  { key: "actions", width: "4.5em", hideable: false }
+  { key: "actions", width: "3.2em", permanent: true, align: "right" }
 ];
 
 const burgsTable = initEditorTable<Burg>({
-  getData: () => sortDataByColumns(ensureEl("burgsHeader"), getFilteredBurgs(), BURG_COLUMNS),
+  getData: () => sortDataByColumns(dialogId, getFilteredBurgs(), columns),
   onUpdate: renderBurgsPage
 });
 
 function open(filters: Filters = { stateId: null, cultureId: null }): void {
   if (customization) return;
-  closeDialogs("#burgsOverview, .stable");
+  closeDialogs(`#${dialogId}, .stable`);
   if (!layerIsOn("toggleBurgIcons")) toggleBurgIcons();
   if (!layerIsOn("toggleLabels")) toggleLabels();
 
@@ -131,22 +139,19 @@ function open(filters: Filters = { stateId: null, cultureId: null }): void {
   updateLockAllIcon();
   burgsTable.reset();
 
-  $("#burgsOverview").dialog({
+  $(`#${dialogId}`).dialog({
     title: "Burgs Overview",
     resizable: false,
     close: closeBurgsOverview,
-    position: { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" }
+    width: "fit-content",
+    position
   });
 }
 
 function renderDialog(): void {
   document.getElementById("burgsOverview")?.remove();
   const HTML = /* html */ `<div id="burgsOverview" class="dialog stable editorDialog">
-      <div id="burgsBody" class="table">${renderEditorHeader({
-        id: "burgsHeader",
-        columns: BURG_COLUMNS,
-        columnsButtonId: "burgsToggleColumns"
-      })}</div>
+      <div id="burgsBody" class="table">${renderEditorHeader({ dialogId, columns })}</div>
       <div id="burgsFilters" data-tip="Apply a filter" class="editorFilters">
         <label for="burgsSearch" data-tip="Filter by name, province, state, culture, or group"
           >Search: <input id="burgsSearch" type="search"
@@ -203,19 +208,18 @@ function renderDialog(): void {
       </div>
     </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", HTML);
-  bindColumnSorting(ensureEl("burgsHeader"), burgsTable.reset);
-  applyLineHighlighting("burgsOverview", ({ target, cellId }) => {
+  bindColumnSorting(dialogId, burgsTable.reset);
+  applyLineHighlighting(dialogId, ({ target, cellId }) => {
     const burgId = pack.cells.burg[cellId];
     if (burgId) return burgId;
-    const burg = target.closest<SVGElement>("#burgLabels [data-id], #burgIcons [data-id]");
+    const burg = target.closest<SVGElement>("#labels [data-label-type='burg'][data-id], #burgIcons [data-id]");
     return burg ? Number(burg.dataset.id) : undefined;
   });
 
   initColumnVisibility({
-    button: ensureEl("burgsToggleColumns"),
-    dialogId: "burgsOverview",
-    storageKey: "burgs",
-    columns: BURG_COLUMNS
+    dialogId,
+    columns,
+    onUpdate: () => updateDialog(dialogId, { width: "fit-content", position })
   });
 
   ensureEl("burgsOverviewRefresh").addEventListener("click", refreshBurgsEditor);
@@ -426,19 +430,17 @@ function renderBurgsPage(view: TableView<Burg>): void {
 
 function burgHighlightOn(event: Event): void {
   const burg = +(event.target as HTMLElement).dataset.id!;
-  const label = select("#burgLabels").select(`[data-id='${burg}']`);
+  const label = select("#labels").select(`[data-label-type='burg'][data-id='${burg}']`);
   if (label.size()) label.classed("drag", true);
 }
 
 function burgHighlightOff(): void {
-  select("#burgLabels").selectAll("text.drag").classed("drag", false);
+  select("#labels").selectAll("text[data-label-type='burg'].drag").classed("drag", false);
 }
 
 function zoomIntoBurg(this: HTMLElement): void {
   const burg = +(this.closest(".states") as HTMLElement).dataset.id!;
-  const label = document.querySelector(`#burgLabels [data-id='${burg}']`)!;
-  const x = +label.getAttribute("x")!;
-  const y = +label.getAttribute("y")!;
+  const { x, y } = pack.burgs[burg];
   zoomTo(x, y, 8, 2000);
 }
 
@@ -478,6 +480,7 @@ function triggerBurgRemove(this: HTMLElement): void {
     onConfirm: () => {
       Burgs.remove(burgId);
       burgsTable.refresh();
+      refreshBurgLabels();
     }
   });
 }
@@ -489,9 +492,8 @@ function regenerateNames(): void {
     b.name = Names.getCulture(b.culture!);
   }
 
-  if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
-  else if (layerIsOn("toggleLabels")) drawBurgLabels();
   burgsTable.refresh();
+  refreshBurgLabels();
 }
 
 function showBurgsChart(): void {
@@ -668,7 +670,7 @@ function showBurgsChart(): void {
 
   $("#alert").dialog({
     title: "Burgs bubble chart",
-    width: fitContent(),
+    width: "fit-content",
     position: { my: "left bottom", at: "left+10 bottom-10", of: "svg" },
     buttons: {},
     close: () => (alertMessage.innerHTML = "")
@@ -780,10 +782,9 @@ function importBurgNames(dataLoaded: string): void {
     for (let i = 0; i < change.length; i++) {
       const id = change[i].id;
       pack.burgs[id].name = change[i].name;
-      select("#burgLabels").select(`[data-id='${id}']`).text(change[i].name);
     }
-    if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
     burgsTable.refresh();
+    refreshBurgLabels();
   };
 
   confirmationDialog({
@@ -805,6 +806,7 @@ function triggerAllBurgsRemove(): void {
     onConfirm: () => {
       pack.burgs.filter(b => b.i && !(b.capital || b.lock)).forEach(b => void Burgs.remove(b.i));
       burgsTable.refresh();
+      refreshBurgLabels();
     }
   });
 }

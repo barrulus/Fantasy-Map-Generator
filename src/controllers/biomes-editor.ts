@@ -1,5 +1,5 @@
 import { drag, easeSinIn, select, sum, transition } from "d3";
-import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { applySorting, applySortingByHeader } from "@/components/dialog/sorting";
 import type { FillBoxElement } from "@/components/fill-box";
@@ -14,7 +14,7 @@ import { clearLegend, drawLegend } from "@/renderers/draw-legend";
 import { moveCircle, removeCircle } from "@/renderers/overlays/brush-circle";
 import type { PackedGraph } from "@/types/PackedGraph";
 import { downloadFile, findAllCellsInRadius, getArea, getAreaUnit, getFileName, openURL } from "@/utils";
-import { destroyDialogIfExists, ensureEl, getPackPolygon, getPointer, getRandomColor, isLand, rn, si } from "../utils";
+import { ensureEl, getPackPolygon, getPointer, getRandomColor, isLand, rn, si } from "../utils";
 
 function open(): void {
   if (customization) return;
@@ -37,7 +37,7 @@ function open(): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("biomesEditor");
+  destroyDialog("biomesEditor");
   const html = /* html */ `<div id="biomesEditor" class="dialog stable">
       <div id="biomesHeader" class="header" style="grid-template-columns: 12em 10em 5em 6em 7em">
         <div data-tip="Click to sort by biome name" class="sortable alphabetically" data-sortby="name">
@@ -110,16 +110,16 @@ function renderDialog(): void {
     </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
 
-  ensureEl("biomesEditorRefresh").on("click", refreshBiomesEditor);
-  ensureEl("biomesEditStyle").on("click", () => editStyle("biomes"));
-  ensureEl("biomesLegend").on("click", toggleLegend);
-  ensureEl("biomesPercentage").on("click", togglePercentageMode);
-  ensureEl("biomesManually").on("click", enterBiomesCustomizationMode);
-  ensureEl("biomesManuallyApply").on("click", applyBiomesChange);
-  ensureEl("biomesManuallyCancel").on("click", () => exitBiomesCustomizationMode());
-  ensureEl("biomesRestore").on("click", restoreInitialBiomes);
-  ensureEl("biomesAdd").on("click", addCustomBiome);
-  ensureEl("biomesExport").on("click", downloadBiomesData);
+  ensureEl("biomesEditorRefresh").addEventListener("click", refreshBiomesEditor);
+  ensureEl("biomesEditStyle").addEventListener("click", () => editStyle("biomes"));
+  ensureEl("biomesLegend").addEventListener("click", toggleLegend);
+  ensureEl("biomesPercentage").addEventListener("click", togglePercentageMode);
+  ensureEl("biomesManually").addEventListener("click", enterBiomesCustomizationMode);
+  ensureEl("biomesManuallyApply").addEventListener("click", applyBiomesChange);
+  ensureEl("biomesManuallyCancel").addEventListener("click", () => exitBiomesCustomizationMode());
+  ensureEl("biomesRestore").addEventListener("click", restoreInitialBiomes);
+  ensureEl("biomesAdd").addEventListener("click", addCustomBiome);
+  ensureEl("biomesExport").addEventListener("click", downloadBiomesData);
 
   applySortingByHeader("biomesHeader");
   applyLineHighlighting("biomesEditor", ({ cellId }) => cellId && pack.cells.biome[cellId]);

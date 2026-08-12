@@ -79,7 +79,7 @@ describe("buildLabelBoxes", () => {
   });
 
   it("applies the per-burg label override to the anchor", () => {
-    const moved = [{}, { ...burgs[1], labelDx: 5, labelDy: -3 }] as any;
+    const moved = [{}, { ...burgs[1], label: { dx: 5, dy: -3 } }] as any;
     const b = buildLabelBoxes(moved, { capital: style() }, METRICS, GEOM)[0];
     expect(b.x).toBe(105);
     expect(b.y).toBe(197);

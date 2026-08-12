@@ -1,5 +1,5 @@
 import { drag, interpolateString, max, pack as packLayout, select, stratify } from "d3";
-import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog, updateDialog } from "@/components/dialog/dialog-helpers";
 import { fitContent } from "@/components/dialog/fit-content";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
@@ -22,16 +22,14 @@ import { drawBorders } from "@/renderers/draw-borders";
 import { clearEmblems, drawEmblems } from "@/renderers/draw-emblems";
 import { drawGoods } from "@/renderers/draw-goods";
 import { clearLegend, drawLegend } from "@/renderers/draw-legend";
-import { drawStateLabels, redrawStateLabels } from "@/renderers/draw-state-labels";
+import { drawLabels } from "@/renderers/labels/labels-renderer";
 import { moveCircle, removeCircle } from "@/renderers/overlays/brush-circle";
 import { fog, unfog } from "@/renderers/overlays/fogging";
 import { highlightElement } from "@/renderers/overlays/highlight";
 import { applyOption, downloadFile, getArea, getAreaUnit, getFileName, speak } from "@/utils";
 import {
-  destroyDialogIfExists,
   ensureEl,
   findAllCellsInRadius,
-  fitDialogIfExists,
   formatPrice,
   getAdjective,
   getMixedColor,
@@ -48,23 +46,25 @@ import {
 
 let statesManualHistory: string[] = [];
 
+const dialogId = "statesEditor" as const;
+const position = { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" };
+
 function getFilteredStatesData(): State[] {
   return pack.states.filter(s => !s.removed);
 }
 
 const STATE_COLUMNS: EditorColumn<State>[] = [
-  { key: "color", width: "1.2em", hideable: false },
+  { key: "color", width: "1.2em", permanent: true },
   {
     key: "name",
     label: "State",
     width: "8em",
-    fill: true,
-    hideable: false,
+    permanent: true,
     tip: "Click to sort by state name",
     sortBy: s => s.name || "",
     sortType: "alpha"
   },
-  { key: "emblem", width: "1.4em", hideable: false },
+  { key: "emblem", width: "1.4em", permanent: true },
   {
     key: "form",
     label: "Form",
@@ -135,7 +135,7 @@ const STATE_COLUMNS: EditorColumn<State>[] = [
     key: "type",
     label: "Type",
     width: "6em",
-    hideable: false,
+    permanent: true,
     tip: "Click to sort by state type",
     sortBy: s => s.type || "",
     sortType: "alpha"
@@ -144,15 +144,15 @@ const STATE_COLUMNS: EditorColumn<State>[] = [
     key: "expansionism",
     label: "Expansion",
     width: "7em",
-    hideable: false,
+    permanent: true,
     tip: "Click to sort by state expansion value",
     sortBy: s => s.expansionism || 0
   },
-  { key: "actions", width: "6em", hideable: false }
+  { key: "actions", width: "6em", permanent: true }
 ];
 
 const statesTable = initEditorTable<State>({
-  getData: () => sortDataByColumns(ensureEl("statesHeader"), getFilteredStatesData(), STATE_COLUMNS),
+  getData: () => sortDataByColumns(dialogId, getFilteredStatesData(), STATE_COLUMNS),
   onUpdate: renderStatesPage
 });
 
@@ -180,12 +180,11 @@ function open(): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("statesEditor");
+  destroyDialog("statesEditor");
   const editorHtml = /* html */ `<div id="statesEditor" class="dialog stable editorDialog">
     <div id="statesBodySection" class="table" data-type="absolute">${renderEditorHeader({
-      id: "statesHeader",
-      columns: STATE_COLUMNS,
-      columnsButtonId: "statesToggleColumns"
+      dialogId,
+      columns: STATE_COLUMNS
     })}</div>
 
     <div id="statesFooter" class="totalLine">
@@ -247,39 +246,38 @@ function renderDialog(): void {
     </div>
   </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", editorHtml);
-  bindColumnSorting(ensureEl("statesHeader"), statesTable.reset);
+  bindColumnSorting(dialogId, statesTable.reset);
   applyLineHighlighting("statesEditor", ({ cellId }) =>
     pack.cells.h[cellId] < 20 ? undefined : pack.cells.state[cellId]
   );
-  ensureEl("statesEditorRefresh").on("click", refreshStatesEditor);
+  ensureEl("statesEditorRefresh").addEventListener("click", refreshStatesEditor);
   initColumnVisibility({
-    button: ensureEl("statesToggleColumns"),
-    dialogId: "statesEditor",
-    storageKey: "states",
-    columns: STATE_COLUMNS
+    dialogId,
+    columns: STATE_COLUMNS,
+    onUpdate: () => updateDialog(dialogId, { width: fitContent(), position })
   });
   // type/expansionism are owned by the regenerate-mode toggle, not the user's column picker
-  setModeHiddenColumns("statesEditor", ["type", "expansionism"]);
-  ensureEl("statesEditStyle").on("click", () => editStyle("regions"));
-  ensureEl("statesLegend").on("click", toggleLegend);
-  ensureEl("statesPercentage").on("click", togglePercentageMode);
-  ensureEl("statesChart").on("click", showStatesChart);
-  ensureEl("statesRegenerate").on("click", openRegenerationMenu);
-  ensureEl("statesRegenerateBack").on("click", exitRegenerationMenu);
-  ensureEl("statesRecalculate").on("click", () => recalculateStates(true));
-  ensureEl("statesRandomize").on("click", randomizeStatesExpansion);
-  ensureEl("statesGrowthRate").on("input", () => recalculateStates(false));
-  ensureEl("statesManually").on("click", enterStatesManualAssignent);
-  ensureEl("statesManuallyState").on("change", highlightBrushRow);
-  ensureEl("statesManuallyDemote").on("change", updateDemotePickerLabel);
-  ensureEl("statesManuallyUndo").on("click", undoStatesManualAssignment);
-  ensureEl("statesManuallyApply").on("click", applyStatesManualAssignent);
-  ensureEl("statesManuallyCancel").on("click", () => exitStatesManualAssignment(false));
-  ensureEl("statesAdd").on("click", enterAddStateMode);
-  ensureEl("statesMerge").on("click", openStateMergeDialog);
-  ensureEl("statesExport").on("click", downloadStatesCsv);
+  setModeHiddenColumns(dialogId, ["type", "expansionism"]);
+  ensureEl("statesEditStyle").addEventListener("click", () => editStyle("regions"));
+  ensureEl("statesLegend").addEventListener("click", toggleLegend);
+  ensureEl("statesPercentage").addEventListener("click", togglePercentageMode);
+  ensureEl("statesChart").addEventListener("click", showStatesChart);
+  ensureEl("statesRegenerate").addEventListener("click", openRegenerationMenu);
+  ensureEl("statesRegenerateBack").addEventListener("click", exitRegenerationMenu);
+  ensureEl("statesRecalculate").addEventListener("click", () => recalculateStates(true));
+  ensureEl("statesRandomize").addEventListener("click", randomizeStatesExpansion);
+  ensureEl("statesGrowthRate").addEventListener("input", () => recalculateStates(false));
+  ensureEl("statesManually").addEventListener("click", enterStatesManualAssignent);
+  ensureEl("statesManuallyState").addEventListener("change", highlightBrushRow);
+  ensureEl("statesManuallyDemote").addEventListener("change", updateDemotePickerLabel);
+  ensureEl("statesManuallyUndo").addEventListener("click", undoStatesManualAssignment);
+  ensureEl("statesManuallyApply").addEventListener("click", applyStatesManualAssignent);
+  ensureEl("statesManuallyCancel").addEventListener("click", () => exitStatesManualAssignment(false));
+  ensureEl("statesAdd").addEventListener("click", enterAddStateMode);
+  ensureEl("statesMerge").addEventListener("click", openStateMergeDialog);
+  ensureEl("statesExport").addEventListener("click", downloadStatesCsv);
 
-  ensureEl("statesBodySection").on("click", event => {
+  ensureEl("statesBodySection").addEventListener("click", event => {
     const $element = (event as MouseEvent).target as HTMLElement;
     const classList = $element.classList;
     const row = $element.closest(".states") as HTMLElement | null;
@@ -301,7 +299,7 @@ function renderDialog(): void {
       updateLockStatus(stateId, classList);
   });
 
-  ensureEl("statesBodySection").on("input", ev => {
+  ensureEl("statesBodySection").addEventListener("input", ev => {
     const $element = (ev as Event).target as HTMLInputElement;
     const classList = $element.classList;
     const line = $element.closest(".states") as HTMLElement | null;
@@ -310,7 +308,7 @@ function renderDialog(): void {
     if (classList.contains("stateCapital")) stateChangeCapitalName(state, line, $element.value);
   });
 
-  ensureEl("statesBodySection").on("change", ev => {
+  ensureEl("statesBodySection").addEventListener("change", ev => {
     const $element = (ev as Event).target as HTMLInputElement;
     const classList = $element.classList;
     const line = $element.closest(".states") as HTMLElement | null;
@@ -506,16 +504,16 @@ function renderStatesPage(view: TableView<State>): void {
   ensureEl("statesBodySection")
     .querySelectorAll(":scope > .states")
     .forEach($line => {
-      $line.on("mouseenter", stateHighlightOn);
-      $line.on("mouseleave", stateHighlightOff);
-      $line.on("click", selectStateOnLineClick);
+      $line.addEventListener("mouseenter", stateHighlightOn);
+      $line.addEventListener("mouseleave", stateHighlightOff);
+      $line.addEventListener("click", selectStateOnLineClick);
     });
 
   if (ensureEl("statesBodySection").dataset.type === "percentage") {
     ensureEl("statesBodySection").dataset.type = "absolute";
     togglePercentageMode();
   }
-  fitDialogIfExists("statesEditor");
+  updateDialog(dialogId, { width: fitContent(), position });
 }
 
 function getCultureOptions(culture: number): string {
@@ -621,15 +619,15 @@ function editStateName(state: number): void {
     close: closeStateNameEditor
   });
 
-  ensureEl("stateNameEditorShortCulture").on("click", regenerateShortNameCulture);
-  ensureEl("stateNameEditorShortRandom").on("click", regenerateShortNameRandom);
-  ensureEl("stateNameEditorShortSpeak").on("click", () =>
+  ensureEl("stateNameEditorShortCulture").addEventListener("click", regenerateShortNameCulture);
+  ensureEl("stateNameEditorShortRandom").addEventListener("click", regenerateShortNameRandom);
+  ensureEl("stateNameEditorShortSpeak").addEventListener("click", () =>
     speak(ensureEl<HTMLInputElement>("stateNameEditorShort").value)
   );
-  ensureEl("stateNameEditorAddForm").on("click", addCustomForm);
-  ensureEl("stateNameEditorCustomForm").on("change", addCustomForm);
-  ensureEl("stateNameEditorFullRegenerate").on("click", regenerateFullName);
-  ensureEl("stateNameEditorFullSpeak").on("click", () =>
+  ensureEl("stateNameEditorAddForm").addEventListener("click", addCustomForm);
+  ensureEl("stateNameEditorCustomForm").addEventListener("change", addCustomForm);
+  ensureEl("stateNameEditorFullRegenerate").addEventListener("click", regenerateFullName);
+  ensureEl("stateNameEditorFullSpeak").addEventListener("click", () =>
     speak(ensureEl<HTMLInputElement>("stateNameEditorFull").value)
   );
 
@@ -689,15 +687,16 @@ function editStateName(state: number): void {
     s.name = nameInput.value;
     s.formName = formSelect.value;
     s.fullName = fullNameInput.value;
-    if (changed && ensureEl<HTMLInputElement>("stateNameEditorUpdateLabel").checked && layerIsOn("toggleLabels")) {
-      drawStateLabels([s.i]);
+    if (changed && ensureEl<HTMLInputElement>("stateNameEditorUpdateLabel").checked) {
+      if (s.label?.text) delete s.label.text;
+      drawLabels();
     }
     refreshStatesEditor();
   }
 }
 
 function renderNameEditor(): void {
-  destroyDialogIfExists("stateNameEditor");
+  destroyDialog("stateNameEditor");
   const nameEditorHtml = /* html */ `    <div id="stateNameEditor" class="dialog" data-state="0">
       <div>
         <div data-tip="State short name" class="label">Short name:</div>
@@ -842,10 +841,14 @@ function stateChangeCapitalName(state: number, line: HTMLElement, value: string)
   const capital = pack.states[state].capital;
   if (!capital) return;
   pack.burgs[capital].name = value;
-  const capitalLabel = document.querySelector(`#burgLabel${capital}`) as HTMLElement | null;
-  if (capitalLabel) capitalLabel.textContent = value;
-  if (window.burgLabelsWebglActive && window.burgLabelsWebglActive() && window.scheduleRebuildBurgLabelGL)
-    window.scheduleRebuildBurgLabelGL();
+  const burg = pack.burgs[capital];
+  if (burg) {
+    if (!burg.label) burg.label = {};
+    Object.assign(burg.label, { text: value });
+    drawLabels();
+  }
+  // the GPU label layer reads burg data, not the SVG that drawLabels materializes
+  if (window.burgLabelsWebglActive?.() && window.scheduleRebuildBurgLabelGL) window.scheduleRebuildBurgLabelGL();
 }
 
 function changePopulation(stateId: number): void {
@@ -995,9 +998,7 @@ function openTreasuryDialog(stateId: number): void {
 
 function stateCapitalZoomIn(state: number): void {
   const capital = pack.states[state].capital;
-  const label = select("#burgLabels").select(`[data-id='${capital}']`);
-  const x = +label.attr("x");
-  const y = +label.attr("y");
+  const { x, y } = pack.burgs[capital];
   zoomTo(x, y, 8, 2000);
 }
 
@@ -1041,8 +1042,7 @@ function stateRemove(stateId: number): void {
   select("#statesBody").select(`#state${stateId}`).remove();
   select("#statesBody").select(`#state-gap${stateId}`).remove();
   select("#statesHalo").select(`#state-border${stateId}`).remove();
-  select("#labels").select(`#stateLabel${stateId}`).remove();
-  select("#deftemp").select(`#textPath_stateLabel${stateId}`).remove();
+  delete pack.states[stateId].label;
 
   unfog(`focusState${stateId}`);
 
@@ -1055,6 +1055,7 @@ function stateRemove(stateId: number): void {
       }
     }
   });
+  drawLabels();
 
   pack.cells.state.forEach((s: number, i: number) => {
     if (s === stateId) pack.cells.state[i] = 0;
@@ -1181,7 +1182,7 @@ function showStatesChart(): void {
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "central");
   const graph = svg.append("g").attr("transform", `translate(-50, 0)`);
-  ensureEl("statesTreeType").on("change", updateChart);
+  ensureEl("statesTreeType").addEventListener("change", updateChart);
 
   treeLayout(root);
 
@@ -1309,7 +1310,10 @@ function recalculateStates(must?: boolean): void {
   if (layerIsOn("toggleStates")) drawStates();
   if (layerIsOn("toggleBorders")) drawBorders();
   if (layerIsOn("toggleProvinces")) drawProvinces();
-  if (ensureEl<HTMLInputElement>("adjustLabels").checked && layerIsOn("toggleLabels")) redrawStateLabels();
+  if (ensureEl<HTMLInputElement>("adjustLabels").checked) {
+    for (const state of pack.states) if (state.label) state.label.pathPoints = undefined;
+    drawLabels();
+  }
   if (layerIsOn("toggleGoods")) drawGoods();
   if (layerIsOn("toggleEmblems")) {
     clearEmblems(["state", "province"]);
@@ -1391,7 +1395,7 @@ function populateBrushStateSelect(): void {
   const sel = ensureEl("statesManuallyState") as HTMLSelectElement | null;
   if (!sel) return;
   const states = sortDataByColumns(
-    ensureEl("statesHeader"),
+    dialogId,
     pack.states.filter((s: any) => !s.removed),
     STATE_COLUMNS
   );
@@ -1427,9 +1431,18 @@ function updateDemotePickerLabel(): void {
 // reassignment/province creation happens on Apply; this is visual + undoable like a brush stroke.
 function stageStateDemotion(stateId: number): void {
   const ownerId = getBrushStateId();
-  if (!stateId) return tip("Neutral land cannot be demoted to a province", false, "error");
-  if (!ownerId) return tip("Pick a receiving state from the dropdown first", false, "error");
-  if (ownerId === stateId) return tip("A state cannot be demoted into itself", false, "error");
+  if (!stateId) {
+    tip("Neutral land cannot be demoted to a province", false, "error");
+    return;
+  }
+  if (!ownerId) {
+    tip("Pick a receiving state from the dropdown first", false, "error");
+    return;
+  }
+  if (ownerId === stateId) {
+    tip("A state cannot be demoted into itself", false, "error");
+    return;
+  }
 
   saveStatesManualSnapshot();
   const temp = statesBody.select("#temp");
@@ -1475,7 +1488,10 @@ function selectStateOnMapClick(this: any, event: any): void {
 
   // In picker mode, the clicked cell's true owner (from pack, ignoring any staged preview) is the
   // state being demoted into a province.
-  if (isDemotePickerOn()) return stageStateDemotion((pack.cells as any).state[i!]);
+  if (isDemotePickerOn()) {
+    stageStateDemotion((pack.cells as any).state[i!]);
+    return;
+  }
 
   const assigned = select("#statesBody").select("#temp").select(`polygon[data-cell='${i}']`);
   const state = assigned.size() ? +assigned.attr("data-state") : (pack.cells as any).state[i!];
@@ -1572,7 +1588,13 @@ function applyStatesManualAssignent(): void {
     refreshStatesEditor();
     States.getPoles();
     layerIsOn("toggleStates") ? drawStates() : toggleStates();
-    if (ensureEl<HTMLInputElement>("adjustLabels").checked) drawStateLabels([...new Set(affectedStates)]);
+    if (ensureEl<HTMLInputElement>("adjustLabels").checked) {
+      const statesToRefit = [...new Set(affectedStates)];
+      for (const stateId of statesToRefit) {
+        if (pack.states[stateId].label) delete pack.states[stateId].label;
+      }
+      drawLabels();
+    }
     adjustProvinces([...new Set(affectedProvinces)]);
     layerIsOn("toggleBorders") ? drawBorders() : toggleBorders();
     if (layerIsOn("toggleProvinces")) drawProvinces();
@@ -1822,6 +1844,7 @@ function addState(this: SVGElement, event: MouseEvent): void {
   burgs[burgId].capital = 1;
   burgs[burgId].state = newState;
   Burgs.changeGroup(burgs[burgId], null);
+  drawLabels();
 
   if (event.shiftKey === false) exitAddStateMode();
 
@@ -1887,7 +1910,7 @@ function addState(this: SVGElement, event: MouseEvent): void {
   States.defineStateForms([newState]);
   adjustProvinces([cells.province[center]]);
 
-  drawStateLabels([newState]);
+  drawLabels();
   COArenderer.add("state", newState, coa as any, states[newState].pole[0], states[newState].pole[1]);
 
   layerIsOn("toggleProvinces") && toggleProvinces();
@@ -1916,7 +1939,7 @@ function openStateMergeDialog(): void {
   // Mirror the editor's active sort so the merge list reads in the same order the user is
   // looking at (e.g. by culture), instead of always by state id.
   const validStates = sortDataByColumns(
-    ensureEl("statesHeader"),
+    dialogId,
     pack.states.filter(s => s.i && !s.removed),
     STATE_COLUMNS
   );
@@ -2109,8 +2132,7 @@ function mergeStates(statesToMerge: number[], rulingStateId: number, mergeToProv
     select("#statesBody").select(`#state${stateId}`).remove();
     select("#statesBody").select(`#state-gap${stateId}`).remove();
     select("#statesHalo").select(`#state-border${stateId}`).remove();
-    select("#labels").select(`#stateLabel${stateId}`).remove();
-    select("#deftemp").select(`#textPath_stateLabel${stateId}`).remove();
+    delete pack.states[stateId].label;
 
     document.getElementById(`stateCOA${stateId}`)?.remove();
     select("#emblems").select(`#stateEmblems > use[data-i='${stateId}']`).remove();
@@ -2179,8 +2201,10 @@ function mergeStates(statesToMerge: number[], rulingStateId: number, mergeToProv
   } else if (layerIsOn("toggleProvinces")) {
     drawProvinces();
   }
-  drawStateLabels([rulingStateId]);
 
+  if (!pack.states[rulingStateId].label) delete pack.states[rulingStateId].label;
+
+  drawLabels();
   refreshStatesEditor();
 }
 

@@ -1,9 +1,9 @@
 import { drag, quadtree, range, type Selection, select } from "d3";
-import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { clearMainTip, showMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { moveCircle, removeCircle } from "@/renderers/overlays/brush-circle";
-import { destroyDialogIfExists, ensureEl, findAllInQuadtree, getPointer, rn } from "../utils";
+import { ensureEl, findAllInQuadtree, getPointer, rn } from "../utils";
 
 let selectedRelief: Selection<SVGElement, unknown, HTMLElement, unknown>;
 
@@ -33,7 +33,7 @@ function open(element: SVGElement): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("reliefEditor");
+  destroyDialog("reliefEditor");
   const html = /* html */ `<div id="reliefEditor" class="dialog">
     <div id="reliefTools" data-tip="Select mode of operation">
       <div class="reliefEditorLabel">Mode:</div>
@@ -339,24 +339,24 @@ function renderDialog(): void {
 
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
 
-  ensureEl("reliefIndividual").on("click", enterIndividualMode);
-  ensureEl("reliefBulkAdd").on("click", enterBulkAddMode);
-  ensureEl("reliefBulkRemove").on("click", enterBulkRemoveMode);
+  ensureEl("reliefIndividual").addEventListener("click", enterIndividualMode);
+  ensureEl("reliefBulkAdd").addEventListener("click", enterBulkAddMode);
+  ensureEl("reliefBulkRemove").addEventListener("click", enterBulkRemoveMode);
 
-  ensureEl("reliefSize").on("input", changeIconSize);
-  ensureEl("reliefSizeNumber").on("input", changeIconSize);
-  ensureEl("reliefEditorSet").on("change", changeIconsSet);
+  ensureEl("reliefSize").addEventListener("input", changeIconSize);
+  ensureEl("reliefSizeNumber").addEventListener("input", changeIconSize);
+  ensureEl("reliefEditorSet").addEventListener("change", changeIconsSet);
   ensureEl("reliefIconsDiv")
     .querySelectorAll("svg")
     .forEach(el => {
       el.addEventListener("click", changeIcon);
     });
 
-  ensureEl("reliefEditStyle").on("click", () => editStyle("terrain"));
-  ensureEl("reliefCopy").on("click", copyIcon);
-  ensureEl("reliefMoveFront").on("click", () => selectedRelief.raise());
-  ensureEl("reliefMoveBack").on("click", () => selectedRelief.lower());
-  ensureEl("reliefRemove").on("click", removeIcon);
+  ensureEl("reliefEditStyle").addEventListener("click", () => editStyle("terrain"));
+  ensureEl("reliefCopy").addEventListener("click", copyIcon);
+  ensureEl("reliefMoveFront").addEventListener("click", () => selectedRelief.raise());
+  ensureEl("reliefMoveBack").addEventListener("click", () => selectedRelief.lower());
+  ensureEl("reliefRemove").addEventListener("click", removeIcon);
 }
 
 function dragReliefIcon(this: SVGUseElement, event: any): void {

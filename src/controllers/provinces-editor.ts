@@ -9,7 +9,7 @@ import {
   transition,
   treemap
 } from "d3";
-import { closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { applySorting, applySortingByHeader } from "@/components/dialog/sorting";
 import type { FillBoxElement } from "@/components/fill-box";
@@ -18,25 +18,12 @@ import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
 import type { Province } from "@/generators/provinces-generator";
 import { drawBorders } from "@/renderers/draw-borders";
-import { drawStateLabels } from "@/renderers/draw-state-labels";
+import { drawLabels } from "@/renderers/labels/labels-renderer";
 import { moveCircle, removeCircle } from "@/renderers/overlays/brush-circle";
 import { fog, unfog } from "@/renderers/overlays/fogging";
 import { highlightElement } from "@/renderers/overlays/highlight";
 import { applyOption, downloadFile, findAllCellsInRadius, getArea, getAreaUnit, getFileName, speak } from "@/utils";
-import {
-  destroyDialogIfExists,
-  ensureEl,
-  getPackPolygon,
-  getPointer,
-  getRandomColor,
-  isLand,
-  P,
-  parseTransform,
-  rand,
-  rn,
-  si,
-  unique
-} from "../utils";
+import { ensureEl, getPackPolygon, getPointer, getRandomColor, isLand, P, rand, rn, si, unique } from "../utils";
 
 function open(): void {
   if (customization) return;
@@ -45,11 +32,6 @@ function open(): void {
   if (!layerIsOn("toggleBorders")) toggleBorders();
   if (layerIsOn("toggleStates")) toggleStates();
   if (layerIsOn("toggleCultures")) toggleCultures();
-
-  select<SVGGElement, unknown>("#provs")
-    .selectAll<SVGTextElement, unknown>("text")
-    .call(drag<SVGTextElement, unknown>().on("drag", dragLabel))
-    .classed("draggable", true);
 
   renderDialog();
   refreshProvincesEditor();
@@ -64,7 +46,7 @@ function open(): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("provincesEditor");
+  destroyDialog("provincesEditor");
   const editorHtml = /* html */ `<div id="provincesEditor" class="dialog stable">
       <div id="provincesHeader" class="header" style="grid-template-columns: 11em 8em 8em 6em 6em 6em 8em">
         <div data-tip="Click to sort by province name" class="sortable alphabetically" data-sortby="name">
@@ -117,11 +99,6 @@ function renderDialog(): void {
         ></button>
         <button id="provincesChart" data-tip="Show provinces chart" class="icon-chart-area"></button>
         <button
-          id="provincesToggleLabels"
-          data-tip="Toggle province labels. Change size in Menu ⭢ Style ⭢ Provinces"
-          class="icon-font"
-        ></button>
-        <button
           id="provincesExport"
           data-tip="Save provinces-related data as a text file (.csv)"
           class="icon-download"
@@ -159,23 +136,22 @@ function renderDialog(): void {
   applySortingByHeader("provincesHeader");
   applyLineHighlighting("provincesEditor", ({ cellId }) => pack.cells.province[cellId]);
 
-  ensureEl("provincesEditorRefresh").on("click", refreshProvincesEditor);
-  ensureEl("provincesEditStyle").on("click", () => editStyle("provs"));
-  ensureEl("provincesFilterState").on("change", provincesEditorAddLines);
-  ensureEl("provincesPercentage").on("click", togglePercentageMode);
-  ensureEl("provincesChart").on("click", showChart);
-  ensureEl("provincesToggleLabels").on("click", toggleLabels);
-  ensureEl("provincesExport").on("click", downloadProvincesData);
-  ensureEl("provincesRemoveAll").on("click", removeAllProvinces);
-  ensureEl("provincesManually").on("click", enterProvincesManualAssignent);
-  ensureEl("provincesManuallyApply").on("click", applyProvincesManualAssignent);
-  ensureEl("provincesManuallyCancel").on("click", () => exitProvincesManualAssignment());
-  ensureEl("provincesRelease").on("click", triggerProvincesRelease);
-  ensureEl("provincesAdd").on("click", enterAddProvinceMode);
-  ensureEl("provincesMerge").on("click", openProvinceMergeDialog);
-  ensureEl("provincesRecolor").on("click", recolorProvinces);
+  ensureEl("provincesEditorRefresh").addEventListener("click", refreshProvincesEditor);
+  ensureEl("provincesEditStyle").addEventListener("click", () => editStyle("provs"));
+  ensureEl("provincesFilterState").addEventListener("change", provincesEditorAddLines);
+  ensureEl("provincesPercentage").addEventListener("click", togglePercentageMode);
+  ensureEl("provincesChart").addEventListener("click", showChart);
+  ensureEl("provincesExport").addEventListener("click", downloadProvincesData);
+  ensureEl("provincesRemoveAll").addEventListener("click", removeAllProvinces);
+  ensureEl("provincesManually").addEventListener("click", enterProvincesManualAssignent);
+  ensureEl("provincesManuallyApply").addEventListener("click", applyProvincesManualAssignent);
+  ensureEl("provincesManuallyCancel").addEventListener("click", () => exitProvincesManualAssignment());
+  ensureEl("provincesRelease").addEventListener("click", triggerProvincesRelease);
+  ensureEl("provincesAdd").addEventListener("click", enterAddProvinceMode);
+  ensureEl("provincesMerge").addEventListener("click", openProvinceMergeDialog);
+  ensureEl("provincesRecolor").addEventListener("click", recolorProvinces);
 
-  ensureEl("provincesBodySection").on("click", (ev: Event) => {
+  ensureEl("provincesBodySection").addEventListener("click", (ev: Event) => {
     if (customization) return;
     const el = ev.target as HTMLElement;
     const cl = el.classList;
@@ -198,7 +174,7 @@ function renderDialog(): void {
     else if (cl.contains("icon-lock") || cl.contains("icon-lock-open")) updateLockStatus(p, cl);
   });
 
-  ensureEl("provincesBodySection").on("change", (ev: Event) => {
+  ensureEl("provincesBodySection").addEventListener("change", (ev: Event) => {
     const el = ev.target as HTMLSelectElement;
     const cl = el.classList;
     const line = el.parentNode as HTMLElement;
@@ -337,9 +313,9 @@ function provincesEditorAddLines(): void {
   ensureEl("provincesFooterPopulation").dataset.population = String(totalPopulation);
 
   body.querySelectorAll("div.states").forEach(el => {
-    el.on("click", selectProvinceOnLineClick);
-    el.on("mouseenter", provinceHighlightOn);
-    el.on("mouseleave", provinceHighlightOff);
+    el.addEventListener("click", selectProvinceOnLineClick);
+    el.addEventListener("mouseenter", provinceHighlightOn);
+    el.addEventListener("mouseleave", provinceHighlightOff);
   });
 
   if (body.dataset.type === "percentage") {
@@ -408,10 +384,7 @@ function changeFill(fillBox: FillBoxElement): void {
 
 function capitalZoomIn(p: number): void {
   const capital = pack.provinces[p].burg;
-  const l = select<SVGGElement, unknown>("#burgLabels").select(`[data-id='${capital}']`);
-  const b = pack.burgs[capital];
-  const x = l.empty() ? b.x : +l.attr("x");
-  const y = l.empty() ? b.y : +l.attr("y");
+  const { x, y } = pack.burgs[capital];
   zoomTo(x, y, 8, 2000);
 }
 
@@ -450,6 +423,7 @@ function declareProvinceIndependence(provinceId: number): [number, number] | und
   const capital = burgs[burgId];
   capital.capital = 1;
   Burgs.changeGroup(capital);
+  drawLabels();
 
   // move all burgs to a new state
   province.burgs!.forEach(b => {
@@ -531,7 +505,7 @@ function updateStatesPostRelease(oldStates: number[], newStates: number[]): void
   States.findNeighbors();
   States.collectStatistics();
   States.defineStateForms(newStates);
-  drawStateLabels(allStates);
+  drawLabels();
 
   // redraw emblems
   allStates.forEach(stateId => {
@@ -657,13 +631,13 @@ function removeProvince(p: number): void {
         const coaEl = document.getElementById(`provinceCOA${p}`);
         if (coaEl) coaEl.remove();
         select<SVGElement, unknown>("#emblems").select(`#provinceEmblems > use[data-i='${p}']`).remove();
-
         pack.provinces[p] = { i: p, removed: true } as Province;
 
         const g = select<SVGGElement, unknown>("#provs").select("#provincesBody");
         g.select(`#province${p}`).remove();
         g.select(`#province-gap${p}`).remove();
         if (layerIsOn("toggleBorders")) drawBorders();
+        drawLabels();
         refreshProvincesEditor();
         $(this).dialog("close");
       },
@@ -703,7 +677,7 @@ function editProvinceName(province: number): void {
 }
 
 function renderNameEditor(): void {
-  destroyDialogIfExists("provinceNameEditor");
+  destroyDialog("provinceNameEditor");
   const nameEditorHtml = /* html */ `<div id="provinceNameEditor" class="dialog" data-province="0">
       <div>
         <div data-tip="Province short name" class="label">Short name:</div>
@@ -801,14 +775,14 @@ function renderNameEditor(): void {
     </div>`;
   ensureEl("dialogs").insertAdjacentHTML("beforeend", nameEditorHtml);
 
-  ensureEl("provinceNameEditorShortCulture").on("click", regenerateShortNameCulture);
-  ensureEl("provinceNameEditorShortRandom").on("click", regenerateShortNameRandom);
-  ensureEl("provinceNameEditorShortSpeak").on("click", () =>
+  ensureEl("provinceNameEditorShortCulture").addEventListener("click", regenerateShortNameCulture);
+  ensureEl("provinceNameEditorShortRandom").addEventListener("click", regenerateShortNameRandom);
+  ensureEl("provinceNameEditorShortSpeak").addEventListener("click", () =>
     speak(ensureEl<HTMLInputElement>("provinceNameEditorShort").value)
   );
-  ensureEl("provinceNameEditorAddForm").on("click", addCustomForm);
-  ensureEl("provinceNameEditorFullRegenerate").on("click", regenerateFullName);
-  ensureEl("provinceNameEditorFullSpeak").on("click", () =>
+  ensureEl("provinceNameEditorAddForm").addEventListener("click", addCustomForm);
+  ensureEl("provinceNameEditorFullRegenerate").addEventListener("click", regenerateFullName);
+  ensureEl("provinceNameEditorFullSpeak").addEventListener("click", () =>
     speak(ensureEl<HTMLInputElement>("provinceNameEditorFull").value)
   );
 }
@@ -857,6 +831,7 @@ function applyNameChange(p: Province): void {
   p.formName = ensureEl<HTMLSelectElement>("provinceNameEditorSelectForm").value;
   p.fullName = ensureEl<HTMLInputElement>("provinceNameEditorFull").value;
   if (layerIsOn("toggleProvinces")) drawProvinces();
+  drawLabels();
   refreshProvincesEditor();
 }
 
@@ -934,7 +909,7 @@ function showChart(): void {
     .attr("height", height)
     .attr("font-size", "10px");
   const graph = svg.append("g").attr("transform", `translate(10, 0)`);
-  ensureEl("provincesTreeType").on("change", updateChart);
+  ensureEl("provincesTreeType").addEventListener("change", updateChart);
 
   treeLayout(root);
 
@@ -1059,18 +1034,6 @@ function showChart(): void {
   });
 
   hideNonfittingLabels();
-}
-
-function toggleLabels(): void {
-  const hidden = select<SVGGElement, unknown>("#provs").select("#provinceLabels").style("display") === "none";
-  select<SVGGElement, unknown>("#provs")
-    .select("#provinceLabels")
-    .style("display", `${hidden ? "block" : "none"}`);
-  select<SVGGElement, unknown>("#provs").attr("data-labels", +hidden);
-  select<SVGGElement, unknown>("#provs")
-    .selectAll<SVGTextElement, unknown>("text")
-    .call(drag<SVGTextElement, unknown>().on("drag", dragLabel))
-    .classed("draggable", true);
 }
 
 function triggerProvincesRelease(): void {
@@ -1262,6 +1225,7 @@ function applyProvincesManualAssignent(): void {
   Provinces.getPoles();
   if (layerIsOn("toggleBorders")) drawBorders();
   if (layerIsOn("toggleProvinces")) drawProvinces();
+  drawLabels();
 
   exitProvincesManualAssignment();
   refreshProvincesEditor();
@@ -1374,6 +1338,7 @@ function addProvince(this: SVGElement, event: any): void {
 
   if (layerIsOn("toggleBorders")) drawBorders();
   if (layerIsOn("toggleProvinces")) drawProvinces();
+  drawLabels();
 
   collectStatistics();
   ensureEl<HTMLSelectElement>("provincesFilterState").value = String(state);
@@ -1461,6 +1426,7 @@ function removeAllProvinces(): void {
         if (layerIsOn("toggleBorders")) drawBorders();
         select<SVGGElement, unknown>("#provs").select("#provincesBody").remove();
         turnButtonOff("toggleProvinces");
+        drawLabels();
 
         provincesEditorAddLines();
       },
@@ -1471,21 +1437,7 @@ function removeAllProvinces(): void {
   });
 }
 
-function dragLabel(this: SVGTextElement, event: any): void {
-  const tr = parseTransform(this.getAttribute("transform") ?? "");
-  const x = +tr[0] - event.x;
-  const y = +tr[1] - event.y;
-
-  event.on("drag", function (this: SVGTextElement, dragEvent: any) {
-    this.setAttribute("transform", `translate(${x + dragEvent.x},${y + dragEvent.y})`);
-  });
-}
-
 function closeProvincesEditor(): void {
-  select<SVGGElement, unknown>("#provs")
-    .selectAll<SVGTextElement, unknown>("text")
-    .call(drag<SVGTextElement, unknown>().on("drag", null))
-    .attr("class", null);
   if (customization === 11) exitProvincesManualAssignment("close");
   if (customization === 12) exitAddProvinceMode();
   $("#provincesEditor").dialog("destroy");
@@ -1681,6 +1633,7 @@ function mergeProvinces(ids: number[], primary: number): void {
   // redraw layers that may have changed
   if (layerIsOn("toggleProvinces")) drawProvinces();
   if (layerIsOn("toggleBorders")) drawBorders();
+  drawLabels();
 
   // clear any fog or debug highlights
   unfog();

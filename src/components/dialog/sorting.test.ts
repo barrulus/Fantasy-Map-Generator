@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { bindColumnSorting, sortData, sortDataByColumns, toggleSortIcon } from "./sorting";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { bindColumnSorting, sortData, sortDataByColumns } from "./sorting";
 
 const rows = () => [
   { name: "Bree", pop: 300 },
@@ -28,53 +28,69 @@ describe("sortData", () => {
   });
 });
 
-const header = (html: string) => {
+// the sorting helpers resolve the header off the dialog id, so it has to be in the document
+let mounted = 0;
+const mountHeader = (html: string) => {
+  const dialogId = `testDialog${++mounted}`;
   const el = document.createElement("div");
+  el.id = `${dialogId}Header`;
   el.innerHTML = html;
-  return el;
+  document.body.append(el);
+  return { dialogId, el };
 };
 
-describe("toggleSortIcon", () => {
+afterEach(() => {
+  document.body.innerHTML = "";
+});
+
+describe("sort icon toggling", () => {
   it("sorts a fresh alphabetical column ascending", () => {
-    const headers = header(`<div class="sortable alphabetically" data-sortby="name"></div>`);
-    const cell = headers.firstElementChild as HTMLElement;
-    toggleSortIcon(cell);
+    const { dialogId, el } = mountHeader(`<div class="sortable alphabetically" data-sortby="name"></div>`);
+    bindColumnSorting(dialogId, () => {});
+    const cell = el.firstElementChild as HTMLElement;
+    cell.click();
     expect(cell.className).toContain("icon-sort-name-up");
   });
 
   it("flips direction on a second click", () => {
-    const headers = header(`<div class="sortable" data-sortby="pop"></div>`);
-    const cell = headers.firstElementChild as HTMLElement;
-    toggleSortIcon(cell);
-    toggleSortIcon(cell);
+    const { dialogId, el } = mountHeader(`<div class="sortable" data-sortby="pop"></div>`);
+    bindColumnSorting(dialogId, () => {});
+    const cell = el.firstElementChild as HTMLElement;
+    cell.click();
+    cell.click();
     expect(cell.className).toContain("icon-sort-number-up");
     expect(cell.className).not.toContain("icon-sort-number-down");
   });
 
   it("clears the icon from the previously sorted column", () => {
-    const headers = header(
+    const { dialogId, el } = mountHeader(
       `<div class="sortable icon-sort-number-down" data-sortby="pop"></div><div class="sortable" data-sortby="area"></div>`
     );
-    toggleSortIcon(headers.children[1] as HTMLElement);
-    expect(headers.children[0].className).not.toContain("icon-sort");
+    bindColumnSorting(dialogId, () => {});
+    (el.children[1] as HTMLElement).click();
+    expect(el.children[0].className).not.toContain("icon-sort");
   });
 });
 
 describe("bindColumnSorting", () => {
   it("fires the callback when a sortable header is clicked", () => {
-    const headers = header(`<div class="sortable" data-sortby="pop"></div><div data-col="actions"></div>`);
+    const { dialogId, el } = mountHeader(
+      `<div class="sortable" data-sortby="pop"></div><div data-col="actions"></div>`
+    );
     const onSort = vi.fn();
-    bindColumnSorting(headers, onSort);
-    (headers.firstElementChild as HTMLElement).click();
+    bindColumnSorting(dialogId, onSort);
+    (el.firstElementChild as HTMLElement).click();
     expect(onSort).toHaveBeenCalledTimes(1);
-    expect((headers.firstElementChild as HTMLElement).className).toContain("icon-sort");
+    expect((el.firstElementChild as HTMLElement).className).toContain("icon-sort");
   });
 
   it("ignores clicks on non-sortable cells", () => {
-    const headers = header(`<div class="sortable" data-sortby="pop"></div><div data-col="actions"></div>`);
+    const { dialogId, el } = mountHeader(
+      `<div class="sortable" data-sortby="pop"></div><div data-col="actions"></div>`
+    );
     const onSort = vi.fn();
-    bindColumnSorting(headers, onSort);
-    (headers.children[1] as HTMLElement).click();
+    bindColumnSorting(dialogId, onSort);
+    (el.children[1] as HTMLElement).click();
     expect(onSort).not.toHaveBeenCalled();
   });
 });
@@ -86,17 +102,17 @@ describe("sortDataByColumns", () => {
   ];
 
   it("sorts by the active header using that column's accessor", () => {
-    const headers = header(`<div class="sortable icon-sort-number-up" data-sortby="pop"></div>`);
+    const { dialogId } = mountHeader(`<div class="sortable icon-sort-number-up" data-sortby="pop"></div>`);
     const data = [
       { name: "Bree", pop: 300 },
       { name: "Anor", pop: 50 }
     ];
-    expect(sortDataByColumns(headers, data, columns).map(r => r.pop)).toEqual([50, 300]);
+    expect(sortDataByColumns(dialogId, data, columns).map(r => r.pop)).toEqual([50, 300]);
   });
 
   it("returns data untouched when no column is sorted", () => {
-    const headers = header(`<div class="sortable" data-sortby="pop"></div>`);
+    const { dialogId } = mountHeader(`<div class="sortable" data-sortby="pop"></div>`);
     const data = [{ name: "Bree", pop: 300 }];
-    expect(sortDataByColumns(headers, data, columns)).toBe(data);
+    expect(sortDataByColumns(dialogId, data, columns)).toBe(data);
   });
 });

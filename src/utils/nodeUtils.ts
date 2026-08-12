@@ -1,50 +1,27 @@
 import { pointer } from "d3";
-import { fitContent } from "@/components/dialog/fit-content";
 
 /**
  * @param id - The ID of the element to retrieve
- * @typeParam T - The type of the element to retrieve, extending HTMLElement
+ * @typeParam T - The type of the element to retrieve, HTMLElement unless a SVG element is requested
  * @returns The element with the specified ID, cast to the specified type
  */
-export const ensureEl = <T extends HTMLElement>(id: string): T => {
+export const ensureEl = <T extends Element = HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
   if (!el) {
     // TODO: throw an error instead of logging it, and handle it properly in the caller
     ERROR && console.error(`Element with id "${id}" not found.`);
     // TOBE: throw new Error(`Element with id "${id}" not found.`);
   }
-  return el as T;
+  return el as unknown as T;
 };
 
 /**
  * @param id - The ID of the element to retrieve
- * @typeParam T - The type of the element to retrieve, extending HTMLElement
+ * @typeParam T - The type of the element to retrieve, HTMLElement unless a SVG element is requested
  * @returns The element with the specified ID, cast to the specified type, or null if not found
  */
-export const findEl = <T extends HTMLElement>(id: string): T | null => {
-  return document.getElementById(id) as T | null;
-};
-
-/**
- * Remove an element, destroying its jQuery UI dialog widget first if it has one
- * @param {string} id - The ID of the element to remove
- */
-export const destroyDialogIfExists = (id: string): void => {
-  const el = findEl(id);
-  if (!el) return;
-  if (el.classList.contains("ui-dialog-content")) window.$(el).dialog("destroy");
-  el.remove();
-};
-
-/**
- * Refit an already-initialized dialog to its content, never creating the widget: a widget created here
- * would default to resizable, and the opener's later resizable("destroy") would strip touch-punch's
- * touch handlers off the frame, breaking touch drag
- * @param {string} id - The ID of the dialog content element
- */
-export const fitDialogIfExists = (id: string): void => {
-  const el = findEl(id);
-  if (el?.classList.contains("ui-dialog-content")) window.$(el).dialog({ width: fitContent() });
+export const findEl = <T extends Element = HTMLElement>(id: string): T | null => {
+  return document.getElementById(id) as unknown as T | null;
 };
 
 /**
@@ -78,6 +55,7 @@ export const getPointer = (event: any, node?: Element | null): [number, number] 
 
 /**
  * Generate a unique ID for a given core string
+ * @deprecated Unwanted DOM dependency
  * @param {string} core - The core string for the ID
  * @param {number} [i=1] - The starting index
  * @returns {string} - The unique ID

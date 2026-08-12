@@ -1,11 +1,11 @@
 import { select } from "d3";
-import { closeDialogs } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { stopMapPlacement } from "@/components/map-placement";
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
 import type { Route } from "@/generators/routes-generator";
-import { destroyDialogIfExists, ensureEl, getPackPolygon, getPointer, rn } from "../utils";
+import { ensureEl, getPackPolygon, getPointer, rn } from "../utils";
 
 let creatorPoints: number[][] = [];
 
@@ -45,7 +45,7 @@ function open(defaultGroup?: string): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("routeCreator");
+  destroyDialog("routeCreator");
 
   const html = /* html */ `<div id="routeCreator" class="dialog">
     <div>Click on map to add/remove route points</div>
@@ -63,11 +63,11 @@ function renderDialog(): void {
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
 
   // add listeners — dropped together with the dialog HTML on close
-  ensureEl("routeCreatorGroupSelect").on("change", redrawCreatorRoute);
-  ensureEl("routeCreatorGroupEdit").on("click", openRouteGroupsEditor);
-  ensureEl("routeCreatorComplete").on("click", completeCreation);
-  ensureEl("routeCreatorCancel").on("click", cancelCreation);
-  ensureEl("routeCreatorBody").on("click", onBodyClick);
+  ensureEl("routeCreatorGroupSelect").addEventListener("change", redrawCreatorRoute);
+  ensureEl("routeCreatorGroupEdit").addEventListener("click", openRouteGroupsEditor);
+  ensureEl("routeCreatorComplete").addEventListener("click", completeCreation);
+  ensureEl("routeCreatorCancel").addEventListener("click", cancelCreation);
+  ensureEl("routeCreatorBody").addEventListener("click", onBodyClick);
 }
 
 function redrawCreatorRoute(): void {
@@ -186,7 +186,7 @@ function closeRouteCreator(): void {
   ensureEl("toggleCells").dataset.forced = "0";
   if (forced && layerIsOn("toggleCells")) toggleCells();
 
-  destroyDialogIfExists("routeCreator");
+  destroyDialog("routeCreator");
 }
 
 export const RouteCreator = { open };

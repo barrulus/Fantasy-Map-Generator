@@ -1,11 +1,11 @@
 import { drag, select } from "d3";
-import { closeDialogs, confirmationDialog, refreshEditors } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog, refreshEditors } from "@/components/dialog/dialog-helpers";
 import { stopMapPlacement } from "@/components/map-placement";
 import { clearMainTip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
 import type { Marker } from "@/generators/markers-generator";
 import { getPin } from "@/renderers/draw-markers";
-import { destroyDialogIfExists, ensureEl, findEl, rn } from "../utils";
+import { ensureEl, findEl, rn } from "../utils";
 
 let selectedElement: SVGSVGElement;
 let selectedMarker: Marker;
@@ -39,7 +39,7 @@ function open(markerI?: number, target?: Element): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists("markerEditor");
+  destroyDialog("markerEditor");
 
   const html = /* html */ `<div id="markerEditor" class="dialog">
     <div id="markerBody" style="padding-bottom: 0.3em">
@@ -97,20 +97,20 @@ function renderDialog(): void {
   ensureEl("dialogs").insertAdjacentHTML("beforeend", html);
 
   // add listeners — dropped together with the dialog HTML on close
-  ensureEl("markerType").on("change", changeMarkerType);
-  ensureEl("markerIconSelect").on("click", changeMarkerIcon);
-  ensureEl("markerIconSize").on("input", changeIconSize);
-  ensureEl("markerIconShiftX").on("input", changeIconShiftX);
-  ensureEl("markerIconShiftY").on("input", changeIconShiftY);
-  ensureEl("markerSize").on("input", changeMarkerSize);
-  ensureEl("markerPin").on("change", changeMarkerPin);
-  ensureEl("markerFill").on("input", changePinFill);
-  ensureEl("markerStroke").on("input", changePinStroke);
-  ensureEl("markerNotes").on("click", editMarkerLegend);
-  ensureEl("markerRadius").on("click", openMarkersInRadius);
-  ensureEl("markerLock").on("click", toggleMarkerLock);
-  ensureEl("markerAdd").on("click", toggleAddMarker);
-  ensureEl("markerRemove").on("click", confirmMarkerDeletion);
+  ensureEl("markerType").addEventListener("change", changeMarkerType);
+  ensureEl("markerIconSelect").addEventListener("click", changeMarkerIcon);
+  ensureEl("markerIconSize").addEventListener("input", changeIconSize);
+  ensureEl("markerIconShiftX").addEventListener("input", changeIconShiftX);
+  ensureEl("markerIconShiftY").addEventListener("input", changeIconShiftY);
+  ensureEl("markerSize").addEventListener("input", changeMarkerSize);
+  ensureEl("markerPin").addEventListener("change", changeMarkerPin);
+  ensureEl("markerFill").addEventListener("input", changePinFill);
+  ensureEl("markerStroke").addEventListener("input", changePinStroke);
+  ensureEl("markerNotes").addEventListener("click", editMarkerLegend);
+  ensureEl("markerRadius").addEventListener("click", openMarkersInRadius);
+  ensureEl("markerLock").addEventListener("click", toggleMarkerLock);
+  ensureEl("markerAdd").addEventListener("click", toggleAddMarker);
+  ensureEl("markerRemove").addEventListener("click", confirmMarkerDeletion);
 }
 
 function getElement(markerI?: number, target?: Element): [SVGSVGElement, Marker] | null {
@@ -322,7 +322,7 @@ function closeMarkerEditor(): void {
   select(selectedElement).on(".drag", null).classed("draggable", false);
   if (ensureEl("addMarker").classList.contains("pressed")) stopMapPlacement();
   clearMainTip();
-  destroyDialogIfExists("markerEditor");
+  destroyDialog("markerEditor");
 }
 
 export const MarkersEditor = { open };
