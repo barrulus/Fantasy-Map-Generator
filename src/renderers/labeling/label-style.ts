@@ -45,31 +45,20 @@ function readIconDiameter(id: string, root: ParentNode): number {
   return Number.isFinite(size) && size > 0 ? size : DEFAULT_ICON_DIAMETER;
 }
 
-/**
- * Read the authored per-group size.
- *
- * Since v1.140 groups carry a percentage `font-size` ("6%") resolved against the `#labels` parent,
- * which zoom.ts holds at ~100px at scale 1 — so the percentage number is numerically the same
- * authored map-units-per-em that the old `data-size` attribute held, and the tier tables keep
- * working unchanged.
- */
+// "6%" of the #labels parent, which zoom.ts holds at ~100px at scale 1, so the number is the
+// authored map-units-per-em the tier tables expect
 function authoredSizeFromStyle(fontSize: unknown): number {
   const parsed = parseFloat(String(fontSize ?? ""));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_FONT_SIZE;
 }
 
-/**
- * Per-group style for the burg-label renderers.
- *
- * v1.140 made style data (style.labels.groups, via getGroupStyle) rather than something scraped
- * off the DOM, so colours/sizes come from there. The DOM is still consulted for the two things
- * that are not style: the layer-toggle flag written onto the shell, and the sibling icon size.
- */
+/** Per-group style for the burg-label renderers. The DOM is consulted only for the layer-toggle
+ * flag and the sibling icon size; everything else is style data. */
 export function readBurgLabelStyles(root: ParentNode = document): Record<string, GroupStyle> {
   const out: Record<string, GroupStyle> = {};
   const burgGroups = options.labels.groups.filter(group => group.type === "burg");
 
-  // matched by id rather than a selector: group names are user-supplied and need no escaping here
+  // matched by id, so user-supplied group names need no selector escaping
   const shells = new Map<string, SVGGElement>();
   for (const shell of root.querySelectorAll<SVGGElement>("#labels > g")) {
     shells.set(shell.id.replace(/^labels-/, ""), shell);
@@ -92,10 +81,7 @@ export function readBurgLabelStyles(root: ParentNode = document): Record<string,
       restPx: groupRestPx(name) * factor,
       fill: groupStyle.fill || "#3e3e4b",
       halo: groupStyle.stroke || "#ffffff",
-      // A stroke width from the preset wins; otherwise fall back to a modest legibility halo
-      // (not 0 — no preset sets a stroke on burg-label groups today, so a 0-width default
-      // silently disabled the halo entirely, and a small capital label needs it to stay readable
-      // painted over a big state name).
+      // not 0: no preset sets a stroke here, and a 0-width default disables the halo entirely
       haloWidth: Number(groupStyle["stroke-width"]) || 0.5,
       hidden: shell ? isGroupSwitchedOff(shell) : false,
       iconDiameter: readIconDiameter(name, root)

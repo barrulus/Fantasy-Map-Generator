@@ -1359,8 +1359,7 @@ export function resolveVersionConflicts(mapVersion: string, data: string[]): voi
       if (dx || dy) burg.label = { dx, dy };
     }
 
-    // Fork: GPU-label maps emit no <text>, so their fine-tune offsets were stored on the burg
-    // itself as labelDx/labelDy. Fold them into the upstream label model and drop the old fields.
+    // GPU-label maps emit no <text>, so their offsets were stored on the burg as labelDx/labelDy
     for (const burg of pack.burgs) {
       const { labelDx, labelDy } = burg as { labelDx?: number; labelDy?: number };
       if (labelDx || labelDy) burg.label = { ...burg.label, dx: labelDx || 0, dy: labelDy || 0 };

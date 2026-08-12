@@ -23,9 +23,9 @@ export function getLabelsData(): LabelData[] {
   return Object.values(byType).flat();
 }
 
-// Megalopolis composites: below MEGALOPOLIS_SPLIT_ZOOM one "Greater X" label stands in for the whole
-// same-cell group. Members carry a matching minZoom so exactly one of the two shows at any
-// zoom; capitals are exempt (never hidden), so their composite stacks above instead.
+// Below the split zoom one composite stands in for the whole same-cell group; members carry a
+// matching minZoom so only one of the two ever shows. Capitals are never hidden, so their
+// composite stacks above instead.
 let megalopolisMemberMinZoom = new Map<number, number>();
 
 function getMegalopolisLabels(): { composites: LabelData[] } {

@@ -17,8 +17,7 @@ export interface LabelData {
   letterSpacing?: number;
   dx?: number;
   dy?: number;
-  // Fork: per-label zoom gates, on top of the per-group ones. Used by the megalopolis composite
-  // swap, where a composite and its members occupy the same anchor at different zoom levels.
+  // per-label gates on top of the per-group ones, for the megalopolis composite swap
   minZoom?: number;
   maxZoom?: number;
 }

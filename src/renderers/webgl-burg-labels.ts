@@ -50,7 +50,6 @@ export function buildLabelBoxes(
     const grouped = groupedIds.has(b.i) && !b.capital;
     out.push({
       id: b.i,
-      // v1.140 moved the fork's labelDx/labelDy onto the shared label model (see auto-update)
       x: b.x! + (b.label?.dx || 0),
       y: b.y! + (b.label?.dy || 0),
       order: s.rank,
@@ -205,10 +204,8 @@ export async function rebuildBurgLabelGL(): Promise<void> {
   const burgs = (window as any).pack.burgs as Burg[];
   styles = readBurgLabelStyles();
   // One atlas for the dominant font; group fonts that differ fall back to it visually for v1.
-  // Read weight + family from a representative burg-label group (capital, then any burg group)
-  // rather than the #labels container: the container carries no font, so it resolves to an
-  // inherited default — never the small-caps family the groups are actually styled with. Include
-  // font-weight so bold burg labels bake bold glyphs.
+  // read from a styled burg group, not the #labels container: the container carries no font and
+  // resolves to an inherited default. Weight is included so bold groups bake bold glyphs.
   const burgGroupNames = new Set(options.labels.groups.filter(group => group.type === "burg").map(group => group.name));
   const fontSrc =
     document.querySelector<SVGGElement>("#labels > #labels-capital") ||
@@ -280,8 +277,6 @@ export function drawBurgLabelGL(): void {
   const t = (window as any).getMapTransform?.() || { scale: 1, viewX: 0, viewY: 0 };
   const canvas = gl.canvas as HTMLCanvasElement;
   const vp = currentViewport(canvas, t.scale, t.viewX, t.viewY);
-  // v1.140 replaced the hideLabels/rescaleLabels checkboxes with these options (see load.ts):
-  // showAll is the inverse of the old "toggle visibility automatically" gate.
   const hideGate = !options.labels.showAll;
   const rescaleGate = options.labels.resizeOnZoom !== false;
 

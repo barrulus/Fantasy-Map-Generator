@@ -118,10 +118,7 @@ function isGroupVisible({ group, bounds }: { group: LabelGroup; bounds: Viewport
 
 function isLabelVisible(bounds: ViewportRenderContext["bounds"], label: LabelData): boolean {
   if (label.hidden) return false;
-  // The WebGL layer owns burg names (including megalopolis composites) when it is active;
-  // materializing them here too would double-draw and reintroduce the tens of thousands of
-  // SVG text nodes that layer exists to avoid. Read through window to keep this file free of
-  // a dependency on the GL renderer.
+  // the WebGL layer owns burg names when active; materializing them here too would double-draw
   if (label.type === "burg" && window.burgLabelsWebglActive?.()) return false;
   if (!options.labels.showAll) {
     if (label.minZoom !== undefined && bounds.scale < label.minZoom) return false;

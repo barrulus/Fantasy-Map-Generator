@@ -822,8 +822,7 @@ function toggleRoutes(event) {
 function toggleSkyburgs() {
   const SKYBURG_NAMES = ["skyburg-capital", "skyburg", "skyburg-mid", "skyburg-small"];
   // data-layer-off is what the GPU renderers read: `display` on these shells is also the per-tier
-  // zoom gate, so it can't tell "layer off" from "zoomed out". Since v1.140 the label shells are
-  // `#labels > #labels-<group>` while the icon shells keep the `#burgIcons > g#<group>` form.
+  // zoom gate, so it can't tell "layer off" from "zoomed out"
   const setOff = off => {
     const shells = SKYBURG_NAMES.flatMap(name => [
       burgIcons.select(`#${name}`),

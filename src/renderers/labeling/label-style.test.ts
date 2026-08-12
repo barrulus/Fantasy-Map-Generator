@@ -2,9 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { readBurgLabelStyles } from "./label-style";
 import { REST_PX, START_PX } from "./tier-table";
 
-// Since v1.140 group style is data, not DOM: `options.labels.groups` declares the burg groups and
-// `style.labels.groups` carries their appearance. Only the layer-toggle flag still lives on the
-// rendered shell, so most of these mount no DOM at all.
+// Group style is data, not DOM, so most of these mount no DOM at all.
 
 interface GroupSpec {
   name: string;
@@ -42,7 +40,6 @@ function setGroups(specs: GroupSpec[]): void {
   };
 }
 
-// the rendered shells, which readBurgLabelStyles only consults for the layer-toggle flag
 function mountShells(shells: Record<string, Record<string, string>>): void {
   const inner = Object.entries(shells)
     .map(([name, attrs]) => {
@@ -62,8 +59,6 @@ beforeEach(() => {
 
 describe("readBurgLabelStyles", () => {
   it("reads the authored size from the group's percentage font-size", () => {
-    // "4.98%" is a percentage of the #labels parent, which zoom.ts holds at ~100px at scale 1,
-    // so the number carries the same meaning the old data-size attribute did
     setGroups([{ name: "capital", fontSize: "4.98%" }]);
     expect(readBurgLabelStyles().capital.fontSize).toBeCloseTo(4.98, 5);
   });
