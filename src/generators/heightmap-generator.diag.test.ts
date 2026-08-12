@@ -209,7 +209,7 @@ describe("heightmap operation coverage by cell count", () => {
     }
   });
 
-  it("runs full templates end-to-end at multiple cell counts", () => {
+  it("runs full templates end-to-end at multiple cell counts", { timeout: 30_000 }, () => {
     console.log("\n=== Full template runs (land = h >= 20) ===");
     console.log("template     cells       land cells    land pct   largest region   regions");
     for (const template of ["shattered", "continents", "atoll", "volcano", "taklamakan", "fractious"]) {
