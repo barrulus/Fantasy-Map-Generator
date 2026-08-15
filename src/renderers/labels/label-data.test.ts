@@ -54,8 +54,7 @@ describe("river labels with off-map cells", () => {
     expect(river?.anchor).toEqual([10, 10]);
   });
 
-  // old saves can carry rivers with no cells array at all (e.g. the v1.65 migration skipped
-  // rivers whose rendered path had zero length), so the label builder must tolerate it
+  // old saves can carry rivers whose cells array was never assigned
   it("skips a river that has no cells array", () => {
     stubPack([{ i: 1, name: "Colorado", type: "River" }]);
 
