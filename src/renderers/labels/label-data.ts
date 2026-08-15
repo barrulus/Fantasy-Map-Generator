@@ -117,7 +117,7 @@ function buildStateLabel(state: State): LabelData | undefined {
 }
 
 function buildRiverLabel(river: River): LabelData | undefined {
-  if (!river.cells.length || !river.name) return undefined;
+  if (!river.cells?.length || !river.name) return undefined;
   const anchor = getMiddleCellPoint(river.cells);
   if (!anchor) return undefined; // every cell is off the map edge, so there is nowhere to put the label
   const customPath = getCustomPath(river.label);
