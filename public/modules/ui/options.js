@@ -222,11 +222,10 @@ function fitMapToScreen() {
   fitScaleBar(scaleBar, svgWidth, svgHeight);
   if (window.fitLegendBox) fitLegendBox();
 
-  // Keep the WebGL burg/label canvases sized to the SVG viewport. Unlike SVG layers they don't
-  // ride the SVG's clip, so a stale (larger) canvas spills GPU burgs/labels past the map edge
-  // when the canvas size shrinks. Resize AFTER the svg width/height above are applied.
+  // Keep the WebGL burg-icon canvas sized to the SVG viewport. Unlike SVG layers it doesn't
+  // ride the SVG's clip, so a stale (larger) canvas spills GPU burgs past the map edge when the
+  // canvas size shrinks. Resize AFTER the svg width/height above are applied.
   if (window.resizeBurgGL) window.resizeBurgGL();
-  if (window.resizeBurgLabelGL) window.resizeBurgLabelGL();
 
   // The #mapTop overlay is a sibling SVG root that clips to its own width/height, so it must track
   // #map's new size too — otherwise its stale (larger) clip lets the split-out #viewboxTop layers

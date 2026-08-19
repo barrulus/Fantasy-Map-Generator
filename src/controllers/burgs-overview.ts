@@ -20,12 +20,6 @@ import { convertTemperature, ensureEl, getTemperatureLikeness, rn, si } from "..
 
 type Filters = { stateId?: number | null; cultureId?: number | null };
 
-// the GPU layer owns burg labels when it is active; drawLabels would only build SVG it then hides
-function refreshBurgLabels(): void {
-  if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
-  else drawLabels();
-}
-
 const dialogId = "burgsOverview" as const;
 const position = { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" };
 const columns: EditorColumn<Burg>[] = [
@@ -480,7 +474,7 @@ function triggerBurgRemove(this: HTMLElement): void {
     onConfirm: () => {
       Burgs.remove(burgId);
       burgsTable.refresh();
-      refreshBurgLabels();
+      drawLabels();
     }
   });
 }
@@ -493,7 +487,7 @@ function regenerateNames(): void {
   }
 
   burgsTable.refresh();
-  refreshBurgLabels();
+  drawLabels();
 }
 
 function showBurgsChart(): void {
@@ -784,7 +778,7 @@ function importBurgNames(dataLoaded: string): void {
       pack.burgs[id].name = change[i].name;
     }
     burgsTable.refresh();
-    refreshBurgLabels();
+    drawLabels();
   };
 
   confirmationDialog({
@@ -806,7 +800,7 @@ function triggerAllBurgsRemove(): void {
     onConfirm: () => {
       pack.burgs.filter(b => b.i && !(b.capital || b.lock)).forEach(b => void Burgs.remove(b.i));
       burgsTable.refresh();
-      refreshBurgLabels();
+      drawLabels();
     }
   });
 }
