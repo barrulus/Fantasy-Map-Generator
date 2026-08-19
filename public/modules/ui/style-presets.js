@@ -16,6 +16,7 @@ const systemPresets = [
   "monochrome"
 ];
 const customPresetPrefix = "fmgStyle_";
+const RELIEF_STYLE_ATTRIBUTES = ["set", "size", "density"];
 
 // add style presets to list
 {
@@ -89,6 +90,23 @@ function applyStylePreset(presetJson) {
       style.anchors[group] = presetJson[selector];
     }
 
+    if (selector === "#terrain") {
+      const { set, size, density } = presetJson[selector];
+
+      if (size) {
+        const ratio = size / style.relief.size;
+        style.relief.size = size;
+        if (ratio !== 1) Relief.changeSize(size);
+      }
+
+      if (set) {
+        style.relief.set = set;
+        Relief.changeSet(set);
+      }
+
+      if (density) style.relief.density = density; // no model change as it would require regeneration
+    }
+
     if (selector.startsWith("#routes ")) {
       const type = selector.split("#").pop();
       style.routes[type] = presetJson[selector];
@@ -101,6 +119,7 @@ function applyStylePreset(presetJson) {
 
     for (const attribute in presetJson[selector]) {
       if (attribute === "id") continue;
+      if (selector === "#terrain" && RELIEF_STYLE_ATTRIBUTES.includes(attribute)) continue; // stored in style.relief
       const value = presetJson[selector][attribute];
 
       if (value === "null" || value === null) {
@@ -168,24 +187,18 @@ async function changeStyle(desiredPreset) {
   const [presetName, style] = styleData;
   localStorage.setItem("presetStyle", presetName);
   applyStyleWithUiRefresh(style);
-  if (layerIsOn("toggleBurgIcons")) drawBurgIcons();
-  if (layerIsOn("toggleLabels")) drawLabels();
 }
 
 function applyStyleWithUiRefresh(style) {
   applyStylePreset(style);
-  updateElements();
   selectStyleElement(); // re-select element to trigger values update
   updateMapFilter();
   stylePreset.dataset.old = stylePreset.value;
 
+  Layers.drawAll(); // a style change can affect any layer, so redraw the active ones
+
   invokeActiveZooming();
   setPresetRemoveButtonVisibiliy();
-
-  drawScaleBar(scaleBar, scale);
-  fitScaleBar(scaleBar, svgWidth, svgHeight);
-
-  if (layerIsOn("toggleRulers")) drawMeasurers();
 }
 
 function addStylePreset() {
@@ -272,7 +285,7 @@ function addStylePreset() {
       "#dry": ["opacity", "fill", "stroke", "stroke-width", "filter"],
       "#sea_island": ["opacity", "stroke", "stroke-width", "filter", "auto-filter"],
       "#lake_island": ["opacity", "stroke", "stroke-width", "filter"],
-      "#terrain": ["opacity", "set", "size", "density", "filter", "mask"],
+      "#terrain": ["opacity", "filter", "mask"],
       "#rivers": ["opacity", "filter", "fill"],
       "#ruler": ["opacity", "data-size", "font-size", "stroke-width", "stroke-dasharray", "stroke-linecap", "filter"],
       "#roads": ["opacity", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "filter", "mask"],
@@ -434,6 +447,8 @@ function addStylePreset() {
       }
     }
 
+    if (presetStyle["#terrain"]) Object.assign(presetStyle["#terrain"], style.relief);
+
     for (const [group, groupStyle] of Object.entries(style.labels.groups)) {
       addStoredLabelStyle(`#labels > #${group}`, groupStyle);
     }
@@ -538,7 +553,7 @@ function removeStylePreset() {
 }
 
 function updateMapFilter() {
-  const filter = svg.attr("data-filter");
+  const filter = d3.select("#map").attr("data-filter");
   mapFilters.querySelectorAll(".pressed").forEach(button => button.classList.remove("pressed"));
   if (!filter) return;
   mapFilters.querySelector("#" + filter).classList.add("pressed");

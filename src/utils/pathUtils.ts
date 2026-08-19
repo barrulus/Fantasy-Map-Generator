@@ -556,12 +556,13 @@ export const meander = (cells: number[], cellPositions: Point[], options: Meande
   const isWaterCell = options.isWaterCell;
 
   const anchorPoints: Point[] = cells.map((cell, i) => {
-    if (customAnchors) return customAnchors[i];
+    if (customAnchors?.[i]) return customAnchors[i];
     if (cell === -1) {
       const prevCell = cells[i - 1];
       const prev: Point = prevCell !== undefined && prevCell >= 0 ? cellPositions[prevCell] : [0, 0];
       if (!bounds) return prev;
-      return projectToNearestEdge(prev, bounds.width, bounds.height);
+      const point = projectToNearestEdge(prev, bounds.width, bounds.height);
+      return point;
     }
     return cellPositions[cell];
   });
@@ -572,6 +573,7 @@ export const meander = (cells: number[], cellPositions: Point[], options: Meande
   let step = startStep;
 
   for (let i = 0; i <= lastStep; i++, step++) {
+    if (!anchorPoints[i]) continue;
     const [x1, y1] = anchorPoints[i];
     anchorIndices.push(points.length);
     points.push([x1, y1]);
@@ -581,6 +583,7 @@ export const meander = (cells: number[], cellPositions: Point[], options: Meande
     const nextCell = cells[i + 1];
     if (nextCell === -1) continue; // boundary anchor will be emitted on next iter without interpolation
 
+    if (!anchorPoints[i + 1]) continue;
     const [x2, y2] = anchorPoints[i + 1];
     const dist2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
     if (dist2 <= 25 && cellCount >= 6) continue;

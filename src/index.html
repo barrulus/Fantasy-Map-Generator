@@ -35,22 +35,11 @@
       gtag("js", new Date());
       gtag("config", "G-VJL3J26W7R");
     </script>
-    <script
-      defer
-      src="https://stats.barrulus.com/script.js"
-      data-website-id="46e06c68-beae-4558-8ca1-963d92296ba5"
-      data-domains="bazgaars-fmg.netlify.app"
-    ></script>
     <link rel="icon" type="image/png" href="images/icons/favicon-32x32.png" sizes="32x32" />
     <link rel="icon" type="image/png" href="images/icons/favicon-16x16.png" sizes="16x16" />
     <link rel="apple-touch-icon" href="images/icons/maskable_icon_x192.png" />
     <link rel="canonical" href="https://azgaar.github.io/Fantasy-Map-Generator/" />
     <link rel="manifest" href="manifest.webmanifest" />
-
-    <!-- splash background must paint immediately; SVG <image> alone is fetched late and low-priority -->
-    <link rel="preload" href="images/splash-world.webp" as="image" fetchpriority="high" />
-
-
     <!-- inline css for loading screen -->
     <style type="text/css">
       body {
@@ -69,13 +58,19 @@
         left: 50%;
         transform: translate(-50%, -50%);
       }
+      #loading > #loading-rose > use {
+        fill: none;
+        stroke: black;
+        opacity: 0.7;
+        transform-origin: center;
+        animation: 20s linear 0s infinite spin;
+      }
       #loading > #loading-typography {
         opacity: 1;
-        top: 88%;
         font-size: 11px;
         color: #fff5da;
         text-align: center;
-        text-shadow: 0 0 2px #000, 0 0 8px #000, 0 2px 14px rgba(0, 0, 0, 0.85);
+        text-shadow: 0px 1px 4px #4c3a35;
         width: 80vw;
         max-width: 540px;
       }
@@ -127,10 +122,18 @@
           opacity: 0.1;
         }
       }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(359deg);
+        }
+      }
     </style>
     <link
       rel="preload"
-      href="index.css?v=1.141.0"
+      href="index.css?v=1.144.0"
       as="style"
       onload="
         this.onload = null;
@@ -332,24 +335,17 @@
       <g id="scaleBar">
         <rect id="scaleBarBack"></rect>
       </g>
-      <g id="vignette" mask="url(#vignette-mask)">
-        <rect x="0" y="0" width="100%" height="100%" />
-      </g>
     </svg>
     <div id="loading">
       <svg width="100%" height="100%">
-        <rect x="-1%" y="-1%" width="102%" height="102%" fill="#000" />
-        <image
-          href="images/splash-world.webp"
-          x="-1%"
-          y="-1%"
-          width="102%"
-          height="102%"
-          preserveAspectRatio="xMidYMid slice"
-        />
+        <rect x="-1%" y="-1%" width="102%" height="102%" fill="#466eab" />
+        <rect x="-1%" y="-1%" width="102%" height="102%" fill="url(#oceanic)" />
+      </svg>
+      <svg id="loading-rose" width="100%" height="100%" viewBox="0 0 700 700">
+        <use href="#defs-compass-rose" x="50%" y="50%" />
       </svg>
       <div id="loading-typography">
-        <div id="titleName">Bazgaar's</div>
+        <div id="titleName">Azgaar's</div>
         <div id="title">Fantasy Map Generator</div>
         <div id="versionText">‎ ‎</div>
         <p id="loading-text">LOADING<span>.</span><span>.</span><span>.</span></p>
@@ -400,7 +396,6 @@
           <select
             data-tip="Select a map layers preset"
             id="layersPreset"
-            onchange="handleLayersPresetChange(this.value)"
             style="width: 45%"
           >
             <option value="political" selected>Political map</option>
@@ -423,285 +418,18 @@
             data-tip="Click to save displayed layers as a new preset"
             class="icon-plus sideButton"
             style="display: none"
-            onclick="savePreset()"
           ></button>
           <button
             id="removePresetButton"
             data-tip="Click to remove current custom preset"
             class="icon-minus sideButton"
             style="display: none"
-            onclick="removePreset()"
           ></button>
           <p>Displayed layers and layers order:</p>
           <ul
             data-tip="Click to toggle a layer, drag to raise or lower a layer. Ctrl + click to edit layer style"
             id="mapLayers"
           >
-            <li
-              id="toggleTexture"
-              data-tip="Texture overlay: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="X"
-              onclick="toggleTexture(event)"
-            >
-              Te<u>x</u>ture
-            </li>
-            <li
-              id="toggleHeight"
-              data-tip="Heightmap: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="H"
-              onclick="toggleHeight(event)"
-            >
-              <u>H</u>eightmap
-            </li>
-            <li
-              id="toggleLakes"
-              data-tip="Lakes: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="Q"
-              onclick="toggleLakes(event)"
-            >
-              Lakes
-            </li>
-            <li
-              id="toggleBiomes"
-              data-tip="Biomes: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="B"
-              onclick="toggleBiomes(event)"
-            >
-              <u>B</u>iomes
-            </li>
-            <li
-              id="toggleCells"
-              data-tip="Cells structure: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="E"
-              onclick="toggleCells(event)"
-            >
-              C<u>e</u>lls
-            </li>
-            <li
-              id="toggleGrid"
-              data-tip="Grid: click to toggle, drag to raise or lower. Ctrl + click to edit layer style and select type"
-              data-shortcut="; (semicolon)"
-              onclick="toggleGrid(event)"
-            >
-              Grid
-            </li>
-            <li
-              id="toggleCoordinates"
-              data-tip="Coordinate grid: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="O"
-              onclick="toggleCoordinates(event)"
-            >
-              C<u>o</u>ordinates
-            </li>
-            <li
-              id="toggleCompass"
-              data-tip="Wind (Compass) Rose: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="W"
-              onclick="toggleCompass(event)"
-            >
-              <u>W</u>ind Rose
-            </li>
-            <li
-              id="toggleRivers"
-              data-tip="Rivers: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="V"
-              onclick="toggleRivers(event)"
-            >
-              Ri<u>v</u>ers
-            </li>
-            <li
-              id="toggleRelief"
-              data-tip="Relief and biome icons: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="F"
-              onclick="toggleRelief(event)"
-            >
-              Relie<u>f</u>
-            </li>
-            <li
-              id="toggleReligions"
-              data-tip="Religions: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="R"
-              onclick="toggleReligions(event)"
-            >
-              <u>R</u>eligions
-            </li>
-            <li
-              id="toggleCultures"
-              data-tip="Cultures: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="C"
-              onclick="toggleCultures(event)"
-            >
-              <u>C</u>ultures
-            </li>
-            <li
-              id="toggleStates"
-              data-tip="States: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="S"
-              onclick="toggleStates(event)"
-            >
-              <u>S</u>tates
-            </li>
-            <li
-              id="toggleProvinces"
-              data-tip="Provinces: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="P"
-              onclick="toggleProvinces(event)"
-            >
-              <u>P</u>rovinces
-            </li>
-            <li
-              id="toggleZones"
-              data-tip="Zones: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="Z"
-              onclick="toggleZones(event)"
-            >
-              <u>Z</u>ones
-            </li>
-            <li
-              id="toggleBorders"
-              data-tip="State borders: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="D"
-              onclick="toggleBorders(event)"
-            >
-              Bor<u>d</u>ers
-            </li>
-            <li
-              id="toggleRoutes"
-              data-tip="Trade routes: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="U"
-              onclick="toggleRoutes(event)"
-            >
-              Ro<u>u</u>tes
-            </li>
-            <li
-              id="toggleSkyburgs"
-              data-tip="Sky burgs and air routes: click to toggle, drag to raise or lower the layer"
-              onclick="toggleSkyburgs()"
-            >
-              Skyburgs
-            </li>
-            <li
-              id="toggleTemperature"
-              data-tip="Temperature map: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="T"
-              onclick="toggleTemperature(event)"
-            >
-              <u>T</u>emperature
-            </li>
-            <li
-              id="toggleIce"
-              data-tip="Icebergs and glaciers: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="J"
-              onclick="toggleIce(event)"
-            >
-              Ice
-            </li>
-            <li
-              id="toggleGoods"
-              data-tip="Goods and Production: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              class="buttonoff"
-              data-shortcut="G"
-              onclick="toggleGoods(event)"
-            >
-              <u>G</u>oods
-            </li>
-            <li
-              id="toggleMarketsLayer"
-              data-tip="Markets: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              class="buttonoff"
-              onclick="toggleMarketsLayer(event)"
-            >
-              Markets
-            </li>
-            <li
-              id="toggleTrade"
-              data-tip="Trade: animated trade deal flows. Click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="` (backtick)"
-              onclick="toggleTrade(event)"
-              class="buttonoff"
-            >
-              Trade
-            </li>
-            <li id="togglePrecipitation"
-              data-tip="Precipitation map: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="A"
-              onclick="togglePrecipitation(event)"
-            >
-              Precipit<u>a</u>tion
-            </li>
-            <li id="togglePopulation"
-              data-tip="Population map: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="N"
-              onclick="togglePopulation(event)"
-            >
-              Populatio<u>n</u>
-            </li>
-            <li
-              id="toggleEmblems"
-              data-tip="Emblems: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="Y"
-              onclick="toggleEmblems(event)"
-            >
-              Emblems
-            </li>
-            <li
-              id="toggleBurgIcons"
-              data-tip="Burg icons: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="I"
-              onclick="toggleBurgIcons(event)"
-            >
-              <u>I</u>cons
-            </li>
-            <li
-              id="toggleLabels"
-              data-tip="Labels: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="L"
-              onclick="toggleLabels(event)"
-            >
-              <u>L</u>abels
-            </li>
-            <li
-              id="toggleMilitary"
-              data-tip="Military forces: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="M"
-              onclick="toggleMilitary(event)"
-            >
-              <u>M</u>ilitary
-            </li>
-            <li
-              id="toggleMarkers"
-              data-tip="Markers: click to toggle, drag to raise or lower the layer. Ctrl + click to edit layer style"
-              data-shortcut="K"
-              onclick="toggleMarkers(event)"
-            >
-              Mar<u>k</u>ers
-            </li>
-            <li
-              id="toggleRulers"
-              data-tip="Rulers: click to toggle, drag to move, click on label to delete. Ctrl + click to edit layer style"
-              data-shortcut="= (equal sign)"
-              onclick="toggleRulers(event)"
-            >
-              Rulers
-            </li>
-            <li
-              id="toggleScaleBar"
-              data-tip="Scale Bar: click to toggle. Ctrl + click to edit style"
-              data-shortcut="/ (slash sign)"
-              onclick="toggleScaleBar(event)"
-              class="solid"
-            >
-              Scale Bar
-            </li>
-            <li
-              id="toggleVignette"
-              data-tip="Vignette (border fading): click to toggle. Ctrl + click to edit style"
-              data-shortcut="[ (left square bracket)"
-              onclick="toggleVignette(event)"
-              class="solid"
-            >
-              Vignette
-            </li>
           </ul>
           <div class="tip">Click to toggle, drag to raise or lower the layer</div>
           <div class="tip">Ctrl + click to edit layer style</div>
@@ -762,12 +490,14 @@
             <option value="cults">Cultures</option>
             <option value="emblems">Emblems</option>
             <option value="fogging">Fogging</option>
+            <option value="goods">Goods</option>
             <option value="goodsCells">Goods: production</option>
             <option value="goodsIcons">Goods: resources</option>
             <option value="goodsBurgs">Goods: burg plates</option>
             <option value="gridOverlay">Grid</option>
             <option value="terrs">Heightmap</option>
             <option value="ice">Ice</option>
+            <option value="icons">Icons</option>
             <option value="labels">Labels</option>
             <option value="lakes">Lakes</option>
             <option value="landmass">Landmass</option>
@@ -1027,7 +757,6 @@
                 <td>
                   <select id="outlineLayers">
                     <option value="none">No outline</option>
-                    <option value="random">Random</option>
                     <option value="-6,-3,-1" selected>Standard 3</option>
                     <option value="-6,-4,-2">Indented 3</option>
                     <option value="-9,-6,-3,-1">Standard 4</option>
@@ -1052,7 +781,6 @@
                     <option value="#icon-circle">Circle</option>
                     <option value="#icon-square">Square</option>
                     <option value="#icon-triangle">Triangle</option>
-                    <option value="#icon-diamond">Diamond</option>
                     <option value="#icon-cross">Cross</option>
                     <option value="#icon-star">Star</option>
                     <option value="#icon-circled">Circled</option>
@@ -1157,7 +885,7 @@
               </tr>
             </tbody>
             <tbody id="styleRelief">
-              <tr data-tip="Select set of relief icons. All relief icons will be regenerated">
+              <tr data-tip="Select set of relief icons. Existing icons are restyled, not regenerated">
                 <td>Style</td>
                 <td>
                   <select id="styleReliefSet">
@@ -1167,7 +895,7 @@
                   </select>
                 </td>
               </tr>
-              <tr data-tip="Define the size of relief icons. All relief icons will be regenerated">
+              <tr data-tip="Define the size of relief icons. Existing icons are resized, not regenerated">
                 <td>Size</td>
                 <td>
                   <slider-input id="styleReliefSize" min=".2" max="4" step=".01"></slider-input>
@@ -1179,6 +907,11 @@
                 <td>Density</td>
                 <td>
                   <slider-input id="styleReliefDensity" min=".3" max=".8" step=".01"></slider-input>
+                </td>
+              </tr>
+              <tr>
+                <td colspan="2" style="opacity: 0.6">
+                  <i>Density change regenerates relief icons, discarding manual edits</i>
                 </td>
               </tr>
             </tbody>
@@ -1582,7 +1315,7 @@
                   data-stored="points"
                   type="range"
                   min="1"
-                  max="19"
+                  max="13"
                   value="4"
                   data-cells="10000"
                 />
@@ -1723,7 +1456,7 @@
               </td>
               <td>Burgs number</td>
               <td>
-                <input id="manorsInput" data-stored="manors" type="range" min="0" max="100001" step="1" value="100001" />
+                <input id="manorsInput" data-stored="manors" type="range" min="0" max="1000" step="1" value="1000" />
               </td>
               <td>
                 <output id="manorsOutput" data-stored="manors" value="auto"></output>
@@ -1967,21 +1700,6 @@
               </td>
               <td></td>
             </tr>
-
-            <tr data-tip="Render burg icons on the GPU (WebGL) for much faster pan/zoom on large maps. 'Auto' enables it above 5000 burgs.">
-              <td></td>
-              <td>GPU burgs</td>
-              <td>
-                <select id="webglBurgsSelect">
-                  <option value="auto" selected>Auto</option>
-                  <option value="on">On</option>
-                  <option value="off">Off</option>
-                </select>
-              </td>
-              <td></td>
-            </tr>
-
-
             <tr
               data-tip="Load Google Translate and select language. Note that automatic translation can break some page functional. In this case reset the language back to English or refresh the page"
             >
@@ -2945,13 +2663,8 @@
             />
           </symbol>
           <symbol id="relief-dune-1" viewBox="0 0 100 100">
-            <path
-              d="m 28.7,52.8 c 5,-3.9 10,-8.2 15.8,-8.3 4.5,0 10.8,3.8 15.2,6.5 3.5,2.2 6.8,2 6.8,2"
-              fill="none"
-              stroke="#5c5c70"
-              stroke-width="1.8"
-            />
-            <path d="m 44.2,47.6 c -3.2,3.2 3.5,5.7 5.9,7.8" fill="none" stroke="#5c5c70" />
+            <path d="m 28.7,52.8 c 5,-3.9 10,-8.2 15.8,-8.3 4.5,0 10.8,3.8 15.2,6.5 3.5,2.2 6.8,2 6.8,2" fill="none" stroke="#5c5c70" stroke-width="0.6" />
+            <path d="m 44.2,47.6 c -3.2,3.2 3.5,5.7 5.9,7.8" fill="none" stroke="#5c5c70" stroke-width="0.6" />
           </symbol>
           <symbol id="relief-mount-2-bw" viewBox="-5 -5 50 50">
             <polygon
@@ -4358,12 +4071,6 @@
           <symbol id="icon-triangle" viewBox="0 0 10 10" width="1em" height="1em" overflow="visible">
             <polygon points="0,-5 5,5 -5,5" />
           </symbol>
-
-          <symbol id="icon-diamond" viewBox="0 0 10 10" width="1em" height="1em" overflow="visible">
-            <polygon points="0,-5 5,0 0,5 -5,0" />
-          </symbol>
-
-
           <symbol id="icon-cross" viewBox="0 0 10 10" width="1em" height="1em" overflow="visible">
             <polygon
               points="-1.5,-5 1.5,-5 1.5,-1.5 5,-1.5 5,1.5 1.5,1.5 1.5,5 -1.5,5 -1.5,1.5 -5,1.5 -5,-1.5 -1.5,-1.5"
@@ -5450,11 +5157,10 @@
     <script defer src="libs/alea.min.js?v1.105.0"></script>
     <script defer src="libs/polylabel.min.js?v1.105.0"></script>
     <script defer src="libs/simplify.js?v1.105.6"></script>
-    <script defer src="modules/ui/layers.js?v=1.140.0"></script>
-    <script defer src="modules/ui/style-presets.js?v=1.140.0"></script>
-    <script defer src="modules/ui/options.js?v=1.140.0"></script>
-    <script defer src="main.js?v=1.140.0"></script>
-    <script defer src="modules/ui/style.js?v=1.140.0"></script>
+    <script defer src="modules/ui/style-presets.js?v=1.144.0"></script>
+    <script defer src="modules/ui/options.js?v=1.144.0"></script>
+    <script defer src="main.js?v=1.144.0"></script>
+    <script defer src="modules/ui/style.js?v=1.145.2"></script>
     <script defer src="libs/rgbquant.min.js"></script>
     <script defer src="libs/jquery.ui.touch-punch.min.js"></script>
   </body>

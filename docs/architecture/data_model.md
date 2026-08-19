@@ -345,7 +345,7 @@ Each `LabelGroupOptions` contains:
 - `name`: `string` - globally unique logical group id
 - `type`: `states | burgs | provinces | added` - organizational category and default source
 - `active`: `boolean` - manual visibility switch
-- `layerDependency`: `string | null` - optional layer-toggle id; unknown ids fail closed
+- `layerDependency`: `LayerId | null` - optional layer-toggle id; unknown ids fail closed
 - `zoom.min` and `zoom.max`: `number | null` - inclusive map-scale bounds
 - `mode`: `auto | short | full` - generated State and Province name policy
 
@@ -387,6 +387,21 @@ Ice data is stored as an array of objects with `i` not necessary equal to the el
 - `type`: `glacier | iceberg` - ice type
 - `offset`: `[number, number]` - ice position offset in px, optional, only added for manually dragged ice elements
 - `points`: `number[][]` - ice element vertices positions
+
+## Relief
+
+Relief (terrain) icons are stored in `pack.relief: ReliefIcon[]`. The array order defines the rendering order: icons are sorted by their bottom edge, so the closer ones are drawn on top. Object structure:
+
+- `icon`: `string` - id of the symbol in `#defs-relief`, without the leading `#`, e.g. `relief-mount-3`
+- `x`: `number` - left edge position
+- `y`: `number` - top edge position
+- `s`: `number` - icon size, used as both width and height
+
+Generation settings live in the global style object as `style.relief`, serialized with the rest of the style at data index 48. Before v1.142.0 they were `set`, `size` and `density` attributes on the `#terrain` group:
+
+- `set`: `string` - icons set: `simple`, `colored` or `gray`
+- `size`: `number` - base icon size multiplier
+- `density`: `number` - how densely icons are placed
 
 ## Measurers
 

@@ -177,9 +177,9 @@
     "mask": null
   },
   "#rivers": {
-    "opacity": 0.2,
-    "filter": "url(#blur1)",
-    "fill": "#000000"
+    "opacity": 1,
+    "filter": null,
+    "fill": "#111111"
   },
   "#ruler": {
     "opacity": null,
@@ -520,8 +520,7 @@
   },
   "#labels > #capital": {
     "opacity": 1,
-    "fill": "#3e3e4b",
-    "style": "text-shadow: white 0px 0px 4px",
+    "fill": "#000000",
     "letter-spacing": 0,
     "font-size": "7%",
     "font-family": "Almendra SC",
@@ -549,8 +548,7 @@
   },
   "#labels > #fort": {
     "opacity": 1,
-    "fill": "#3e3e4b",
-    "style": "text-shadow: white 0px 0px 4px",
+    "fill": "#000000",
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
@@ -578,8 +576,7 @@
   },
   "#labels > #monastery": {
     "opacity": 1,
-    "fill": "#3e3e4b",
-    "style": "text-shadow: white 0px 0px 4px",
+    "fill": "#000000",
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
@@ -607,8 +604,7 @@
   },
   "#labels > #caravanserai": {
     "opacity": 1,
-    "fill": "#3e3e4b",
-    "style": "text-shadow: white 0px 0px 4px",
+    "fill": "#000000",
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
@@ -636,8 +632,7 @@
   },
   "#labels > #trading_post": {
     "opacity": 1,
-    "fill": "#3e3e4b",
-    "style": "text-shadow: white 0px 0px 4px",
+    "fill": "#000000",
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
@@ -665,8 +660,7 @@
   },
   "#labels > #village": {
     "opacity": 1,
-    "fill": "#3e3e4b",
-    "style": "text-shadow: white 0px 0px 4px",
+    "fill": "#000000",
     "letter-spacing": 0,
     "font-size": "3%",
     "font-family": "Almendra SC",
@@ -694,8 +688,7 @@
   },
   "#labels > #hamlet": {
     "opacity": 1,
-    "fill": "#3e3e4b",
-    "style": "text-shadow: white 0px 0px 4px",
+    "fill": "#000000",
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
@@ -735,9 +728,8 @@
   "#labels > #province": {
     "opacity": 1,
     "fill": "#000000",
-    "stroke": "#3a3a3a",
     "stroke-width": 0,
-    "style": "text-shadow: white 0px 0px 4px",
+    "style": "text-shadow: white 0px 0px 2px",
     "letter-spacing": 0,
     "font-size": "6%",
     "font-family": "Courier New",
@@ -746,22 +738,16 @@
   "#labels > #river": {
     "opacity": 1,
     "fill": "#000000",
-    "stroke": "#3a3a3a",
-    "stroke-width": 0,
-    "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "font-size": "2%",
+    "font-size": "1%",
     "font-family": "Courier New",
     "filter": null
   },
   "#labels > #route": {
     "opacity": 1,
     "fill": "#000000",
-    "stroke": "#3a3a3a",
-    "stroke-width": 0,
-    "style": "text-shadow: white 0px 0px 4px",
     "letter-spacing": 0,
-    "font-size": "2%",
+    "font-size": "1%",
     "font-family": "Courier New",
     "filter": null
   },

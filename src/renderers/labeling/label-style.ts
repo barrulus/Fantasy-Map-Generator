@@ -12,7 +12,7 @@ export interface GroupStyle {
   fill: string;
   halo: string;
   haloWidth: number;
-  hidden: boolean; // switched off by a layer toggle (see isGroupSwitchedOff) — NOT the zoom gate
+  hidden: boolean; // group switched off wholesale (see isGroupSwitchedOff) — NOT the zoom gate
   iconDiameter: number; // map-unit diameter of this tier's burg icon (sibling #burgIcons > g#{id})
 }
 
@@ -20,13 +20,15 @@ const DEFAULT_FONT_SIZE = 4;
 const DEFAULT_ICON_DIAMETER = 1;
 
 /**
- * True when a layer toggle has switched this group shell off (the Skyburgs layer sets it on
- * `#burgIcons`/`#burgLabels > g#skyburg-*`).
+ * True when a burg group shell has been switched off wholesale, as opposed to being zoom-gated.
+ * Nothing sets `data-layer-off` today — the Skyburgs toggle that did was dropped in the 1.145.3
+ * sync, and group hiding is expected to return via the layers registry or the style editor. This
+ * is the seam it should hook back into.
  *
  * Deliberately an explicit attribute rather than the shell's `display`: invokeActiveZooming also
- * hides shells via the `.hidden` class as the per-tier ZOOM gate, and the GL renderers do that
- * gating themselves on the GPU (GroupRender.minZoom / LabelBox.minZoom). Reading display here
- * would make a rebuild bake the current zoom's tier culling into the buffers permanently.
+ * hides shells via the `.hidden` class as the per-tier ZOOM gate, and the GL renderer does that
+ * gating itself on the GPU (GroupRender.minZoom). Reading display here would make a rebuild bake
+ * the current zoom's tier culling into the buffers permanently.
  */
 export function isGroupSwitchedOff(el: Element): boolean {
   return el.getAttribute("data-layer-off") === "true";

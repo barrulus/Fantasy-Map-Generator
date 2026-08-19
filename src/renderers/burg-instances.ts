@@ -11,7 +11,7 @@ export interface GroupRender {
   tileIndex: number; // atlas tile for this group's baked symbol
   size: number; // rendered icon diameter in map units (group font-size)
   minZoom: number; // groupMinZoom() from the shared tier table (src/renderers/labeling/tier-table.ts) — GPU cull threshold
-  hidden?: boolean; // group switched off by a layer toggle (Skyburgs) — cull; NOT the zoom gate
+  hidden?: boolean; // group switched off wholesale — cull; NOT the zoom gate
 }
 
 export const INSTANCE_STRIDE = 5; // x, y, size, tileIndex, minZoom
@@ -39,7 +39,7 @@ export function buildBurgInstances(
     if (!b || !b.i || b.removed) continue; // skip index-0 placeholder + removed
     if (opts?.suppress?.has(b.i)) continue; // megalopolis members hidden in composite mode
     const g = groups[b.group as string] || fallback;
-    if (g.hidden) continue; // the group's layer is switched off; the GL canvas must match
+    if (g.hidden) continue; // the group is switched off; the GL canvas must match
     const o = n * INSTANCE_STRIDE;
     data[o] = b.x!;
     data[o + 1] = b.y!;

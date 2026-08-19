@@ -118,6 +118,11 @@ const removeBurgIconRenderer = (burgId: number): void => {
   if (existingAnchor) existingAnchor.remove();
 };
 
+/** drop the icons, keeping the burg groups: they carry the styles edited in the Style editor */
+export const removeBurgIcons = (): void => {
+  for (const icon of Array.from(document.querySelectorAll("#icons use, #icons circle"))) icon.remove();
+};
+
 function createIconGroups(): void {
   // save existing styles and remove all groups
   document.querySelectorAll("g#burgIcons > g").forEach(group => {

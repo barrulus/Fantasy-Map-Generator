@@ -6,7 +6,7 @@ const COLS = 8; // 8x8 = up to 64 group tiles
 export interface AtlasTile {
   tileIndex: number;
   size: number; // map-unit diameter (group font-size)
-  hidden: boolean; // group switched off by a layer toggle (Skyburgs) — not the per-tier zoom gate
+  hidden: boolean; // group switched off wholesale — not the per-tier zoom gate
 }
 export interface BurgAtlas {
   canvas: HTMLCanvasElement;
