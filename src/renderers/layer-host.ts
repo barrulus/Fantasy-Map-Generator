@@ -36,7 +36,7 @@ export function mergeSuffix(viewbox: Element, viewboxTop: Element): void {
  * This appends clones of the live #viewboxTop children onto the clone's #viewbox, restoring
  * document order (they were the suffix after #icons, so appending to the end reproduces it).
  * No-op in passthrough state (no #viewboxTop) and idempotent (skips ids already present in the
- * clone). Burg labels are GPU-only and remain absent by design — everything else round-trips.
+ * clone).
  */
 export function unifyClonedMapStack(clonedMap: Element, doc: Document = document): void {
   const viewboxTop = doc.getElementById("viewboxTop");
