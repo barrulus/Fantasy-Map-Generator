@@ -847,8 +847,6 @@ function stateChangeCapitalName(state: number, line: HTMLElement, value: string)
     Object.assign(burg.label, { text: value });
     drawLabels();
   }
-  // the GPU label layer reads burg data, not the SVG that drawLabels materializes
-  if (window.burgLabelsWebglActive?.() && window.scheduleRebuildBurgLabelGL) window.scheduleRebuildBurgLabelGL();
 }
 
 function changePopulation(stateId: number): void {

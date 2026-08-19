@@ -36,7 +36,7 @@ export function mergeSuffix(viewbox: Element, viewboxTop: Element): void {
  * This appends clones of the live #viewboxTop children onto the clone's #viewbox, restoring
  * document order (they were the suffix after #icons, so appending to the end reproduces it).
  * No-op in passthrough state (no #viewboxTop) and idempotent (skips ids already present in the
- * clone). Burg labels are GPU-only and remain absent by design — everything else round-trips.
+ * clone).
  */
 export function unifyClonedMapStack(clonedMap: Element, doc: Document = document): void {
   const viewboxTop = doc.getElementById("viewboxTop");
@@ -108,19 +108,6 @@ export function getWebglLayers(): MapLayer[] {
 export function _resetLayers(): void {
   webglLayers.length = 0;
   wasVisible.clear();
-}
-
-/**
- * Stack the burg-label canvas directly above the burg-icon canvas (or right after #map when
- * icons are off), keeping it below the #mapTop overlay. Idempotent.
- */
-export function positionLabelCanvas(labelCanvas: Element): void {
-  const icons = document.getElementById("burgIconsGL");
-  const map = document.getElementById("map");
-  const anchor = icons ?? map;
-  if (!anchor || !anchor.parentNode) return;
-  if (anchor.nextElementSibling === labelCanvas) return; // already placed
-  anchor.parentNode.insertBefore(labelCanvas, anchor.nextSibling);
 }
 
 function w(): any {
@@ -200,19 +187,6 @@ export function reconcileLayers(): void {
     // State 0 with GL on top: canvas right after #map (today's behavior), no overlay.
     removeTopOverlay();
     parent.insertBefore(canvas, svg.nextSibling);
-  }
-
-  // Keep the burg-label GL canvas stacked above icons / below the overlay when labels are active.
-  if (w().burgLabelsWebglActive && w().burgLabelsWebglActive()) {
-    const labelCanvas =
-      (document.getElementById("burgLabelsGL") as HTMLElement | null) ??
-      (w().ensureBurgLabelGLCanvas?.() as HTMLElement | undefined);
-    if (labelCanvas) {
-      positionLabelCanvas(labelCanvas);
-      // The label canvas must sit below #mapTop; if the overlay exists, move the canvas before it.
-      const top = document.getElementById("mapTop");
-      if (top && top.parentNode === labelCanvas.parentNode) labelCanvas.parentNode!.insertBefore(labelCanvas, top);
-    }
   }
 }
 

@@ -19,7 +19,6 @@ import "./labeling/label-collision";
 import "./labels/labels-renderer";
 import "./labeling/zoom-extras";
 import "./webgl-burg-icons";
-import "./webgl-burg-labels";
 import "./layer-host";
 import "./draw-goods";
 import "./draw-markets";

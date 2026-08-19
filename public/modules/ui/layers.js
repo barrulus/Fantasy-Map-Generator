@@ -842,9 +842,8 @@ function toggleSkyburgs() {
     turnButtonOff("toggleSkyburgs");
   }
   // GPU burgs are built from pack.burgs, not from the group shells, so display:none alone
-  // doesn't reach them — rebuild both buffers to re-read the groups' visibility.
+  // doesn't reach them — rebuild the buffer to re-read the groups' visibility.
   if (window.burgWebglActive && window.burgWebglActive()) window.scheduleRebuildBurgGL();
-  if (window.burgLabelsWebglActive && window.burgLabelsWebglActive()) window.scheduleRebuildBurgLabelGL();
 }
 
 function drawRoutes() {

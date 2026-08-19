@@ -221,9 +221,6 @@ declare global {
   var THREE: any; // lazy-loaded
 
   // GPU (WebGL) burg-label rendering globals, defined in src/renderers/webgl-burg-labels.ts
-  var burgLabelsWebglActive: () => boolean;
-  var scheduleRebuildBurgLabelGL: () => void;
-  var moveLabelGL: (id: number) => void;
 
   var $: (selector: any) => any;
   var scale: number;

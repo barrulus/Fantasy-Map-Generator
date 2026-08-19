@@ -389,8 +389,6 @@ function changeName(): void {
   if (!pack.burgs[id].label) pack.burgs[id].label = {};
   Object.assign(pack.burgs[id].label, { text: value });
   drawLabels();
-  // the GPU label layer reads burg data, not the SVG that drawLabels materializes
-  if (burgLabelsWebglActive()) scheduleRebuildBurgLabelGL();
 }
 
 function generateNameRandom(): void {

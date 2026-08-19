@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterAgainstObstacles, hashObstacles, selectNonOverlapping } from "./label-collision";
+import { filterAgainstObstacles, selectNonOverlapping } from "./label-collision";
 
 describe("selectNonOverlapping", () => {
   it("returns an empty set for empty input", () => {
@@ -85,41 +85,5 @@ describe("filterAgainstObstacles", () => {
     const boxes = [{ id: "a", left: 0, top: 0, right: 10, bottom: 10 }];
     const obstacles = [{ left: 10, top: 0, right: 20, bottom: 10 }];
     expect(filterAgainstObstacles(boxes, obstacles)).toEqual(new Set(["a"]));
-  });
-});
-
-describe("hashObstacles", () => {
-  it("hashes an empty set to a stable value", () => {
-    expect(hashObstacles([])).toBe(hashObstacles([]));
-  });
-
-  it("hashes identical sets equal", () => {
-    const a = [{ left: 0, top: 0, right: 10, bottom: 10 }];
-    const b = [{ left: 0, top: 0, right: 10, bottom: 10 }];
-    expect(hashObstacles(a)).toBe(hashObstacles(b));
-  });
-
-  it("changes when a rect changes", () => {
-    const a = [{ left: 0, top: 0, right: 10, bottom: 10 }];
-    const b = [{ left: 0, top: 0, right: 20, bottom: 10 }];
-    expect(hashObstacles(a)).not.toBe(hashObstacles(b));
-  });
-
-  it("changes when the obstacle count changes", () => {
-    const a = [{ left: 0, top: 0, right: 10, bottom: 10 }];
-    const b = [
-      { left: 0, top: 0, right: 10, bottom: 10 },
-      { left: 0, top: 0, right: 10, bottom: 10 }
-    ];
-    expect(hashObstacles(a)).not.toBe(hashObstacles(b));
-  });
-
-  it("is order-independent", () => {
-    const a = [
-      { left: 0, top: 0, right: 10, bottom: 10 },
-      { left: 20, top: 20, right: 30, bottom: 30 }
-    ];
-    const b = [a[1], a[0]];
-    expect(hashObstacles(a)).toBe(hashObstacles(b));
   });
 });

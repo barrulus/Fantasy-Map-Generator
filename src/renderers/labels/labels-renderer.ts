@@ -118,8 +118,6 @@ function isGroupVisible({ group, bounds }: { group: LabelGroup; bounds: Viewport
 
 function isLabelVisible(bounds: ViewportRenderContext["bounds"], label: LabelData): boolean {
   if (label.hidden) return false;
-  // the WebGL layer owns burg names when active; materializing them here too would double-draw
-  if (label.type === "burg" && window.burgLabelsWebglActive?.()) return false;
   if (!options.labels.showAll) {
     if (label.minZoom !== undefined && bounds.scale < label.minZoom) return false;
     if (label.maxZoom !== undefined && bounds.scale >= label.maxZoom) return false;
