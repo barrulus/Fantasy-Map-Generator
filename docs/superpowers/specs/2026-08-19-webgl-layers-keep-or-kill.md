@@ -226,3 +226,19 @@ layer, and `LayerHost` — the split exists for the icon canvas and is unaffecte
   SVG (`#labels [id^="burgLabel"]` > 0), no `burgLabelsGL` canvas, GPU icons still active with 0
   SVG icon nodes, and **all 11 deleted `window.*` globals are gone** with no page errors. This is
   the check `tsc` cannot do — see the `merge_dead_global_reference_crash` lesson.
+
+## Post-removal confirmation (same map, same rig, on the branch)
+
+| arm | pan@1 | zoom@1 | pan@4 | zoom@4 | pan@12 | zoom@12 |
+|---|---|---|---|---|---|---|
+| gpu-icons+svg-labels (now the default) | 1413 | 4663 | 1714 | 1140 | 13744 | 18595 |
+| *same arm, pre-removal* | 1853 | 4108 | 1191 | 1129 | 12822 | 19693 |
+| svg-icons+svg-labels | 5952 | 44370 | 24540 | 75293 | 132148 | 20679 |
+| *same arm, pre-removal* | 6356 | 44935 | 23874 | 76083 | 129456 | 19873 |
+
+Both surviving arms reproduce within noise, so the removal changed nothing but the removal of
+the slow path. The icon result re-confirms at 10x on pan@12 (13,744 vs 132,148ms).
+
+**Rerun caveat:** round 1 of the GPU arm threw warmup outliers (40,708ms zoom@1, 60,532ms zoom@4,
+54,703ms pan@12) that rounds 2-3 did not repeat. Medians absorbed them; a *mean* would have
+reported the opposite conclusion on zoom@4. Keep the interleaved-rounds-plus-median design.
