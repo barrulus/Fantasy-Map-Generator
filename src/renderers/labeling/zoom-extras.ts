@@ -62,14 +62,22 @@ function resolveStateLabelCollisions(): void {
   setStateLabelObstacles(boxes.filter(box => keep.has(box.id)));
 }
 
+// Rank for contested space, lowest wins. Burg tiers come from groupRank (capital 0 … hamlet 12);
+// rivers and routes sit below every burg tier but above unknown groups.
+const RIVER_RANK = 50;
+const ROUTE_RANK = 60;
+
 /**
- * Thin burg labels the way the removed WebGL layer used to. Upstream materializes every burg
- * label whose anchor is in the viewport and whose group passes its zoom gate, which turns a dense
- * region into an unreadable mass of overlapping names. Higher tiers win contested space; every
- * tier but capitals yields to the surviving state names.
+ * Thin overlapping labels the way the removed WebGL layer used to. Upstream materializes every
+ * label whose anchor is in the viewport and whose group passes its zoom gate, and does no
+ * collision work — which is survivable at upstream's 100K-cell ceiling but not at the fork's
+ * 500K, where a dense region draws thousands of overlapping names. Route labels are the worst:
+ * one per named route, and a 500K-cell map has tens of thousands of routes.
+ *
+ * State labels are excluded: they run their own pass above and are published as obstacles.
  */
-function resolveBurgLabelCollisions(): void {
-  const labels = Array.from(document.querySelectorAll<SVGTextElement>('#labels text[data-label-type="burg"]'));
+function resolveLabelCollisions(): void {
+  const labels = Array.from(document.querySelectorAll<SVGTextElement>('#labels text:not([data-label-type="state"])'));
   if (!labels.length) return;
 
   // a hidden label measures zero, so clear the previous verdict before reading
@@ -82,9 +90,15 @@ function resolveBurgLabelCollisions(): void {
     const rect = label.getBoundingClientRect();
     if (!rect.width || !rect.height) continue;
 
-    const group = label.parentElement?.id.replace(/^labels-/, "") || "";
-    const rank = groupRank(group);
-    if (rank === 0) capitals.add(label.id);
+    const type = label.dataset.labelType;
+    let rank: number;
+    if (type === "river") rank = RIVER_RANK;
+    else if (type === "route") rank = ROUTE_RANK;
+    else {
+      rank = groupRank(label.parentElement?.id.replace(/^labels-/, "") || "");
+      if (rank === 0) capitals.add(label.id);
+    }
+
     // selectNonOverlapping keeps the heaviest box, and rank 0 is the most important tier
     boxes.push({ id: label.id, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, weight: -rank });
   }
@@ -101,7 +115,7 @@ function resolveBurgLabelCollisions(): void {
 function render(context: ViewportRenderContext): void {
   cullRoutesByZoom(context.bounds.scale);
   resolveStateLabelCollisions();
-  resolveBurgLabelCollisions(); // after the state pass: it consumes that pass's obstacles
+  resolveLabelCollisions(); // after the state pass: it consumes that pass's obstacles
 }
 
 ViewportLayers.register({ id: "fork-zoom-extras", render });
