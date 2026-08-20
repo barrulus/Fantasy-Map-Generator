@@ -77,9 +77,7 @@ const ROUTE_RANK = 60;
  * State labels are excluded: they run their own pass above and are published as obstacles.
  */
 function resolveLabelCollisions(): void {
-  const labels = Array.from(
-    document.querySelectorAll<SVGTextElement>('#labels text:not([data-label-type="state"])')
-  );
+  const labels = Array.from(document.querySelectorAll<SVGTextElement>('#labels text:not([data-label-type="state"])'));
   if (!labels.length) return;
 
   // a hidden label measures zero, so clear the previous verdict before reading
