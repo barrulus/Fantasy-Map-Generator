@@ -3,6 +3,7 @@ import type { ReliefSet } from "@/types/relief";
 export interface Style {
   // TODO: style = {burgs: { icons, anchors }, labels } is more semantic
   burgIcons: { [key: string]: { [key: string]: string } };
+  routes: { [key: string]: { [key: string]: string } };
   anchors: { [key: string]: { [key: string]: string } };
   labels: { groups: Record<string, LabelGroupStyle> };
   relief: ReliefStyle;

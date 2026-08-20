@@ -214,7 +214,9 @@ function getZonesData(): ZoneRow[] {
     // several burgs share one cell; walk the burgs instead
     const zoneCells = new Set(zone.cells);
     const urban =
-      sum(pack.burgs.filter(burg => burg.i && !burg.removed && zoneCells.has(burg.cell)).map(burg => burg.population ?? 0)) *
+      sum(
+        pack.burgs.filter(burg => burg.i && !burg.removed && zoneCells.has(burg.cell)).map(burg => burg.population ?? 0)
+      ) *
       populationRate *
       urbanization;
     return { zone, area, rural, urban, population: rn(rural + urban) };

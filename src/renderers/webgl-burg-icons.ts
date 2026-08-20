@@ -261,7 +261,7 @@ const AUTO_BURG_THRESHOLD = 5000; // auto-enable GL above this many burgs
 export function burgWebglActive(): boolean {
   const w = window as any;
   const burgs = w.pack?.burgs?.length || 0;
-  if (burgs <= 1 || !w.layerIsOn?.("toggleBurgIcons")) return false;
+  if (burgs <= 1 || !Layers.isOn("burgIcons")) return false;
   const pref = w.webglBurgs; // true = forced on, false = forced off, null/undefined = auto
   return pref == null ? burgs > AUTO_BURG_THRESHOLD : !!pref;
 }

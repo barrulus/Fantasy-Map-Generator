@@ -31,6 +31,7 @@ if (PRODUCTION && "serviceWorker" in navigator) {
 }
 
 Layers.init(); // create the svg layer groups
+if (window.LayerHost) window.LayerHost.reconcile(); // a bare init() does not notify subscribers
 
 // Fork compatibility shim. Upstream migrated to d3.select("#id") at the point of use and dropped
 // these globals; ~150 fork call sites in public/**/*.js and older TS still read them. Rebound here
@@ -141,7 +142,7 @@ window.webglBurgs = JSON.safeParse(localStorage.getItem("webglBurgs"));
       localStorage.setItem("webglBurgs", JSON.stringify(window.webglBurgs));
     }
     if (window.destroyBurgGL) window.destroyBurgGL(); // clear GL canvas; drawBurgIcons re-picks the renderer
-    if (typeof drawBurgIcons === "function" && layerIsOn("toggleBurgIcons")) drawBurgIcons();
+    if (Layers.isOn("burgIcons")) Layers.draw("burgIcons");
     if (window.LayerHost) window.LayerHost.reconcile();
   });
 })();

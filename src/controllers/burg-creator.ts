@@ -57,8 +57,7 @@ function toggleSky(): void {
   );
   document.getElementById("addNewSkyBurg")?.classList.add("pressed");
 
-  if (!layerIsOn("toggleBurgIcons")) toggleBurgIcons();
-  if (!layerIsOn("toggleLabels")) toggleLabels();
+  Layers.show("burgIcons", "labels");
 }
 
 function addSkyOnClick(event: MouseEvent): void {

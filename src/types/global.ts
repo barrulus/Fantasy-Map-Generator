@@ -1,3 +1,4 @@
+import type { Selection } from "d3";
 import type { LabelGroup } from "@/generators/labels-generator";
 import type { ThreeDOptions } from "../data/view-3d-options";
 import type { GoodsModule } from "../generators/goods-generator";
@@ -18,6 +19,8 @@ declare global {
    */
   interface Window {
     tip: typeof import("../components/tooltips").tip;
+    drawBurgIcon: typeof import("../renderers/draw-burg-icons").drawBurgIcon;
+    removeBurgIcon: typeof import("../renderers/draw-burg-icons").removeBurgIcon;
     clearMainTip: typeof import("../components/tooltips").clearMainTip;
     showDataTip: typeof import("../components/tooltips").showDataTip;
     showElementLockTip: typeof import("../components/tooltips").showElementLockTip;
@@ -104,6 +107,17 @@ declare global {
   var getColor: (height: number, scheme: (t: number) => string) => string;
   var svgWidth: number;
   var svgHeight: number;
+  var statesBody: Selection<SVGGElement, unknown, null, undefined>;
+  var statesHalo: Selection<SVGGElement, unknown, null, undefined>;
+  var emblems: Selection<SVGElement, unknown, null, undefined>;
+  var armies: Selection<SVGGElement, unknown, null, undefined>;
+  var labels: Selection<SVGGElement, unknown, null, undefined>;
+  var terrain: Selection<SVGGElement, unknown, null, undefined>;
+
+  // Renderer bridges registered on window by their owning module (see draw-* renderers)
+  var drawLabels: () => void;
+  var drawRoutes: () => void;
+  var drawRoute: (route: import("../generators/routes-generator").Route) => void;
   // Element globals bound by the compatibility shim in public/main.js (upstream migrated to
   // d3.select("#id") at the point of use). Delete alongside that shim.
   var viewbox: Selection<SVGElement, unknown, null, undefined>;
@@ -128,7 +142,6 @@ declare global {
   var gridOverlay: Selection<SVGGElement, unknown, null, undefined>;
   var coordinates: Selection<SVGGElement, unknown, null, undefined>;
   var compass: Selection<SVGGElement, unknown, null, undefined>;
-  var terrain: Selection<SVGGElement, unknown, null, undefined>;
   var zones: Selection<SVGGElement, unknown, null, undefined>;
   var borders: Selection<SVGGElement, unknown, null, undefined>;
   var stateBorders: Selection<SVGGElement, unknown, null, undefined>;
@@ -145,7 +158,6 @@ declare global {
   var notes: any[]; // TODO: correct type
   var style: Style;
 
-  var mapId: number;
   var getArea: (rawArea: number) => number;
 
   // Dialog fit-content gutter fix, defined in src/components/dialog/fit-content.ts

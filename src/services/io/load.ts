@@ -440,7 +440,6 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
 
     Goods.sync();
     Markets.sync();
-    Routes.sync();
     TradeAnimation.sync();
 
     select("#scaleBar")

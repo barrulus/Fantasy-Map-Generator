@@ -168,7 +168,8 @@ export function reconcileLayers(): void {
   // on every toggle/reorder, so resizing here would blank the burgs until the next pan/zoom frame.
   const canvas =
     (document.getElementById("burgIconsGL") as HTMLElement | null) ?? (w().ensureBurgGLCanvas() as HTMLElement);
-  const icons = document.getElementById("icons");
+  // ask the registry where the burg layer sits: a drag-reorder moves it, and the canvas follows
+  const icons = w().Layers?.get("burgIcons")?.getEl?.() ?? document.getElementById("icons");
   const parent = svg.parentNode as Node;
 
   if (icons && hasLayersAbove(viewbox, icons)) {
@@ -234,6 +235,17 @@ export function hitTestTopDown(mapX: number, mapY: number): number | null {
     if (hit != null) return hit;
   }
   return null;
+}
+
+// Bridge to upstream's LayersRegistry. The registry owns layer order and visibility, and its
+// init() re-parents every layer group into #viewbox -- which silently undoes our split. reconcile()
+// begins by unifying, so re-running it after any registry mutation converges correctly.
+//
+// Deliberately temporary: when upstream moves burg icons to the viewport renderer, the GL layer and
+// this whole module go with it. Keep it a seam, not an integration.
+if (typeof window !== "undefined") {
+  const layers = (window as any).Layers;
+  if (layers?.subscribe) layers.subscribe(() => reconcileLayers());
 }
 
 Object.assign(window, {
