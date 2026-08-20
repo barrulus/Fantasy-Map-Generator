@@ -119,7 +119,7 @@ function buildStateLabel(state: State): LabelData | undefined {
 function buildRiverLabel(river: River): LabelData | undefined {
   if (!river.cells?.length || !river.name) return undefined;
   const anchor = getMiddleCellPoint(river.cells);
-  if (!anchor) return undefined; // every cell is off the map edge, so there is nowhere to put the label
+  if (!anchor) return undefined; // no on-map cell to anchor to
   const customPath = getCustomPath(river.label);
   const defaultPath = isPlainText(river.label)
     ? undefined
@@ -203,8 +203,7 @@ function getMiddlePoint(points: number[][]): Point {
   return [x, y];
 }
 
-// river.cells uses -1 for a cell beyond the map edge (river-generator resolves those to the edge
-// itself), and it has no entry in cells.p — so anchor on the middle of the on-map cells instead
+// river.cells uses -1 for a cell past the map edge, and it has no entry in cells.p
 function getMiddleCellPoint(cells: number[]): Point | undefined {
   const onMap = cells.filter(cellId => cellId >= 0);
   const point = pack.cells.p[onMap[Math.floor(onMap.length / 2)]];

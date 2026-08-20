@@ -16,7 +16,7 @@ const ROUTE_MIN_ZOOM: Record<string, number> = {
 };
 
 function cullRoutesByZoom(scale: number): void {
-  if (!layerIsOn("toggleRoutes")) return;
+  if (!Layers.isOn("routes")) return;
   for (const group of document.querySelectorAll<SVGGElement>("#routes g g")) {
     const minZoom = ROUTE_MIN_ZOOM[group.id];
     if (minZoom === undefined) continue;
@@ -27,7 +27,7 @@ function cullRoutesByZoom(scale: number): void {
 // Survivors are published as obstacles; without them the burg-label layers stop yielding to
 // state names.
 function resolveStateLabelCollisions(): void {
-  if (!layerIsOn("toggleLabels")) return void setStateLabelObstacles([]);
+  if (!Layers.isOn("labels")) return void setStateLabelObstacles([]);
 
   const labels = Array.from(document.querySelectorAll<SVGTextElement>('#labels text[data-label-type="state"]'));
   if (!labels.length) return void setStateLabelObstacles([]);

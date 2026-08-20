@@ -80,7 +80,7 @@ describe("megalopolis composite instances", () => {
   });
 
   it("skips burgs whose group is hidden", () => {
-    // The Skyburgs layer toggle sets display:none on #burgIcons > g#skyburg-*; GPU icons are
+    // A switched-off group sets display:none on its #burgIcons > g shell; GPU icons are
     // built from pack.burgs, so the hidden flag is the only thing that can cull them.
     const withHidden: Record<string, GroupRender> = {
       ...groups,

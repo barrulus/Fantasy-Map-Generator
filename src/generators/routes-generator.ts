@@ -1638,7 +1638,7 @@ class RoutesModule {
       cellRoutes[to.cell][from.cell] = route.i;
     }
 
-    if (layerIsOn("toggleRoutes")) drawRoutes();
+    if (Layers.isOn("routes")) drawRoutes();
 
     TIME && console.timeEnd("rebuildAirroutes");
   }
@@ -1664,7 +1664,7 @@ class RoutesModule {
 
     pack.cells.routes = this.buildLinks(pack.routes);
 
-    if (layerIsOn("toggleRoutes")) drawRoutes();
+    if (Layers.isOn("routes")) drawRoutes();
 
     TIME && console.timeEnd("rebuildTradeRoutes");
   }

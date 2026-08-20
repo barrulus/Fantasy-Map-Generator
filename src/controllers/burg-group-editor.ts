@@ -1,8 +1,7 @@
 import { closeDialogs, confirmationDialog, destroyDialog, refreshEditors } from "@/components/dialog/dialog-helpers";
+import { Layers } from "@/components/layers";
 import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
-import { drawBurgIcons } from "@/renderers/draw-burg-icons";
-import { drawLabels } from "@/renderers/labels/labels-renderer";
 import type { BurgGroup } from "@/types/burg-groups";
 import { ensureEl } from "../utils";
 
@@ -423,8 +422,8 @@ function submitForm(event: Event): void {
   const popIndex = Burgs.buildPopIndex(populations);
   validBurgs.forEach(burg => void Burgs.defineGroup(burg, popIndex, populations.length));
 
-  if (layerIsOn("toggleBurgIcons")) drawBurgIcons();
-  drawLabels();
+  Layers.draw("burgIcons");
+  Layers.draw("labels");
   refreshEditors();
 
   $("#burgGroupsEditor").dialog("close");

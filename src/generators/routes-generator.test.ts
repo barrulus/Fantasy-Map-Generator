@@ -805,7 +805,7 @@ describe("rebuildTradeRoutes", () => {
     g.graphWidth = 1000;
     g.graphHeight = 1000;
     g.mapCoordinates = { lonT: 180 };
-    g.layerIsOn = () => false; // rebuild must not try to draw in the test env
+    g.Layers = { isOn: () => false }; // rebuild must not try to draw in the test env
 
     const cap1 = {
       i: 1,

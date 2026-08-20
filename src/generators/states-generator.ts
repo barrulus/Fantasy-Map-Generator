@@ -119,7 +119,7 @@ class StatesModule {
     for (const burg of validBurgs) {
       if (!burg.capital || lockedCapitals.includes(burg.i)) continue;
       burg.capital = 0;
-      Burgs.changeGroup(burg, null, false);
+      Burgs.changeGroup(burg, null);
     }
 
     for (const state of pack.states) {
@@ -162,7 +162,7 @@ class StatesModule {
           burg.capital = 1;
           capital = burg;
           capitalsTree.add([burg.x, burg.y]);
-          Burgs.changeGroup(capital, null, false);
+          Burgs.changeGroup(capital, null);
           break;
         }
         spacing = Math.max(spacing - 1, 1);

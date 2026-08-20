@@ -9,6 +9,7 @@ import {
   renderEditorPagination,
   type TableView
 } from "@/components/dialog/table";
+import { Layers } from "@/components/layers";
 import { tip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
 import { type Route, UNNAMED_ROUTE } from "@/generators/routes-generator";
@@ -25,7 +26,6 @@ const columns: EditorColumn<Route>[] = [
     label: "Route",
     width: "15em",
     permanent: true,
-    tip: "Click to sort by route name",
     sortBy: route => route.name || "",
     sortType: "alpha"
   },
@@ -33,7 +33,6 @@ const columns: EditorColumn<Route>[] = [
     key: "group",
     label: "Group",
     width: "7em",
-    tip: "Click to sort by route group",
     sortBy: route => route.group || "",
     sortType: "alpha"
   },
@@ -41,7 +40,6 @@ const columns: EditorColumn<Route>[] = [
     key: "length",
     label: "Length",
     width: "6em",
-    tip: "Click to sort by route length",
     sortBy: route => route.length || 0,
     defaultSort: "desc"
   },
@@ -74,7 +72,7 @@ const routesTable = initEditorTable<Route>({
 function open(): void {
   if (customization) return;
   closeDialogs(`#${dialogId}, .stable`);
-  if (!layerIsOn("toggleRoutes")) toggleRoutes();
+  Layers.show("routes");
 
   renderDialog();
   routesTable.reset();
@@ -184,7 +182,7 @@ function renderRoutesPage(view: TableView<Route>): void {
 }
 
 function routeHighlightOn(event: Event): void {
-  if (!layerIsOn("toggleRoutes")) toggleRoutes();
+  Layers.show("routes");
   const routeId = +(event.target as HTMLElement).dataset.id!;
   select("#routes")
     .select(`#route${routeId}`)
