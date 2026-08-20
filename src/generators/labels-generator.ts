@@ -46,14 +46,17 @@ export class LabelsModule {
         name: "river",
         type: "river",
         layerDependency: "rivers",
-        zoom: { min: 6, max: 40 },
+        zoom: { min: 8, max: 40 },
         isDefault: true
       },
       {
+        // One label per named route, and the fork generates tens of thousands of routes at 500K
+        // cells, so these arrive in bulk at every zoom. The gate only trims the mid-zoom load —
+        // the collision pass in labeling/zoom-extras.ts is what keeps them readable.
         name: "route",
         type: "route",
         layerDependency: "routes",
-        zoom: { min: 6, max: 40 },
+        zoom: { min: 9, max: 40 },
         isDefault: true
       },
       // burg groups from Burgs.getDefaultGroups()
