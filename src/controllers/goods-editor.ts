@@ -255,7 +255,7 @@ function renderGoodsPage(view: TableView<Good>) {
   });
 
   updateDisplayAllCheckbox();
-  applyTagVisibilityFilter();
+  updateTagsFilterButton();
   updateDialog(dialogId, { width: "fit-content", position });
 }
 
@@ -481,9 +481,14 @@ function openTagsVisibilityDialog() {
   });
 }
 
+function updateTagsFilterButton() {
+  ensureEl("goodsTagsFilter").classList.toggle("active", visibleTags.size > 0);
+}
+
+// re-queries the table, which re-renders the page: only for actual filter changes, never
+// from renderGoodsPage itself - that recursed to stack overflow
 function applyTagVisibilityFilter() {
-  const hasFilter = visibleTags.size > 0;
-  ensureEl("goodsTagsFilter").classList.toggle("active", hasFilter);
+  updateTagsFilterButton();
   goodsTable.reset();
 }
 

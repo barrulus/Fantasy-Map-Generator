@@ -15,6 +15,7 @@ export function applyZoomBehavior(): void {
 let frameId: number | null = null;
 let pendingScaleChange = false;
 let pendingPositionChange = false;
+let viewChangedInGesture = false;
 
 function onZoom(event: D3ZoomEvent<SVGSVGElement, unknown>): void {
   const { k, x, y } = event.transform;
@@ -26,6 +27,7 @@ function onZoom(event: D3ZoomEvent<SVGSVGElement, unknown>): void {
   scale = k;
   viewX = x;
   viewY = y;
+  viewChangedInGesture = true;
 
   // Coalesce a burst of zoom events into one paint: the globals already hold the latest transform,
   // so keep OR-ing the change flags until the scheduled frame consumes them.
@@ -68,15 +70,21 @@ function handleZoomPerFrame(): void {
 /** Rewrite map content once the gesture settles */
 function handleZoomEnd(): void {
   // Labels and icons recalculate ONCE per gesture, here at its end - and only when the
-  // transform actually changed (a pending frame). Mid-gesture the materialized content just
-  // rides the viewbox transform; per-frame reconciles re-ran materialization and the
-  // label-collision reflow pass on every guard-band escape, making long zooms recalculate
-  // many times over. A plain click is a zero-movement "gesture" too: rendering on its
-  // mouseup would churn the DOM between mousedown and click dispatch and swallow the click.
+  // transform actually changed. A pending frame is not a proxy for that: wheel gestures end
+  // on d3's idle timeout, long after the last frame was painted, so the change is tracked
+  // explicitly. Mid-gesture the materialized content just rides the viewbox transform;
+  // per-frame reconciles re-ran materialization and the label-collision reflow pass on every
+  // guard-band escape, making long zooms recalculate many times over. A plain click is a
+  // zero-movement "gesture" too: rendering on its mouseup would churn the DOM between
+  // mousedown and click dispatch and swallow the click.
   if (frameId !== null) {
     cancelAnimationFrame(frameId);
     frameId = null;
     handleZoomPerFrame();
+  }
+
+  if (viewChangedInGesture) {
+    viewChangedInGesture = false;
     ViewportLayers.renderNow();
   }
 
