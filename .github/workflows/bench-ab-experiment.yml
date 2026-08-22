@@ -1,0 +1,56 @@
+name: Bench A/B Experiment
+
+# Measures the false-positive rate of the alternating base/head comparison:
+# with base and head set to the same commit every reported change is pure error.
+on:
+  push:
+    branches: [bench-ab-experiment]
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: "Alternating rounds"
+        default: "3"
+
+permissions:
+  contents: read
+
+jobs:
+  bench-ab:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - run: npm ci
+
+      - name: Compare HEAD against itself
+        env:
+          ROUNDS: ${{ github.event.inputs.rounds || '3' }}
+        run: |
+          case "$ROUNDS" in
+            ''|*[!0-9]*) ROUNDS=3 ;;
+          esac
+          node scripts/bench-ab.mjs \
+            --base HEAD --head HEAD \
+            --rounds "$ROUNDS" \
+            --threshold 0.25 \
+            --json-out bench-ab.json
+
+      - name: Publish results
+        if: always()
+        run: |
+          echo "### Bench A/B (base == head, so every change is error)" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat bench-ab.json >> $GITHUB_STEP_SUMMARY || echo "no results" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-ab-${{ github.run_number }}
+          path: bench-ab.json
+          if-no-files-found: ignore
