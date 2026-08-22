@@ -1,6 +1,7 @@
 import type { Selection } from "d3";
 import type { LabelGroup } from "@/generators/labels-generator";
 import type { ThreeDOptions } from "../data/view-3d-options";
+import type { CoastlineSettings } from "../generators/coastline-generator";
 import type { GoodsModule } from "../generators/goods-generator";
 import type { MarketsModule } from "../generators/markets-generator";
 import type { ProductionModule } from "../generators/production-generator";
@@ -273,6 +274,7 @@ type Options = {
   trade: {
     animation: ReturnType<typeof TradeAnimation.getDefaultOptions>;
   };
+  coastline: CoastlineSettings;
   threeD: ThreeDOptions;
 };
 
