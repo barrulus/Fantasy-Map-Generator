@@ -1293,8 +1293,7 @@ export function resolveVersionConflicts(mapVersion: string, data: string[]): voi
     for (const burgGroup of burgGroups) {
       const name = burgGroup.id;
       const oldStyle = deriveLabelsStyle(burgGroup);
-      const fontSize = Number.parseFloat(oldStyle["font-size"] as string);
-      const zoom = { min: rn(12 / fontSize - 1, 1), max: rn(120 / fontSize - 1, 1) };
+      const zoom = deriveZoomExtent(Number.parseFloat(oldStyle["font-size"] as string));
 
       options.labels.groups.push({ name, type: "burg", isDefault: name === "towns", zoom });
       style.labels.groups[name] = oldStyle;
@@ -1436,8 +1435,13 @@ export function resolveVersionConflicts(mapVersion: string, data: string[]): voi
       };
     }
 
+    // group font sizes are a percentage of #labels, which is (100 + 100 / scale) / 2 px, so a label
+    // is drawn at fontSize * (scale + 1) / 2 screen px. Keep the group between 12 and 120 px; a bound
+    // outside the zoom range the Label Groups editor accepts means no limit on that side
     function deriveZoomExtent(fontSize: number) {
-      return { min: rn(12 / fontSize - 1, 1), max: rn(120 / fontSize - 1, 1) };
+      const minBound = 0.01; // the Label Groups editor rejects anything below it
+      const inRange = (bound: number) => (bound >= minBound ? bound : null);
+      return { min: inRange(rn(24 / fontSize - 1, 1)), max: inRange(rn(240 / fontSize - 1, 1)) };
     }
 
     function getPathLabel({
