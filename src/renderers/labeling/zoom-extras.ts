@@ -1,6 +1,7 @@
 // Zoom-settle passes that upstream's zoom.ts does not do. Registered after the labels layer so
 // each run sees the label DOM already materialized.
 
+import { MEGALOPOLIS_MIN_ZOOM, MEGALOPOLIS_SPLIT_ZOOM } from "@/generators/megalopolis";
 import { ViewportLayers, type ViewportRenderContext } from "@/renderers/viewport/viewport-renderer";
 import {
   type CollisionBox,
@@ -9,7 +10,6 @@ import {
   selectNonOverlapping,
   setStateLabelObstacles
 } from "./label-collision";
-import { MEGALOPOLIS_MIN_ZOOM, MEGALOPOLIS_SPLIT_ZOOM } from "@/generators/megalopolis";
 import { groupRank } from "./tier-table";
 
 const ROUTE_MIN_ZOOM: Record<string, number> = {
