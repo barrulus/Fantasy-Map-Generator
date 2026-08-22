@@ -67,17 +67,18 @@ function handleZoomPerFrame(): void {
 
 /** Rewrite map content once the gesture settles */
 function handleZoomEnd(): void {
+  // Labels and icons recalculate ONCE per gesture, here at its end - and only when the
+  // transform actually changed (a pending frame). Mid-gesture the materialized content just
+  // rides the viewbox transform; per-frame reconciles re-ran materialization and the
+  // label-collision reflow pass on every guard-band escape, making long zooms recalculate
+  // many times over. A plain click is a zero-movement "gesture" too: rendering on its
+  // mouseup would churn the DOM between mousedown and click dispatch and swallow the click.
   if (frameId !== null) {
     cancelAnimationFrame(frameId);
     frameId = null;
     handleZoomPerFrame();
+    ViewportLayers.renderNow();
   }
-
-  // Labels and icons recalculate ONCE per gesture, here at its end. Mid-gesture the
-  // materialized content just rides the viewbox transform; per-frame reconciles re-ran
-  // materialization and the label-collision reflow pass on every guard-band escape, which
-  // made long zooms recalculate many times over.
-  ViewportLayers.renderNow();
 
   invokeActiveZooming();
 }

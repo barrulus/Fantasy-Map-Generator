@@ -79,12 +79,19 @@ function renderVisibleIcons(context: ViewportRenderContext): void {
         )
       : [];
 
+    // Reconcile rather than rebuild: node identity must survive a no-op pass. The zoom-end
+    // render fires on a plain click's mouseup, and replacing the clicked node between
+    // mousedown and mouseup makes the browser swallow the click.
     const icon = iconsGroup.dataset.icon || "#icon-circle";
-    for (const use of iconsGroup.querySelectorAll(":scope > use")) use.remove();
-    if (visible.length) {
+    const visibleIds = new Set(visible.map(b => `burg${b.i}`));
+    for (const use of iconsGroup.querySelectorAll(":scope > use")) {
+      if (!visibleIds.has(use.id)) use.remove();
+    }
+    const missing = visible.filter(b => !iconsGroup.querySelector(`:scope > #burg${b.i}`));
+    if (missing.length) {
       iconsGroup.insertAdjacentHTML(
         "afterbegin",
-        visible
+        missing
           .map(
             b =>
               `<use id="burg${b.i}" data-id="${b.i}" href="${icon}" x="${b.x}" y="${b.y}"${megaMemberIds.has(b.i!) ? ' class="megalopolis-member"' : ""}></use>`
@@ -96,9 +103,19 @@ function renderVisibleIcons(context: ViewportRenderContext): void {
     const portGroup = root.querySelector<SVGGElement>(`#anchors > g#${CSS.escape(name)}`);
     if (!portGroup) continue;
     const ports = visible.filter(b => b.port);
-    portGroup.innerHTML = ports
-      .map(b => `<use id="anchor${b.i}" data-id="${b.i}" href="#icon-anchor" x="${b.x}" y="${b.y}"></use>`)
-      .join("");
+    const portIds = new Set(ports.map(b => `anchor${b.i}`));
+    for (const use of portGroup.querySelectorAll(":scope > use")) {
+      if (!portIds.has(use.id)) use.remove();
+    }
+    const missingPorts = ports.filter(b => !portGroup.querySelector(`:scope > #anchor${b.i}`));
+    if (missingPorts.length) {
+      portGroup.insertAdjacentHTML(
+        "afterbegin",
+        missingPorts
+          .map(b => `<use id="anchor${b.i}" data-id="${b.i}" href="#icon-anchor" x="${b.x}" y="${b.y}"></use>`)
+          .join("")
+      );
+    }
   }
 }
 
