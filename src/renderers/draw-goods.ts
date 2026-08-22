@@ -1,7 +1,9 @@
 import { select } from "d3";
+import { Layers } from "@/components/layers";
 import type { Good } from "../generators/goods-generator";
-import { normalize, rn } from "../utils";
-import { getPackPolygon } from "../utils/graphUtils";
+import { getIsolines, normalize, rn } from "../utils";
+import { buildFillPaths } from "./isoline-fills";
+import { ViewportLayers, type ViewportRenderContext } from "./viewport/viewport-renderer";
 
 const PLATE_ICON = 3;
 const PLATE_FONT = 3.5;
@@ -14,63 +16,148 @@ const PLATE_RX = 1;
 const PLATE_FILL = "#f5f5f5";
 const DEFAULT_SIZE = 6;
 
+const CELL_BUCKETS = 5;
+const MAX_PLATES = 1000;
+const MAX_ICONS = 4000;
+const CULL_PAD = 30;
+
+interface SceneItem {
+  x: number;
+  y: number;
+  markup: string;
+}
+
+interface CullBounds {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+let iconItems: SceneItem[] = [];
+let plateItems: SceneItem[] = [];
+
+const layer = ViewportLayers.register({ id: "goods", render: reconcileGoods });
+
 export function drawGoods() {
   TIME && console.time("drawGoods");
 
   const visible = new Set(pack.goods.filter(good => good.visible).map(good => good.i));
   select("#goods").select("#goodsCells").html(buildGoodsCellsContent(visible));
-  select("#goods").select("#goodsIcons").html(buildGoodsIconsContent(visible));
-  select("#goods").select("#goodsBurgs").html(buildGoodsBurgsContent(visible));
+  iconItems = buildIconItems(visible);
+  plateItems = buildPlateItems(visible);
+  layer.render();
+
   TIME && console.timeEnd("drawGoods");
+}
+
+export function encodeCellFill(goodId: number, normalized: number): number {
+  const bucket = Math.min(CELL_BUCKETS - 1, Math.floor(normalized * CELL_BUCKETS));
+  return goodId * CELL_BUCKETS + bucket + 1;
+}
+
+export function cellFillColor(key: number, getGoodColor: (goodId: number) => string): string {
+  const goodId = Math.floor((key - 1) / CELL_BUCKETS);
+  const bucket = (key - 1) % CELL_BUCKETS;
+  const alpha = 0.1 + (0.9 * (bucket + 1)) / CELL_BUCKETS;
+  const alphaHex = Math.round(alpha * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return getGoodColor(goodId) + alphaHex;
+}
+
+export function capVisible<T extends { x: number; y: number }>(
+  items: T[],
+  bounds: CullBounds,
+  max: number,
+  pad = 0
+): T[] {
+  const result: T[] = [];
+  for (const item of items) {
+    if (item.x < bounds.x0 - pad || item.x > bounds.x1 + pad || item.y < bounds.y0 - pad || item.y > bounds.y1 + pad)
+      continue;
+    result.push(item);
+    if (result.length >= max) break;
+  }
+  return result;
+}
+
+export function strideVisible<T extends { x: number; y: number }>(
+  items: T[],
+  bounds: CullBounds,
+  max: number,
+  pad = 0
+): T[] {
+  const visible = capVisible(items, bounds, Infinity, pad);
+  if (visible.length <= max) return visible;
+
+  const stride = Math.ceil(visible.length / max);
+  const sampled: T[] = [];
+  for (let i = 0; i < visible.length; i += stride) sampled.push(visible[i]);
+  return sampled;
+}
+
+function reconcileGoods(context: ViewportRenderContext): void {
+  if (!Layers.isOn("goods")) return;
+  const iconsGroup = context.root.querySelector("#goodsIcons");
+  const burgsGroup = context.root.querySelector("#goodsBurgs");
+  if (!iconsGroup || !burgsGroup) return;
+
+  const { bounds } = context;
+  iconsGroup.innerHTML = strideVisible(iconItems, bounds, MAX_ICONS, CULL_PAD)
+    .map(item => item.markup)
+    .join("");
+  burgsGroup.innerHTML = capVisible(plateItems, bounds, MAX_PLATES, CULL_PAD)
+    .map(item => item.markup)
+    .join("");
 }
 
 function buildGoodsCellsContent(displayedGoods: Set<number>): string {
   if (!displayedGoods.size) return "";
 
-  // First pass: accumulate total production per cell to find the global max
-  const cellTotals = new Map<number, { produced: Map<number, number>; total: number }>();
   const biomeProduction = Goods.getBiomesProduction();
+  const dominant = new Map<number, number>();
+  const totals = new Map<number, number>();
   let maxTotal = 0;
   for (const cellId of pack.cells.i) {
-    let total = 0;
     const produced = Production.getCellProduction(cellId, biomeProduction);
-    const filteredProduced = Object.entries(produced).reduce((map, [goodId, amount]) => {
-      if (displayedGoods.has(+goodId)) {
-        map.set(+goodId, amount);
-        total += amount;
+    let total = 0;
+    let bestGood = 0;
+    let bestAmount = 0;
+    for (const [goodId, amount] of Object.entries(produced)) {
+      if (!displayedGoods.has(+goodId) || amount <= 0) continue;
+      total += amount;
+      if (amount > bestAmount) {
+        bestAmount = amount;
+        bestGood = +goodId;
       }
-      return map;
-    }, new Map<number, number>());
+    }
     if (!total) continue;
 
-    cellTotals.set(cellId, { produced: filteredProduced, total });
+    dominant.set(cellId, bestGood);
+    totals.set(cellId, total);
     if (total > maxTotal) maxTotal = total;
   }
   if (maxTotal === 0) return "";
 
-  // Second pass: render polygons with opacity normalized against the global max
-  let html = "";
-  for (const [cellId, { produced, total }] of cellTotals) {
-    const opacity = 0.1 + 0.9 * normalize(total, 0, maxTotal);
-    const points = getPackPolygon(cellId, pack).join(" ");
-    for (const [goodId, amount] of produced) {
-      if (amount <= 0) continue;
-      const good = Goods.get(goodId);
-      if (!good) continue;
-      html += `<polygon points="${points}" fill="${good.color}" fill-opacity="${rn(opacity, 2)}"/>`;
-    }
+  const keys = new Int32Array(pack.cells.i.length);
+  for (const [cellId, total] of totals) {
+    keys[cellId] = encodeCellFill(dominant.get(cellId)!, normalize(total, 0, maxTotal));
   }
-  return html;
+
+  const isolines = getIsolines(pack, cellId => keys[cellId] || null, { fill: true });
+  return buildFillPaths("goodsCell", isolines, key => cellFillColor(key, goodId => Goods.get(goodId)?.color ?? "#000"));
 }
 
-function buildGoodsIconsContent(displayedGoods: Set<number>): string {
-  if (!displayedGoods.size || !pack.cells.good) return "";
+function buildIconItems(displayedGoods: Set<number>): SceneItem[] {
+  if (!displayedGoods.size || !pack.cells.good) return [];
 
   const iconsGroup = select("#goods").select("#goodsIcons");
   const drawCircle = +iconsGroup.attr("data-circle");
   const iconSize = +iconsGroup.attr("data-size") || DEFAULT_SIZE;
   const half = iconSize / 2;
-  let html = "";
+
+  const items: SceneItem[] = [];
   for (const cellId of pack.cells.i) {
     const goodId = pack.cells.good[cellId];
     if (!goodId || !displayedGoods.has(goodId)) continue;
@@ -79,15 +166,16 @@ function buildGoodsIconsContent(displayedGoods: Set<number>): string {
 
     const [x, y] = pack.cells.p[cellId];
     const stroke = Goods.getStroke(good.color);
-    html += `<g data-i="${good.i}">${
+    const markup = `<g data-i="${good.i}">${
       drawCircle ? `<circle cx="${x}" cy="${y}" r="${half}" fill="${good.color}" stroke="${stroke}" />` : ""
     }<use href="#${good.icon}" x="${rn(x - half, 2)}" y="${rn(y - half, 2)}" width="${iconSize}" height="${iconSize}"/></g>`;
+    items.push({ x, y, markup });
   }
-  return html;
+  return items;
 }
 
-function buildGoodsBurgsContent(displayedGoods: Set<number>): string {
-  if (!displayedGoods.size) return "";
+function buildPlateItems(displayedGoods: Set<number>): SceneItem[] {
+  if (!displayedGoods.size) return [];
 
   // plate icon size is user-defined; the rest of the geometry and font scale with it
   const plateIcon = +select("#goods").select("#goodsBurgs").attr("data-size") || PLATE_ICON;
@@ -100,7 +188,7 @@ function buildGoodsBurgsContent(displayedGoods: Set<number>): string {
   const plateRx = PLATE_RX * scale;
   const charWidth = 1.2 * scale;
 
-  let html = "";
+  const items: (SceneItem & { total: number })[] = [];
   for (const burg of pack.burgs) {
     if (!burg.i || burg.removed || !burg.production) continue;
 
@@ -142,7 +230,11 @@ function buildGoodsBurgsContent(displayedGoods: Set<number>): string {
       offset += width + plateEntryGap;
     }
 
-    html += `<g data-id="${burg.i}">${content}</g>`;
+    const total = entries.reduce((sum, e) => sum + e.value, 0);
+    items.push({ x: burg.x, y: burg.y, total, markup: `<g data-id="${burg.i}">${content}</g>` });
   }
-  return html;
+
+  // production-sorted so the zoomed-out cap keeps the biggest producers
+  items.sort((a, b) => b.total - a.total);
+  return items;
 }
