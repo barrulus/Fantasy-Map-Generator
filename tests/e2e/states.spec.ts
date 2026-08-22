@@ -100,8 +100,10 @@ test.describe("States", () => {
       element.checked = true;
     });
 
+    // the fork keeps its inline manual-assign mode (with the demote-to-province picker)
+    // instead of upstream's shared Paint editor - same behavior, different controls
     await page.click("#statesManually");
-    await page.waitForSelector("#paintEditor", {state: "visible"});
+    await page.waitForSelector("#statesManuallyButtons", {state: "visible"});
 
     const target = await page.evaluate(() => {
       const {cells, states} = (window as any).pack;
@@ -116,14 +118,14 @@ test.describe("States", () => {
       return {cell, state, x: point.x, y: point.y};
     });
 
-    await page.selectOption("#paintEditorSelect", "0");
+    await page.selectOption("#statesManuallyState", "0");
     await page.mouse.move(target.x, target.y);
     await page.mouse.down();
     await page.mouse.move(target.x + 2, target.y, {steps: 2});
     await page.mouse.up();
-    await expect(page.locator(`#paintEditorOverlay polygon[data-cell="${target.cell}"]`)).toBeAttached();
+    await expect(page.locator(`#temp polygon[data-cell="${target.cell}"]`)).toBeAttached();
 
-    await page.click("#paintEditorApply");
+    await page.click("#statesManuallyApply");
 
     expect(pageErrors).toEqual([]);
     await expect.poll(() => page.evaluate(cell => (window as any).pack.cells.state[cell], target.cell)).toBe(0);
