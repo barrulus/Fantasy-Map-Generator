@@ -1,81 +1,127 @@
 import { select } from "d3";
 import type { Burg } from "../generators/burgs-generator";
-import { COMPOSITE_ICON_SCALE, findMegalopolises, RING_ICON_SCALE } from "../generators/megalopolis";
+import { COMPOSITE_ICON_SCALE, findMegalopolises, type Megalopolis, RING_ICON_SCALE } from "../generators/megalopolis";
+import { groupMinZoom } from "./labeling/tier-table";
+import { ViewportLayers, type ViewportRenderContext } from "./viewport/viewport-renderer";
 
 declare global {
   var drawBurgIcons: () => void;
 }
 
+// Megalopolis membership is derived per full draw and reused by every viewport reconcile
+let megaMemberIds = new Set<number>();
+
 const burgIconsRenderer = (): void => {
   TIME && console.time("drawBurgIcons");
   createIconGroups();
 
-  // WebGL path: the styled <g> groups exist (the atlas bakes them); skip populating
-  // ~80K <use> nodes and render the icons on the GPU canvas instead.
-  if ((window as { burgWebglActive?: () => boolean }).burgWebglActive?.()) {
-    void (window as { rebuildBurgGL?: () => Promise<void> }).rebuildBurgGL?.();
-    TIME && console.timeEnd("drawBurgIcons");
-    return;
-  }
-
   const megas = findMegalopolises(pack.burgs, pack.cells.burg);
-  const megaIds = new Set<number>();
-  for (const m of megas.values()) for (const b of m.members) megaIds.add(b.i);
+  megaMemberIds = new Set();
+  for (const m of megas.values()) for (const b of m.members) megaMemberIds.add(b.i);
 
+  // Composites are few and zoom-toggled by CSS display (zoom-extras), so they materialize once
+  // per draw; the per-burg member icons materialize per viewport in renderVisibleIcons.
   for (const { name } of options.burgs.groups) {
-    const burgsInGroup = pack.burgs.filter(b => b.group === name && !b.removed);
-    if (!burgsInGroup.length) continue;
-
     const iconsGroup = document.querySelector<SVGGElement>(`#burgIcons > g#${name}`);
     if (!iconsGroup) continue;
 
-    const icon = iconsGroup.dataset.icon || "#icon-circle";
-    iconsGroup.innerHTML = burgsInGroup
-      .map(
-        b =>
-          `<use id="burg${b.i}" data-id="${b.i}" href="${icon}" x="${b.x}" y="${b.y}"${megaIds.has(b.i) ? ' class="megalopolis-member"' : ""}></use>`
-      )
-      .join("");
-
-    // Composite icons (enlarged anchor + ring) for megalopolises anchored in this
-    // group; the invokeActiveZooming hook swaps them with member icons by zoom.
     const composites = [...megas.values()].filter(m => m.anchor.group === name);
-    if (composites.length) {
-      const size = parseFloat(getComputedStyle(iconsGroup).fontSize) || 2;
-      iconsGroup.innerHTML += composites
-        .map(m => {
-          const cSize = size * COMPOSITE_ICON_SCALE;
-          const half = cSize / 2;
-          return (
-            `<g class="megalopolis-composite" data-cell="${m.cell}" style="display:none">` +
-            `<use data-id="${m.anchor.i}" href="${icon}" x="${m.anchor.x}" y="${m.anchor.y}" width="${cSize}" height="${cSize}" transform="translate(${-half + size / 2},${-half + size / 2})"></use>` +
-            `<circle data-id="${m.anchor.i}" cx="${m.anchor.x}" cy="${m.anchor.y}" r="${(size * RING_ICON_SCALE) / 2}" fill="none" stroke="#fff" stroke-width="${size * 0.12}"></circle>` +
-            `</g>`
-          );
-        })
-        .join("");
-    }
-
-    const portsInGroup = burgsInGroup.filter(b => b.port);
-    if (!portsInGroup.length) continue;
-
-    const portGroup = document.querySelector<SVGGElement>(`#anchors > g#${name}`);
-    if (!portGroup) continue;
-
-    portGroup.innerHTML = portsInGroup
-      .map(b => `<use id="anchor${b.i}" data-id="${b.i}" href="#icon-anchor" x="${b.x}" y="${b.y}"></use>`)
-      .join("");
+    if (composites.length) iconsGroup.innerHTML = compositesMarkup(iconsGroup, composites);
   }
 
+  ViewportLayers.renderNow();
   TIME && console.timeEnd("drawBurgIcons");
 };
 
-const drawBurgIconRenderer = (burg: Burg): void => {
-  if ((window as { burgWebglActive?: () => boolean }).burgWebglActive?.()) {
-    (window as { scheduleRebuildBurgGL?: () => void }).scheduleRebuildBurgGL?.();
-    return;
-  }
+function compositesMarkup(iconsGroup: SVGGElement, composites: Megalopolis[]): string {
+  const icon = iconsGroup.dataset.icon || "#icon-circle";
+  const size = parseFloat(getComputedStyle(iconsGroup).fontSize) || 2;
+  return composites
+    .map(m => {
+      const cSize = size * COMPOSITE_ICON_SCALE;
+      const half = cSize / 2;
+      return (
+        `<g class="megalopolis-composite" data-cell="${m.cell}" style="display:none">` +
+        `<use data-id="${m.anchor.i}" href="${icon}" x="${m.anchor.x}" y="${m.anchor.y}" width="${cSize}" height="${cSize}" transform="translate(${-half + size / 2},${-half + size / 2})"></use>` +
+        `<circle data-id="${m.anchor.i}" cx="${m.anchor.x}" cy="${m.anchor.y}" r="${(size * RING_ICON_SCALE) / 2}" fill="none" stroke="#fff" stroke-width="${size * 0.12}"></circle>` +
+        `</g>`
+      );
+    })
+    .join("");
+}
 
+/**
+ * Materialize only the burg icons the viewport can show: anchor inside the (overscanned) bounds
+ * and the group past its zoom gate. The gate is the label group's (per-map, user-editable in the
+ * labels overview), so a burg's icon and label appear together; groups without a label group
+ * (skyburgs, legacy shells) fall back to the tier table. Everything else stays out of the DOM
+ * entirely, which is what keeps 100K-burg maps pannable; the removed WebGL layer achieved its
+ * speed with exactly this culling, on the GPU.
+ */
+function renderVisibleIcons(context: ViewportRenderContext): void {
+  if (!Layers.isOn("burgIcons")) return;
+  const { root, bounds } = context;
+  // ViewportLayers.renderTo (save/export clones) passes unbounded bounds: keep every icon there
+  const unbounded = bounds.x0 === -Infinity;
+
+  for (const { name } of options.burgs.groups) {
+    const iconsGroup = root.querySelector<SVGGElement>(`#burgIcons > g#${CSS.escape(name)}`);
+    if (!iconsGroup) continue;
+
+    const minZoom = options.labels.groups.find(group => group.name === name)?.zoom?.min ?? groupMinZoom(name);
+    const gatePassed = unbounded || options.labels.showAll || bounds.scale >= minZoom;
+    const visible = gatePassed
+      ? pack.burgs.filter(
+          b =>
+            b.group === name &&
+            !b.removed &&
+            (unbounded || (b.x >= bounds.x0 && b.x <= bounds.x1 && b.y >= bounds.y0 && b.y <= bounds.y1))
+        )
+      : [];
+
+    // Reconcile rather than rebuild: node identity must survive a no-op pass. The zoom-end
+    // render fires on a plain click's mouseup, and replacing the clicked node between
+    // mousedown and mouseup makes the browser swallow the click.
+    const icon = iconsGroup.dataset.icon || "#icon-circle";
+    const visibleIds = new Set(visible.map(b => `burg${b.i}`));
+    for (const use of iconsGroup.querySelectorAll(":scope > use")) {
+      if (!visibleIds.has(use.id)) use.remove();
+    }
+    const missing = visible.filter(b => !iconsGroup.querySelector(`:scope > #burg${b.i}`));
+    if (missing.length) {
+      iconsGroup.insertAdjacentHTML(
+        "afterbegin",
+        missing
+          .map(
+            b =>
+              `<use id="burg${b.i}" data-id="${b.i}" href="${icon}" x="${b.x}" y="${b.y}"${megaMemberIds.has(b.i!) ? ' class="megalopolis-member"' : ""}></use>`
+          )
+          .join("")
+      );
+    }
+
+    const portGroup = root.querySelector<SVGGElement>(`#anchors > g#${CSS.escape(name)}`);
+    if (!portGroup) continue;
+    const ports = visible.filter(b => b.port);
+    const portIds = new Set(ports.map(b => `anchor${b.i}`));
+    for (const use of portGroup.querySelectorAll(":scope > use")) {
+      if (!portIds.has(use.id)) use.remove();
+    }
+    const missingPorts = ports.filter(b => !portGroup.querySelector(`:scope > #anchor${b.i}`));
+    if (missingPorts.length) {
+      portGroup.insertAdjacentHTML(
+        "afterbegin",
+        missingPorts
+          .map(b => `<use id="anchor${b.i}" data-id="${b.i}" href="#icon-anchor" x="${b.x}" y="${b.y}"></use>`)
+          .join("")
+      );
+    }
+  }
+}
+
+ViewportLayers.register({ id: "fork-burg-icons", render: renderVisibleIcons });
+
+const drawBurgIconRenderer = (burg: Burg): void => {
   const iconGroup = select("#burgIcons").select<SVGGElement>(`#${burg.group}`);
   if (iconGroup.empty()) {
     drawBurgIcons();
@@ -106,11 +152,6 @@ const drawBurgIconRenderer = (burg: Burg): void => {
 };
 
 const removeBurgIconRenderer = (burgId: number): void => {
-  if ((window as { burgWebglActive?: () => boolean }).burgWebglActive?.()) {
-    (window as { scheduleRebuildBurgGL?: () => void }).scheduleRebuildBurgGL?.();
-    return;
-  }
-
   const existingIcon = document.getElementById(`burg${burgId}`);
   if (existingIcon) existingIcon.remove();
 

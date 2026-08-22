@@ -1,6 +1,7 @@
 // Zoom-settle passes that upstream's zoom.ts does not do. Registered after the labels layer so
 // each run sees the label DOM already materialized.
 
+import { MEGALOPOLIS_MIN_ZOOM, MEGALOPOLIS_SPLIT_ZOOM } from "@/generators/megalopolis";
 import { ViewportLayers, type ViewportRenderContext } from "@/renderers/viewport/viewport-renderer";
 import {
   type CollisionBox,
@@ -112,8 +113,23 @@ function resolveLabelCollisions(): void {
   for (const label of labels) label.classList.toggle("hidden", !keep.has(label.id));
 }
 
+// Megalopolis composite swap, SVG path only (the GL path swaps buffers inside drawBurgGL):
+// below the split zoom show one composite icon per multi-burg cell and hide the members.
+// Composites follow the capital tier gate. Labels need no pass here - label-data already
+// gives members a minZoom and composites a maxZoom at the split.
+function swapMegalopolisComposites(scale: number): void {
+  const composites = document.querySelectorAll<SVGGElement>("#burgIcons .megalopolis-composite");
+  if (!composites.length) return;
+  const compositeMode = scale < MEGALOPOLIS_SPLIT_ZOOM;
+  const compositeVisible = compositeMode && scale >= MEGALOPOLIS_MIN_ZOOM;
+  for (const member of document.querySelectorAll<SVGElement>("#burgIcons .megalopolis-member"))
+    member.style.display = compositeMode ? "none" : "";
+  for (const composite of composites) composite.style.display = compositeVisible ? "" : "none";
+}
+
 function render(context: ViewportRenderContext): void {
   cullRoutesByZoom(context.bounds.scale);
+  swapMegalopolisComposites(context.bounds.scale);
   resolveStateLabelCollisions();
   resolveLabelCollisions(); // after the state pass: it consumes that pass's obstacles
 }

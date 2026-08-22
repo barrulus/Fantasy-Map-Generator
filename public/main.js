@@ -31,7 +31,6 @@ if (PRODUCTION && "serviceWorker" in navigator) {
 }
 
 Layers.init(); // create the svg layer groups
-if (window.LayerHost) window.LayerHost.reconcile(); // a bare init() does not notify subscribers
 
 // Fork compatibility shim. Upstream migrated to d3.select("#id") at the point of use and dropped
 // these globals; ~150 fork call sites in public/**/*.js and older TS still read them. Rebound here
@@ -126,43 +125,6 @@ var graphHeight = +mapHeightInput.value;
 let svgWidth = graphWidth;
 let svgHeight = graphHeight;
 
-// WebGL burg-icon canvas (stacked over the SVG, transform-synced in zoomRaf).
-// webglBurgs: true = forced on, false = forced off, null = auto (on above ~5000 burgs).
-window.webglBurgs = JSON.safeParse(localStorage.getItem("webglBurgs"));
-(function wireWebglBurgsOption() {
-  const sel = document.getElementById("webglBurgsSelect");
-  if (!sel) return;
-  sel.value = window.webglBurgs === true ? "on" : window.webglBurgs === false ? "off" : "auto";
-  sel.addEventListener("change", () => {
-    if (sel.value === "auto") {
-      window.webglBurgs = null;
-      localStorage.removeItem("webglBurgs");
-    } else {
-      window.webglBurgs = sel.value === "on";
-      localStorage.setItem("webglBurgs", JSON.stringify(window.webglBurgs));
-    }
-    if (window.destroyBurgGL) window.destroyBurgGL(); // clear GL canvas; drawBurgIcons re-picks the renderer
-    if (Layers.isOn("burgIcons")) Layers.draw("burgIcons");
-    if (window.LayerHost) window.LayerHost.reconcile();
-  });
-})();
-function ensureBurgGLCanvas() {
-  let c = document.getElementById("burgIconsGL");
-  if (!c) {
-    c = document.createElement("canvas");
-    c.id = "burgIconsGL";
-    document.getElementById("map").after(c); // sibling of the SVG, stacked above
-  }
-  // size in device pixels to the on-screen map rect
-  const rect = document.getElementById("map").getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  c.style.width = rect.width + "px";
-  c.style.height = rect.height + "px";
-  c.width = Math.round(rect.width * dpr);
-  c.height = Math.round(rect.height * dpr);
-  return c;
-}
-window.ensureBurgGLCanvas = ensureBurgGLCanvas;
 
 d3.select("#landmass").append("rect").attr("x", 0).attr("y", 0).attr("width", graphWidth).attr("height", graphHeight);
 d3.select("#oceanPattern")

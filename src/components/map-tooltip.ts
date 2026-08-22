@@ -89,17 +89,6 @@ function getPopulationTip(cellId: number): string {
 export function showMapTooltip(point: Point, event: Event, cellId: number, gridCellId: number): void {
   tip(""); // clear tip
 
-  // WebGL burgs have no per-burg DOM, so hit-test the cursor against the registered GL layers.
-  if ((window as any).LayerHost) {
-    const burgId = (window as any).LayerHost.hitTestTopDown(point[0], point[1]);
-    if (burgId) {
-      const burg = pack.burgs[burgId];
-      const population = si((burg.population || 0) * populationRate * urbanization);
-      tip(`${burg.name} ${burg.group}. Population: ${population}. Click to edit`);
-      return;
-    }
-  }
-
   const target = event.target as SVGElement;
   const path = (event.composedPath ? event.composedPath() : getComposedPath(target)) as HTMLElement[];
   if (!path[path.length - 8]) return;

@@ -18,6 +18,8 @@ jobs:
       - name: Setup Biome
         uses: biomejs/setup-biome@v2
         with:
-          version: latest
+          # match the repo's devDependency: a floating "latest" starts enforcing rules the
+          # local toolchain doesn't have yet, failing PRs on files they never touched
+          version: 2.4.15
       - name: Run Biome
         run: biome ci .

@@ -2,7 +2,7 @@
  * Single source of truth for per-tier burg label/icon behaviour.
  *
  * Before this module the min-zoom table existed in three places (public/main.js BURG_MIN_ZOOM,
- * webgl-burg-labels.ts, webgl-burg-icons.ts) which had to be hand-synced. Everything per-tier
+ * removed WebGL renderers) which had to be hand-synced. Everything per-tier
  * lives here now; nothing else may declare a tier constant.
  */
 

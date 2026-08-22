@@ -36,7 +36,7 @@ export function isGroupSwitchedOff(el: Element): boolean {
 
 /**
  * Read the sibling `#burgIcons > g#{id}` element's computed font-size, which the icon atlas
- * (webgl-burg-atlas.ts) treats as the icon's map-unit diameter. Falls back to a sensible default
+ * is the icon's map-unit diameter. Falls back to a sensible default
  * when the icon group is missing (e.g. in tests that only mount #burgLabels) so label offset math
  * always has a finite input.
  */

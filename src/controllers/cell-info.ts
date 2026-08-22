@@ -26,16 +26,6 @@ function open(): void {
   renderDialog();
   select<SVGGElement, unknown>("#viewbox").on("touchmove.cellInfo mousemove.cellInfo", updateCellInfo);
 
-  // WebGL layers are interleaved into a sibling SVG root (#viewboxTop, see viewbox-events.ts),
-  // so hovering over top-layer content wouldn't otherwise reach the #viewbox-bound handler above.
-  const viewboxTop = document.getElementById("viewboxTop");
-  if (viewboxTop) {
-    select<SVGGElement, unknown>(viewboxTop as unknown as SVGGElement).on(
-      "touchmove.cellInfo mousemove.cellInfo",
-      updateCellInfo
-    );
-  }
-
   $("#cellInfo").dialog({
     resizable: false,
     width: "22em",
@@ -47,8 +37,6 @@ function open(): void {
 
 function cleanup(): void {
   select<SVGGElement, unknown>("#viewbox").on(".cellInfo", null);
-  const viewboxTop = document.getElementById("viewboxTop");
-  if (viewboxTop) select<SVGGElement, unknown>(viewboxTop as unknown as SVGGElement).on(".cellInfo", null);
   destroyDialog("cellInfo");
 }
 
