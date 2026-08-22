@@ -50,7 +50,6 @@ function handleZoomPerFrame(): void {
   ensureEl<SVGGElement>("viewbox").setAttribute("transform", `translate(${viewX} ${viewY}) scale(${scale})`);
   window.updateMinimap?.();
   redrawTracedImage();
-  ViewportLayers.schedule();
 
   if (didScaleChange) {
     Layers.draw("scaleBar");
@@ -72,8 +71,13 @@ function handleZoomEnd(): void {
     cancelAnimationFrame(frameId);
     frameId = null;
     handleZoomPerFrame();
-    ViewportLayers.renderNow();
   }
+
+  // Labels and icons recalculate ONCE per gesture, here at its end. Mid-gesture the
+  // materialized content just rides the viewbox transform; per-frame reconciles re-ran
+  // materialization and the label-collision reflow pass on every guard-band escape, which
+  // made long zooms recalculate many times over.
+  ViewportLayers.renderNow();
 
   invokeActiveZooming();
 }
