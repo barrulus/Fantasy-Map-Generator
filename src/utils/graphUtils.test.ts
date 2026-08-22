@@ -1,6 +1,6 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { Point } from "../generators/voronoi";
-import { calculateVoronoi } from "./graphUtils";
+import { calculateVoronoi, findAllCellsInRadius, findClosestCell } from "./graphUtils";
 
 beforeAll(() => {
   // TIME is an app-wide profiling global guarded as `TIME && console.time(...)`.
@@ -69,5 +69,22 @@ describe("calculateVoronoi", () => {
       checked++;
     });
     expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe("packed-cell spatial queries", () => {
+  it("reuses one quadtree for repeated queries against the same map", () => {
+    const points: [number, number][] = [
+      [0, 0],
+      [5, 0],
+      [10, 0]
+    ];
+    const mapPoints = vi.spyOn(points, "map");
+    const graph = { cells: { p: points } };
+
+    expect(findAllCellsInRadius(5, 0, 6, graph).sort()).toEqual([0, 1, 2]);
+    expect(findAllCellsInRadius(5, 0, 2, graph)).toEqual([1]);
+    expect(findClosestCell(6, 0, Infinity, graph)).toBe(1);
+    expect(mapPoints).toHaveBeenCalledOnce();
   });
 });

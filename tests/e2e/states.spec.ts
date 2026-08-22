@@ -87,4 +87,48 @@ test.describe("States", () => {
     // At least some states should have military
     expect(militaryResult.statesWithMilitary).toBeGreaterThanOrEqual(0);
   });
+
+  test("painting states applies after the States Editor closes", async ({page}) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", error => pageErrors.push(error.message));
+
+    await page.click("#optionsTrigger");
+    await page.click("#toolsTab");
+    await page.click("#editStatesButton");
+    await page.waitForSelector("#statesEditor", {state: "visible"});
+    await page.locator("#adjustLabels").evaluate((element: HTMLInputElement) => {
+      element.checked = true;
+    });
+
+    // the fork keeps its inline manual-assign mode (with the demote-to-province picker)
+    // instead of upstream's shared Paint editor - same behavior, different controls
+    await page.click("#statesManually");
+    await page.waitForSelector("#statesManuallyButtons", {state: "visible"});
+
+    const target = await page.evaluate(() => {
+      const {cells, states} = (window as any).pack;
+      const cell = cells.i.find(
+        (cellId: number) => cells.h[cellId] >= 20 && cells.state[cellId] && states[cells.state[cellId]].center !== cellId
+      );
+      const [x, y] = cells.p[cell];
+      const viewbox = document.getElementById("viewbox") as unknown as SVGGraphicsElement;
+      const point = new DOMPoint(x, y).matrixTransform(viewbox.getScreenCTM()!);
+      const state = cells.state[cell];
+      states[state].label = {text: "paint-test-label"};
+      return {cell, state, x: point.x, y: point.y};
+    });
+
+    await page.selectOption("#statesManuallyState", "0");
+    await page.mouse.move(target.x, target.y);
+    await page.mouse.down();
+    await page.mouse.move(target.x + 2, target.y, {steps: 2});
+    await page.mouse.up();
+    await expect(page.locator(`#temp polygon[data-cell="${target.cell}"]`)).toBeAttached();
+
+    await page.click("#statesManuallyApply");
+
+    expect(pageErrors).toEqual([]);
+    await expect.poll(() => page.evaluate(cell => (window as any).pack.cells.state[cell], target.cell)).toBe(0);
+    expect(await page.evaluate(state => (window as any).pack.states[state].label, target.state)).toBeUndefined();
+  });
 });
