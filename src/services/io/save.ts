@@ -2,7 +2,6 @@
 import { closeDialogs } from "@/components/dialog/dialog-helpers";
 import { Layers } from "@/components/layers";
 import { tip } from "@/components/tooltips";
-import { unifyClonedMapStack } from "@/renderers/layer-host";
 import { Services } from "@/services";
 import { getUsedFonts } from "@/services/fonts";
 import { VERSION } from "@/services/versioning";
@@ -88,12 +87,6 @@ function prepareMapData(): string {
 
   // save svg
   const cloneEl = ensureEl("map").cloneNode(true) as SVGSVGElement;
-
-  // When the WebGL burg layer is active, LayerHost splits the top layers (labels, markers, ruler,
-  // …) out of #map into the sibling #mapTop overlay — so the clone above drops them. Reunite them
-  // into the clone's #viewbox before serializing, or the saved SVG loses those layers and crashes
-  // stock FMG at `labels.style("display")` in invokeActiveZooming.
-  unifyClonedMapStack(cloneEl);
 
   // reset transform values to default
   cloneEl.setAttribute("width", String(graphWidth));

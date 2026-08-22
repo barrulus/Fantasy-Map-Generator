@@ -218,15 +218,6 @@ function fitMapToScreen() {
   Layers.draw("scaleBar");
   if (window.fitLegendBox) fitLegendBox();
 
-  // Keep the WebGL burg-icon canvas sized to the SVG viewport. Unlike SVG layers it doesn't
-  // ride the SVG's clip, so a stale (larger) canvas spills GPU burgs past the map edge when the
-  // canvas size shrinks. Resize AFTER the svg width/height above are applied.
-  if (window.resizeBurgGL) window.resizeBurgGL();
-
-  // The #mapTop overlay is a sibling SVG root that clips to its own width/height, so it must track
-  // #map's new size too — otherwise its stale (larger) clip lets the split-out #viewboxTop layers
-  // spill past the map edge into the letterbox. No-op unless the overlay is mounted (State 1).
-  if (window.LayerHost && window.LayerHost.syncGeometry) window.LayerHost.syncGeometry();
 }
 
 function toggleTranslateExtent(el) {

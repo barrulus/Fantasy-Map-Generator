@@ -9,7 +9,6 @@ function onResize(): void {
   // GL canvas resize is handled inside fitMapToScreen (called below, or by the stored-size path
   // which intentionally keeps the current size). Reconcile must run even when a pinned map size
   // skips the refit below, so it always runs first.
-  if ((window as any).LayerHost) (window as any).LayerHost.reconcile();
 
   if (stored("mapWidth") && stored("mapHeight")) return;
 

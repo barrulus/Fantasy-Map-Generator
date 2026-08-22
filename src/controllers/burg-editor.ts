@@ -876,7 +876,6 @@ function relocateBurgOnClick(this: SVGGElement, event: any): void {
   burg.state = newState;
   burg.x = x;
   burg.y = y;
-  if ((window as any).burgWebglActive && (window as any).burgWebglActive()) (window as any).moveBurgGL(id, x, y);
   if (burg.capital) pack.states[newState].center = burg.cell;
 
   // the label snaps back to the relocated burg, so its custom path is no longer valid

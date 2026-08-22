@@ -28,7 +28,6 @@ declare global {
     unlock: typeof import("../utils/preferences").unlock;
     stored: typeof import("../utils/preferences").stored;
     applyDefaultViewboxEvents: typeof import("../components/viewbox-events").applyDefaultViewboxEvents;
-    bindTopLayerEvents: typeof import("../components/viewbox-events").bindTopLayerEvents;
     redrawLegend: typeof import("../renderers/draw-legend").redrawLegend;
     fitLegendBox: typeof import("../renderers/draw-legend").fitLegendBox;
     clearLegend: typeof import("../renderers/draw-legend").clearLegend;
@@ -197,8 +196,6 @@ declare global {
   var FlatQueue: any;
 
   var THREE: any; // lazy-loaded
-
-  // GPU (WebGL) burg-label rendering globals, defined in src/renderers/webgl-burg-labels.ts
 
   var $: (selector: any) => any;
   var changeFont: () => void;
