@@ -10,7 +10,7 @@ import { drawEmblems } from "@/renderers/draw-emblems";
 import { drawGoods } from "@/renderers/draw-goods";
 import { drawGrid } from "@/renderers/draw-grid";
 import { drawHeightmap } from "@/renderers/draw-heightmap";
-import { drawIce } from "@/renderers/draw-ice";
+import { drawIce, removeIce } from "@/renderers/draw-ice";
 import { drawLakes } from "@/renderers/draw-lakes";
 import { drawLandmass } from "@/renderers/draw-landmass";
 import { redrawLegend } from "@/renderers/draw-legend";
@@ -325,7 +325,7 @@ const mapLayers = [
     keepContent: true,
     draw: drawCoastline
   }),
-  new Layer({ id: "ice", parent: "viewbox", draw: drawIce }),
+  new Layer({ id: "ice", parent: "viewbox", draw: drawIce, erase: removeIce }),
   new Layer({
     id: "goods",
     parent: "viewbox",
