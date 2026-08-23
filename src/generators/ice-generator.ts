@@ -1,6 +1,6 @@
 import Alea from "alea";
 import { min } from "d3";
-import { redrawGlacier, redrawIceberg } from "@/renderers/draw-ice";
+import { redrawIce } from "@/renderers/draw-ice";
 import { clipPoly, getGridPolygon, getIsolines, lerp, minmax, normalize, P, ra, rand, rn } from "../utils";
 import type { Point } from "./voronoi";
 
@@ -25,6 +25,13 @@ interface Iceberg {
   size: number;
   offset?: Point;
 }
+
+export const getNextFreeId = (ids: number[]): number => {
+  const existing = new Set(ids);
+  let id = 0;
+  while (existing.has(id)) id++;
+  return id;
+};
 
 class IceModule {
   public regenerate(): void {
@@ -92,13 +99,7 @@ class IceModule {
 
   // Find next available id for new ice element idealy filling gaps
   private getNextId() {
-    if (pack.ice.length === 0) return 0;
-    // find gaps in existing ids
-    const existingIds = pack.ice.map(e => e.i).sort((a, b) => a - b);
-    for (let id = 0; id < existingIds[existingIds.length - 1]; id++) {
-      if (!existingIds.includes(id)) return id;
-    }
-    return existingIds[existingIds.length - 1] + 1;
+    return getNextFreeId(pack.ice.map(e => e.i));
   }
 
   private clear() {
@@ -114,7 +115,7 @@ class IceModule {
     const id = this.getNextId();
     const ice: Iceberg = { i: id, points, type: "iceberg", cellId, size };
     pack.ice.push(ice);
-    redrawIceberg(id);
+    redrawIce(id);
   }
 
   removeIce(id: number) {
@@ -122,11 +123,7 @@ class IceModule {
     if (ice) {
       const index = pack.ice.indexOf(ice);
       pack.ice.splice(index, 1);
-      if (ice.type === "glacier") {
-        redrawGlacier(id);
-      } else {
-        redrawIceberg(id);
-      }
+      redrawIce(id);
     }
   }
 

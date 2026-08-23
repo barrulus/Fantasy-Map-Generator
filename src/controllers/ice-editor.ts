@@ -3,7 +3,7 @@ import { closeDialogs, destroyDialog } from "@/components/dialog/dialog-helpers"
 import { Layers } from "@/components/layers";
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
-import { redrawIceberg } from "@/renderers/draw-ice";
+import { redrawIce } from "@/renderers/draw-ice";
 import { ensureEl, findGridCell, getPointer, parseTransform } from "../utils";
 
 let selectedIce: Selection<SVGElement, unknown, HTMLElement, unknown>;
@@ -15,6 +15,7 @@ function open(element: SVGElement): void {
   closeDialogs(".stable");
   Layers.show("ice");
 
+  clearDragBehavior();
   selectedIce = select<SVGElement, unknown>(element) as unknown as typeof selectedIce;
   const id = +selectedIce.attr("data-id");
   const iceElement = pack.ice.find(el => el.i === id);
@@ -29,10 +30,7 @@ function open(element: SVGElement): void {
   sizeInput.style.display = isGlacier ? "none" : "inline-block";
   if (!isGlacier) sizeInput.value = String(iceElement && "size" in iceElement ? iceElement.size : "");
 
-  select<SVGGElement, unknown>("#ice")
-    .selectAll<SVGElement, unknown>("*")
-    .classed("draggable", true)
-    .call(drag<SVGElement, unknown>().on("drag", dragElement));
+  selectedIce.raise().classed("draggable", true).call(drag<SVGElement, unknown>().on("start", dragElement));
 
   $("#iceEditor").dialog({
     title: `Edit ${type}`,
@@ -65,14 +63,14 @@ function renderDialog(): void {
 function randomizeShape(): void {
   const selectedId = +selectedIce.attr("data-id");
   Ice.randomizeIcebergShape(selectedId);
-  redrawIceberg(selectedId);
+  redrawIce(selectedId);
 }
 
 function changeSize(this: HTMLInputElement): void {
   const newSize = +this.value;
   const selectedId = +selectedIce.attr("data-id");
   Ice.changeIcebergSize(selectedId, newSize);
-  redrawIceberg(selectedId);
+  redrawIce(selectedId);
 }
 
 function toggleAdd(): void {
@@ -117,28 +115,32 @@ function removeIce(): void {
 }
 
 function dragElement(this: SVGElement, event: any): void {
-  const selectedId = +selectedIce.attr("data-id");
+  const id = +this.getAttribute("data-id")!;
   const initialTransform = parseTransform(this.getAttribute("transform") ?? "");
   const dx = +initialTransform[0] - event.x;
   const dy = +initialTransform[1] - event.y;
 
   event.on("drag", function (this: SVGElement, dragEvent: any) {
-    const x = dragEvent.x;
-    const y = dragEvent.y;
-    this.setAttribute("transform", `translate(${dx + x},${dy + y})`);
+    const x = dx + dragEvent.x;
+    const y = dy + dragEvent.y;
+    this.setAttribute("transform", `translate(${x},${y})`);
 
     // Store offset for visual positioning; actual geometry stays in points
-    const iceData = pack.ice.find(el => el.i === selectedId);
-    if (iceData) iceData.offset = [dx + x, dy + y];
+    const iceData = pack.ice.find(el => el.i === id);
+    if (iceData) iceData.offset = [x, y];
   });
+
+  // sync the scene so the next viewport reconcile keeps the new position
+  event.on("end", () => redrawIce(id));
+}
+
+function clearDragBehavior(): void {
+  selectedIce?.classed("draggable", false).on(".drag", null);
 }
 
 function closeEditor(): void {
   const wasAdding = ensureEl("iceNew").classList.contains("pressed");
-  select<SVGGElement, unknown>("#ice")
-    .selectAll<SVGElement, unknown>("*")
-    .classed("draggable", false)
-    .on(".drag", null);
+  clearDragBehavior();
   clearMainTip();
   ensureEl("iceNew").classList.remove("pressed");
   if (wasAdding) applyDefaultViewboxEvents();

@@ -100,6 +100,10 @@ function prepareMapData(): string {
   const cloneTerrain = cloneEl.querySelector("#terrain");
   if (cloneTerrain) cloneTerrain.innerHTML = "";
 
+  // ice shapes are stored in pack.ice, the layer holds only the currently visible ones
+  const cloneIce = cloneEl.querySelector("#ice");
+  if (cloneIce) cloneIce.innerHTML = "";
+
   const cloneRuler = cloneEl.querySelector("#ruler");
   if (cloneRuler) cloneRuler.innerHTML = ""; // always remove rulers
   const cloneTradeAnimation = cloneEl.querySelector("#tradeAnimation");
