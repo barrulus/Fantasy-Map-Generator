@@ -664,3 +664,17 @@ describe("groundSlotOnPlacement", () => {
     expect(groundSlotOnPlacement(3, 5, true)).toBe(3);
   });
 });
+
+describe("generate on an all-water map", () => {
+  it("assigns the empty burgs array to pack instead of leaving it undefined", () => {
+    const g = globalThis as any;
+    g.TIME = false;
+    g.ERROR = false;
+    g.pack = { cells: { i: [0, 1, 2], s: [0, 0, 0], culture: [0, 0, 0] } };
+
+    g.window.Burgs.generate();
+
+    expect(g.pack.burgs).toEqual([0]);
+    expect(Array.from(g.pack.cells.burg)).toEqual([0, 0, 0]);
+  });
+});
