@@ -158,6 +158,9 @@ const globeWorld = `Hill 1 60-70 22-38 20-80
   Mask 2 0 0 0
   Smooth 3 0 0 0`;
 
+// all-ocean canvas for manual painting; probability 0 keeps it out of random rotation
+const blank = "Add 0 all 0 0";
+
 export type HeightmapTemplate = {
   id: number;
   name: string;
@@ -180,7 +183,8 @@ export const heightmapTemplates: Record<string, HeightmapTemplate> = {
   taklamakan: { id: 11, name: "Taklamakan", template: taklamakan, probability: 1 },
   oldWorld: { id: 12, name: "Old World", template: oldWorld, probability: 8 },
   fractious: { id: 13, name: "Fractious", template: fractious, probability: 3 },
-  globeWorld: { id: 14, name: "Globe World", template: globeWorld, probability: 5 }
+  globeWorld: { id: 14, name: "Globe World", template: globeWorld, probability: 5 },
+  blank: { id: 15, name: "Blank", template: blank, probability: 0 }
 };
 
 declare global {

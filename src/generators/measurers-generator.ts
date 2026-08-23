@@ -25,7 +25,7 @@ function createDefaultRuler(): void {
 
   const areas = features.map(f => (f.land ? f.area || 0 : -Infinity));
   const largestLand = areas.indexOf(Math.max(...areas));
-  const featureVertices = features[largestLand].vertices;
+  const featureVertices = features[largestLand]?.vertices || []; // no land on all-water maps
 
   const MIN_X = 100;
   const MAX_X = graphWidth - 100;

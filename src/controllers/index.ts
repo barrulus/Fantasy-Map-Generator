@@ -78,3 +78,11 @@ declare global {
   var Controllers: ControllersRegistry;
 }
 window.Controllers = Controllers;
+
+// The blank template is an all-ocean canvas meant for manual painting: once
+// generation settles, drop the user straight into the heightmap editor.
+// Deferred so the generation caller finishes its layer drawing and zoom reset first.
+window.addEventListener("map:generated", () => {
+  if ((document.getElementById("templateInput") as HTMLInputElement | null)?.value !== "blank") return;
+  setTimeout(() => Controllers.HeightmapEditor.open({ mode: "erase" }), 0);
+});

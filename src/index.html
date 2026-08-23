@@ -1948,6 +1948,16 @@
             <button data-tip="Display brushes panel" id="paintBrushes">Paint Brushes</button>
             <button data-tip="Open template editor" id="applyTemplate" style="display: none">Template Editor</button>
             <button data-tip="Open Image Converter" id="convertImage" style="display: none">Image Converter</button>
+            <button
+              data-tip="Save the painted heightmap to a draft file to continue later without generating a map"
+              id="saveHeightmapDraft"
+              style="display: none"
+            >
+              Save Draft
+            </button>
+            <button data-tip="Load a heightmap draft file and continue painting" id="loadHeightmapDraft" style="display: none">
+              Load Draft
+            </button>
             <button data-tip="Render heightmap data as a small monochrome image" id="heightmapPreview">Preview</button>
             <button data-tip="Preview heightmap in 3D scene" id="heightmap3DView">3D scene</button>
           </div>
@@ -2575,6 +2585,7 @@
       <input type="file" accept="image/*" id="emblemImageToLoad" />
       <input type="file" accept=".svg" id="emblemSVGToLoad" />
       <input type="file" accept=".txt" id="templateToLoad" />
+      <input type="file" accept=".heightmap" id="heightmapDraftToLoad" />
       <input type="file" accept=".txt" id="namesbaseToLoad" />
       <input type="file" accept=".json" id="styleToLoad" />
       <input type="file" accept=".csv" id="culturesCSVToLoad" />

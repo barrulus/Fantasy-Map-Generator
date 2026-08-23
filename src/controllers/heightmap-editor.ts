@@ -1,5 +1,5 @@
 import { drag, easeSinInOut, hsl, interpolateRound, lab, max, mean, quadtree, range, select } from "d3";
-import { closeDialogs, destroyDialog, refreshEditors } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog, refreshEditors } from "@/components/dialog/dialog-helpers";
 import { Layers } from "@/components/layers";
 import { clearMainTip, showMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
@@ -7,12 +7,14 @@ import { Controllers } from "@/controllers";
 import { heightmapTemplates } from "@/data/heightmap-templates";
 import { GraphOverride } from "@/generators/graph-override";
 import { moveCircle, removeCircle } from "@/renderers/overlays/brush-circle";
+import { type HeightmapDraft, parseHeightmapDraft, serializeHeightmapDraft } from "@/services/io/heightmap-draft";
 import { downloadFile, getFileName, uploadFile } from "@/utils";
 import {
   ensureEl,
   findEl,
   findGridAll,
   findGridCell,
+  generateGrid,
   generateSeed,
   getGridPolygon,
   getPointer,
@@ -283,6 +285,80 @@ function addToolbarListeners(): void {
   ensureEl("heightmap3DView").addEventListener("click", changeViewMode);
   ensureEl("finalizeHeightmap").addEventListener("click", finalizeHeightmap);
   ensureEl("renderOcean").addEventListener("click", mockHeightmap);
+  ensureEl("saveHeightmapDraft").addEventListener("click", saveDraft);
+  ensureEl("loadHeightmapDraft").addEventListener("click", () => ensureEl("heightmapDraftToLoad").click());
+  ensureEl("heightmapDraftToLoad").addEventListener("change", function (this: HTMLInputElement) {
+    uploadFile(this, loadDraft);
+  });
+}
+
+function saveDraft(): void {
+  const data = serializeHeightmapDraft({
+    seed: String(seed),
+    graphWidth,
+    graphHeight,
+    cellsDesired: grid.cellsDesired,
+    heights: Uint8Array.from(grid.cells.h)
+  });
+  downloadFile(data, `${getFileName("Draft")}.heightmap`, "application/json");
+  tip("Heightmap draft is saved. Load it later via the Load Draft button to continue painting", true, "success", 6000);
+}
+
+function loadDraft(text: string): void {
+  let draft: HeightmapDraft;
+  try {
+    draft = parseHeightmapDraft(text);
+  } catch (error) {
+    tip((error as Error).message, false, "error", 6000);
+    return;
+  }
+
+  const isPainted = grid.cells.h?.some((h: number) => h > 0);
+  if (!isPainted) {
+    applyDraft(draft);
+    return;
+  }
+
+  confirmationDialog({
+    title: "Load heightmap draft",
+    message: "Loading a draft will replace the current heightmap. Are you sure you want to proceed?",
+    confirm: "Load",
+    onConfirm: () => applyDraft(draft)
+  });
+}
+
+function applyDraft(draft: HeightmapDraft): void {
+  const $points = ensureEl<HTMLInputElement>("pointsInput");
+  const storedCells = $points.dataset.cells;
+  $points.dataset.cells = String(draft.cellsDesired);
+
+  let newGrid: any;
+  try {
+    newGrid = generateGrid(draft.seed, draft.graphWidth, draft.graphHeight);
+  } finally {
+    $points.dataset.cells = storedCells;
+  }
+
+  if (newGrid.points.length !== draft.heights.length) {
+    tip("Heightmap draft does not match its grid and cannot be loaded", false, "error", 6000);
+    return;
+  }
+
+  seed = draft.seed;
+  ensureEl<HTMLInputElement>("optionsSeed").value = draft.seed;
+  graphWidth = draft.graphWidth;
+  graphHeight = draft.graphHeight;
+  const densityValue = Object.keys(cellsDensityMap).find(key => cellsDensityMap[+key] === draft.cellsDesired);
+  if (densityValue) $points.value = densityValue;
+  $points.dataset.cells = String(draft.cellsDesired);
+
+  newGrid.cells.h = Uint8Array.from(draft.heights);
+  grid = newGrid;
+
+  fitMapToScreen();
+  mockHeightmap();
+  restartHistory();
+  tip("Heightmap draft is loaded", true, "success", 4000);
 }
 
 function showModeDialog(tool?: string): void {
@@ -342,9 +418,11 @@ function enterHeightmapEditMode(mode: string, tool?: string): void {
   const cellTypeFilterEl = findEl<HTMLSelectElement>("cellTypeFilter");
   if (cellTypeFilterEl) cellTypeFilterEl.value = defaultCellTypeFilter;
 
-  // show convert and template buttons for Erase mode only
+  // show convert, template and draft buttons for Erase mode only
   ensureEl("applyTemplate").style.display = mode === "erase" ? "inline-block" : "none";
   ensureEl("convertImage").style.display = mode === "erase" ? "inline-block" : "none";
+  ensureEl("saveHeightmapDraft").style.display = mode === "erase" ? "inline-block" : "none";
+  ensureEl("loadHeightmapDraft").style.display = mode === "erase" ? "inline-block" : "none";
 
   // hide erosion checkbox if mode is Keep
   ensureEl("allowErosionBox").style.display = mode === "keep" ? "none" : "inline-block";

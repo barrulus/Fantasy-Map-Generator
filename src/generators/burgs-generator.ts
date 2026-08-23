@@ -224,6 +224,7 @@ class BurgModule {
     const populatedCells = cells.i.filter(i => cells.s[i] > 0 && cells.culture[i]);
     if (!populatedCells.length) {
       ERROR && console.error("There is no populated cells with culture assigned. Cannot generate states");
+      pack.burgs = burgs;
       return burgs;
     }
 
