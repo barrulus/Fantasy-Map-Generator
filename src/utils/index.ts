@@ -22,7 +22,7 @@ import {
   wiki
 } from "./commonUtils";
 import { drawCellsValue, drawPath, drawPoint, drawPolygons, drawRouteConnections } from "./debugUtils";
-import { downloadFile, getFileName, uploadFile } from "./fileUtils";
+import { downloadFile, getFileName, sanitizeSvgIcon, svgToDataUri, uploadFile } from "./fileUtils";
 import { distanceSquared, rollups } from "./functionUtils";
 import {
   calculateVoronoi,
@@ -260,10 +260,12 @@ export {
   rw,
   safeParseJSON,
   sanitizeId,
+  sanitizeSvgIcon,
   shouldRegenerateGrid,
   si,
   speak,
   splitInTwo,
+  svgToDataUri,
   TYPED_ARRAY_MAX,
   throttle,
   toHEX,
