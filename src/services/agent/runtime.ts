@@ -1,5 +1,5 @@
 // Executes model-authored JavaScript against the live map. The script body becomes an async
-// function evaluated in page scope, so every global (pack, grid, Burgs, drawLayers, Controllers…)
+// function evaluated in page scope, so every global (pack, grid, Burgs, Layers, Controllers…)
 // resolves without being injected. Only the returned value and console output travel back.
 
 const MAX_RESULT_CHARS = 8000;

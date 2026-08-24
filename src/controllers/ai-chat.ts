@@ -1,4 +1,4 @@
-import { confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { confirmationDialog, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { tip } from "@/components/tooltips";
 import {
   type Conversation,
@@ -17,7 +17,7 @@ import type { RunResult } from "@/services/agent/runtime";
 import { createSession } from "@/services/agent/session";
 import { openURL } from "@/utils";
 import { renderMarkdown } from "@/utils/markdown";
-import { destroyDialogIfExists, ensureEl } from "../utils";
+import { ensureEl } from "../utils";
 
 const DIALOG_ID = "aiChat";
 const MODEL_STORAGE = "fmg-ai-chat-model";
@@ -65,7 +65,7 @@ function open(): void {
 }
 
 function renderDialog(): void {
-  destroyDialogIfExists(DIALOG_ID);
+  destroyDialog(DIALOG_ID);
   ensureEl("dialogs").insertAdjacentHTML("beforeend", dialogHtml());
 
   ensureEl("aiChatConversation").addEventListener("change", event => {
@@ -461,7 +461,7 @@ function cleanup(): void {
   session.cancel();
   busy = false;
   currentStep = null;
-  destroyDialogIfExists(DIALOG_ID);
+  destroyDialog(DIALOG_ID);
 }
 
 export const AiChat = { open };

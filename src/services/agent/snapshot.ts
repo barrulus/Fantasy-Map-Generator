@@ -38,7 +38,7 @@ export function restore(): boolean {
   globalThis.options = snapshot.options;
   globalThis.style = snapshot.style;
   globalThis.notes = snapshot.notes;
-  if (typeof drawLayers === "function") drawLayers();
+  if (typeof Layers !== "undefined") Layers.drawAll();
   return true;
 }
 

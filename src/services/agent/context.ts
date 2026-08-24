@@ -73,7 +73,7 @@ const GOTCHAS = `# Gotchas that the type declarations do not tell you
 
 const RENDERING = `# Rendering
 
-The app redraws through global \`draw*\` functions, with \`drawLayers()\` redrawing every visible layer.
+The app redraws through global \`draw*\` functions, with \`Layers.drawAll()\` redrawing every visible layer.
 You do not need them while you are read-only; they are listed for context only.`;
 
 const staticPrompt = [
