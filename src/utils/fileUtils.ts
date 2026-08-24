@@ -31,6 +31,32 @@ export function downloadFile(data: BlobPart, name: string, type = "text/plain"):
   window.setTimeout(() => window.URL.revokeObjectURL(url), 2000);
 }
 
+/** Parse uploaded SVG markup for use as an icon: strip Inkscape/Sodipodi attributes and Noun Project attribution text. Returns null if the markup contains no svg */
+export function sanitizeSvgIcon(svgText: string): SVGElement | null {
+  const container = document.createElement("html");
+  container.innerHTML = svgText;
+
+  for (const element of Array.from(container.querySelectorAll("*"))) {
+    for (const attr of element.getAttributeNames()) {
+      if (attr.includes("inkscape") || attr.includes("sodipodi")) element.removeAttribute(attr);
+    }
+  }
+
+  if (svgText.includes("from the Noun Project")) {
+    container.querySelectorAll("text").forEach(text => void text.remove());
+  }
+
+  return container.querySelector("svg");
+}
+
+/** Encode SVG markup as a base64 data URI (UTF-8 safe) */
+export function svgToDataUri(svgText: string): string {
+  const bytes = new TextEncoder().encode(svgText);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return `data:image/svg+xml;base64,${btoa(binary)}`;
+}
+
 /** Read the selected file as text and pass its content to the callback */
 export function uploadFile(input: HTMLInputElement, callback: (data: string) => void): void {
   const file = input.files?.[0];
