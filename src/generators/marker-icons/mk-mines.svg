@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-mines">
+    <g transform="translate(32,32) rotate(-36) scale(0.84) translate(0,-4.5)">
+    <path d="M-2.26,-14.22 L0.01,-14.14 L2.64,-13.79 L3.07,5.8 L2.67,25.62 L0.19,25.66 L-2.74,26.5 L-2.11,6.07 Z" fill="var(--sm-timber, #d9c39a)" stroke-width="3.4"></path>
+    <path d="M-15.2,-16.18 Q-9.56,-21.09 -4.21,-20.62 Q1.13,-20.14 6.82,-18.26 Q12.51,-16.37 17.02,-10.95 Q21.54,-5.53 17.12,-9 Q12.7,-12.48 6.76,-13.8 Q0.82,-15.12 -4.36,-15.2 Q-9.53,-15.29 -15.18,-13.28 Q-20.84,-11.28 -15.2,-16.18 Z" fill="var(--mk-iron, #a8b2bd)" stroke-width="3.4"></path>
+    <path d="M-3.96,-14.73 L0.18,-14.79 L4.19,-15.36 L4.48,-12.03 L3.91,-8.83 L0.01,-8.68 L-4.45,-8.93 L-4.48,-11.88 Z" fill="var(--mk-brass, #c9932e)" stroke-width="1.6"></path>
+    <circle cx="0" cy="27" r="3" fill="var(--mk-gold, #e3b23c)" stroke-width="1.6"></circle>
+    </g>
+  </g>
+</svg>

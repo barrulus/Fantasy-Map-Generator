@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-caves">
+    <path d="M3.89,56.49 L10.18,44.89 L14.85,32.27 L20.62,20.29 L28.4,20.95 L36.95,20.14 L43.04,19.52 L48.63,31.5 L54.72,44.93 L60.86,55.39 L41.85,56.19 L21.94,56.77 Z" fill="var(--sm-lead, #8d99a6)" stroke-width="3.4"></path>
+    <path d="M20,56 L20,38 Q32,26 44,38 L44,56 Z" fill="var(--sm-ink, #33262e)" stroke-width="3.4"></path>
+    <path d="M32,16 L24,10 L26,17 L18,14 L23,20 L32,19 L41,20 L46,14 L38,17 L40,10 Z" fill="var(--sm-void, #6b5460)" stroke-width="1.6"></path>
+    <path d="M26,46 L26,52 M38,46 L38,52" fill="none" stroke="var(--sm-lead, #8d99a6)" stroke-width="1.5"></path>
+  </g>
+</svg>

@@ -1,4 +1,5 @@
 import { mean } from "d3";
+import { markerIcon } from "@/generators/marker-icons";
 import type { PackedGraph } from "@/types/PackedGraph";
 import {
   capitalize,
@@ -139,7 +140,7 @@ class MarkersModule {
       list: function to select candidates
       add: function to add marker legend
     */
-    return [
+    const configs: MarkerConfig[] = [
       {
         type: "volcanoes",
         icon: "🌋",
@@ -492,6 +493,15 @@ class MarkersModule {
         add: this.addParty.bind(this)
       }
     ];
+
+    // fork default: bundled SVG icons; the emoji above are fallbacks for types with no bundled file
+    // images render at x = dx/2 %, y = dy/2 % sized px, so geometry differs from the emoji tuning
+    return configs.map(config => {
+      const icon = markerIcon(config.type, config.icon);
+      if (icon === config.icon) return config;
+      const dy = config.type === "party" ? 29 : 47;
+      return { ...config, icon, dx: 47, dy, px: 16 };
+    });
   }
 
   private resetConfig() {

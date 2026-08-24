@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-waterfalls">
+    <path d="M6,14 Q18,11 32,14 Q46,17 58,13" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="3.2"></path>
+    <path d="M6.43,14.12 L22.71,13.15 L40.94,13.92 L58.48,13.51 L58.54,15.73 L58.62,18.2 L57.62,19.88 L40.55,20.23 L23.5,20.93 L6.39,20.63 L5.76,18.38 L6.66,16.93 Z" fill="var(--sm-lead, #8d99a6)" stroke-width="1.6"></path>
+    <path d="M19,20 Q16,34 20,46 M32,20 Q29,34 33,47 M45,20 Q42,34 46,46" fill="none" stroke="var(--mk-water-light, #8fd0e0)" stroke-width="3.4"></path>
+    <path d="M48.43,51.46 Q47.51,52.91 45.59,54.67 Q43.67,56.43 39.78,56.63 Q35.9,56.83 31.98,56.92 Q28.06,57.01 24.32,56.57 Q20.57,56.12 18.45,54.56 Q16.34,52.99 15.04,51.49 Q13.74,50 14.45,48.22 Q15.17,46.45 17.8,45.08 Q20.44,43.71 24.29,43.52 Q28.14,43.34 32.13,42.78 Q36.11,42.23 39.51,43.38 Q42.91,44.53 45.72,45.56 Q48.53,46.6 48.94,48.3 Q49.35,50 48.43,51.46 Z" fill="var(--mk-water, #4f93b8)" stroke-width="3.4"></path>
+    <path d="M20,50 Q26,47 32,50 Q38,53 44,49" fill="none" stroke="var(--mk-water-light, #8fd0e0)" stroke-width="1.8"></path>
+  </g>
+</svg>

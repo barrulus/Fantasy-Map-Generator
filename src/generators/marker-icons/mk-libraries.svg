@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-libraries">
+    <path d="M4,26 Q19,12 32,20 L32,50 Q19,42 4,54 Z" fill="var(--mk-board-a, #b2402f)" stroke-width="3.4"></path>
+    <path d="M60,26 Q45,12 32,20 L32,50 Q45,42 60,54 Z" fill="var(--mk-board-b, #3f6f96)" stroke-width="3.4"></path>
+    <path d="M9,28 Q20,17 31,23 L31,46 Q20,40 9,49 Z" fill="var(--mk-page, #f6efdc)" stroke-width="1.6"></path>
+    <path d="M55,28 Q44,17 33,23 L33,46 Q44,40 55,49 Z" fill="var(--mk-page, #f6efdc)" stroke-width="1.6"></path>
+    <path d="M32,19 L32,51" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="2.2"></path>
+    <path d="M13,32 Q21,25 28,29 M51,32 Q43,25 36,29" fill="none" stroke="var(--sm-void, #6b5460)" stroke-width="1.5"></path>
+    <path d="M13,40 Q21,34 28,37 M51,40 Q43,34 36,37" fill="none" stroke="var(--sm-void, #6b5460)" stroke-width="1.5"></path>
+  </g>
+</svg>

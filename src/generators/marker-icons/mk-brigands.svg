@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-brigands">
+    <g transform="translate(44,30) rotate(28)">
+    <path d="M1.5,-15 Q3,-8 3,1 Q3,10 0,10 Q-3,10 -3,1 Q-3,-8 -1.5,-15 Q0,-22 1.5,-15 Z" fill="var(--mk-iron, #a8b2bd)" stroke-width="3.4"></path>
+    <path d="M-5.8,9.9 L0.02,10.37 L6.36,10.39 L6.2,12.33 L6.33,14.16 L0.14,14.29 L-5.75,13.72 L-6.2,12.16 Z" fill="var(--mk-gold, #e3b23c)" stroke-width="1.6"></path>
+    <path d="M-2.65,14.22 L-0.27,14.29 L2.31,14.21 L2.62,19.61 L2.52,25.7 L0.37,26.1 L-2.15,26.39 L-2.28,19.96 Z" fill="var(--mk-brass, #c9932e)" stroke-width="1.6"></path>
+    </g>
+    <path d="M39.63,42.7 Q37.97,45.4 36.16,47.76 Q34.36,50.11 31.57,51.52 Q28.79,52.92 25.48,54.16 Q22.17,55.39 18.8,54.19 Q15.44,52.98 12.93,50.83 Q10.43,48.68 10.14,45.65 Q9.86,42.62 9.82,40 Q9.78,37.37 10.16,34.41 Q10.54,31.44 12.82,28.94 Q15.11,26.45 18.75,26.6 Q22.4,26.76 25.59,26.9 Q28.79,27.05 31.75,28.29 Q34.7,29.53 37.17,31.71 Q39.63,33.89 40.45,36.94 Q41.28,40 39.63,42.7 Z" fill="var(--mk-hide, #8a6a4f)" stroke-width="3.4"></path>
+    <path d="M17.42,26.52 L23.48,26.87 L30.5,26.93 L29.56,30.84 L29.55,34.07 L23.94,34.1 L18.92,33.47 L18.51,30 Z" fill="var(--mk-hide-dark, #6d5340)" stroke-width="1.6"></path>
+    <path d="M18,40 L30,40 M20,48 L28,48" fill="none" stroke="var(--mk-gold, #e3b23c)" stroke-width="1.6"></path>
+  </g>
+</svg>

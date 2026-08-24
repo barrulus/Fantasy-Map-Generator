@@ -1,0 +1,454 @@
+{
+  "$schema": "settlemaker marker set v1",
+  "pin": {
+    "shape": "bubble",
+    "diameter": 30,
+    "fill": "#ffffff",
+    "stroke": "#33262e",
+    "strokeWidth": 1.6,
+    "glyphBox": "the middle 55% of the pin — place the 64u viewBox at 55% of pin diameter, centred"
+  },
+  "style": {
+    "ink": "#33262e",
+    "outline": 3.4,
+    "interiorFloor": 1.4,
+    "maxInteriorMarks": 2,
+    "shadow": "none",
+    "notes": "no silhouette twins — the pin is the ground",
+    "silhouetteRule": "each marker must be distinguishable with fill stripped — only mk-necropolises is arch-topped; statues is a shouldered torso, dungeons a flat-topped framed door, encounters a figure whose staff crosses the outline",
+    "colourRule": "monochrome-safe silhouettes, but saturated accent colour where the subject is genuinely hot or precious — lava (--mk-lava), mineral water rim (--mk-heat), gilt hilts (--mk-gold/--mk-brass). Accent never carries the silhouette; it identifies within it. Coloured LINES (lava tongues, steam, beams, falling water, the swirl, staves) are stroked in the accent with fill:none; coloured MASSES (cone, plume, pool rim, blade, hilt) are filled with the accent and stroked in --sm-ink. Never fill an open path with an accent.",
+    "framing": "every glyph is centred on (32,32) and fills roughly 44–56u of the 64u box, so no marker renders smaller than its neighbours in the pin. When authoring an arch with a quadratic, remember the apex is 0.25*p0 + 0.5*ctrl + 0.25*p1 — not the control point; solve the control for the apex you want. For any glyph authored inside a rotated group, fit it by its POST-transform bbox — rotation inflates the extent (a 60×40u shape at 20° spans ~70×58u), so authored coordinates that look in-range can still be clipped by the symbol box.",
+    "projection": "markers are drawn in ELEVATION (side view), unlike the settlemaker map symbols which are top-down. Never reuse a radially symmetric map generator here — a conifer is tapering tiers, a palm has fronds in the upper hemisphere only."
+  },
+  "tokens": {
+    "--sm-ink": "#33262e",
+    "--mk-sw": "3.4",
+    "--sm-stone": "#e8dcc0",
+    "--sm-lead": "#8d99a6",
+    "--sm-timber": "#d9c39a",
+    "--sm-void": "#6b5460",
+    "--mk-ember": "#c8603c",
+    "--mk-water": "#4f93b8",
+    "--sm-canopy-a": "#4f7f43",
+    "--mk-flame": "#e0a03e",
+    "--mk-party": "#d4351c",
+    "--mk-iron": "#a8b2bd",
+    "--mk-lava": "#e04a2f",
+    "--mk-steam": "#e8a690",
+    "--mk-heat": "#d4634a",
+    "--mk-gold": "#e3b23c",
+    "--mk-brass": "#c9932e",
+    "--mk-water-light": "#8fd0e0",
+    "--mk-halo": "#f0d24b",
+    "--mk-arcane": "#7a4fb0",
+    "--mk-arcane-light": "#b58fe0",
+    "--mk-page": "#f6efdc",
+    "--mk-board-a": "#b2402f",
+    "--mk-board-b": "#3f6f96",
+    "--sm-canopy-b": "#74a552",
+    "--mk-white": "#ffffff",
+    "--mk-pine": "#33613c",
+    "--mk-sand": "#e0c489",
+    "--mk-hide": "#8a6a4f",
+    "--mk-hide-dark": "#6d5340",
+    "--mk-skin": "#9aa86a",
+    "--mk-froth": "#f8f3e6",
+    "--mk-black": "#2b2b30"
+  },
+  "markers": {
+    "mk-volcanoes": {
+      "type": "volcanoes",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true
+    },
+    "mk-hot-springs": {
+      "type": "hot-springs",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true
+    },
+    "mk-water-sources": {
+      "type": "water-sources",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "droplet → tiered blue fountain with jets"
+    },
+    "mk-mines": {
+      "type": "mines",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "adit mouth → pickaxe, drawn in the same idiom as the swords"
+    },
+    "mk-bridges": {
+      "type": "bridges",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "flat elevation → three-quarter view with the river running under the arch"
+    },
+    "mk-lighthouses": {
+      "type": "lighthouses",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "police light → lighthouse with a blazing lantern and seven beams"
+    },
+    "mk-waterfalls": {
+      "type": "waterfalls",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "⟱ glyph → drawn falls"
+    },
+    "mk-battlefields": {
+      "type": "battlefields",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "stroke-pair X → two full swords: leaf blade in iron, gold guard, brass grip, gold pommel — hilt at one end only"
+    },
+    "mk-dungeons": {
+      "type": "dungeons",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "key → flat-topped door in a stone frame"
+    },
+    "mk-lake-monsters": {
+      "type": "lake-monsters",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "serpent neck → fanged fish rearing out of the lake at -38°: head, jaws, fangs and eye above the y34 waterline, body and tail behind a 78%-opacity water band"
+    },
+    "mk-sacred-forests": {
+      "type": "sacred-forests",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "three rays → a 24-ray halo around the canopy"
+    },
+    "mk-statues": {
+      "type": "statues",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "moai head → shouldered torso on a plinth (silhouette class separation)"
+    },
+    "mk-ruins": {
+      "type": "ruins",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "column stubs → half a castle (broken tower, sheared curtain wall)"
+    },
+    "mk-libraries": {
+      "type": "libraries",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "stacked books → open book at an angle with coloured boards"
+    },
+    "mk-circuses": {
+      "type": "circuses",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "seam lines → striped big top with a pennant"
+    },
+    "mk-portals": {
+      "type": "portals",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "ring → stone archway with a purple void and white spirals"
+    },
+    "mk-disturbed-burials": {
+      "type": "disturbed-burials",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true
+    },
+    "mk-necropolises": {
+      "type": "necropolises",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true
+    },
+    "mk-encounters": {
+      "type": "encounters",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "hooded figure → wizard with hat, robe and a lit staff"
+    },
+    "mk-party": {
+      "type": "party",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "special": "player party — red stroke #d4351c, size 46, the one saturated mark",
+      "subjectChange": "white pennant → red-and-gold pennant on a black pole"
+    },
+    "mk-inns": {
+      "type": "inns",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "frothing mugs → single tankard with a brass handle"
+    },
+    "mk-sea-monsters": {
+      "type": "sea-monsters",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "kraken emoji → mantle high with three free-standing tentacles above a low waterline"
+    },
+    "mk-hill-monsters": {
+      "type": "hill-monsters",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "ogre face → ogre torso with tusks and a club breaking the outline"
+    },
+    "mk-sacred-mountains": {
+      "type": "sacred-mountains",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "mountain → haloed peak with a snowcap"
+    },
+    "mk-sacred-pineries": {
+      "type": "sacred-pineries",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "radial rosette → three tapering tiers in elevation"
+    },
+    "mk-sacred-palm-groves": {
+      "type": "sacred-palm-groves",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "full-circle fronds → upper-hemisphere fronds drooping at the tips"
+    },
+    "mk-brigands": {
+      "type": "brigands",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "money bag → loot sack with a dagger crossing above it"
+    },
+    "mk-pirates": {
+      "type": "pirates",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "flag emoji → rectangular black Jolly Roger, skull and bones"
+    },
+    "mk-jousts": {
+      "type": "jousts",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "fencer → quartered shield with a lance across it"
+    },
+    "mk-fairs": {
+      "type": "fairs",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "carousel → stall with a scalloped awning (rectangular, unlike the big top)"
+    },
+    "mk-canoes": {
+      "type": "canoes",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "canoe emoji → dugout hull with a paddle on water"
+    },
+    "mk-migration": {
+      "type": "migration",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "boar emoji → boar in profile with tusk and curled tail"
+    },
+    "mk-dances": {
+      "type": "dances",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "dancer emoji → figure with a flared skirt and raised arms"
+    },
+    "mk-mirage": {
+      "type": "mirage",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "sweat drops → ghosted palm over three shimmer bands on sand"
+    },
+    "mk-caves": {
+      "type": "caves",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "bat → dark cave mouth in a hillside with a bat above"
+    },
+    "mk-rifts": {
+      "type": "rifts",
+      "viewBox": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "monochromeSafe": true,
+      "subjectChange": "firework → jagged planar tear, deliberately frameless unlike the portal"
+    }
+  },
+  "coverage": "36 of 36 marker types drawn"
+}

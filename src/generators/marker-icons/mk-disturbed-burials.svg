@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-disturbed-burials">
+    <path d="M48.22,30.9 Q46.93,33.81 44.9,36 Q42.87,38.19 40.77,40.69 Q38.67,43.19 35.33,43.94 Q32,44.69 28.54,44.21 Q25.08,43.73 22.71,41.35 Q20.33,38.96 18.44,36.5 Q16.55,34.03 16.11,31.02 Q15.67,28 15.71,24.83 Q15.74,21.66 17.72,19.05 Q19.7,16.44 22.58,14.81 Q25.47,13.18 28.74,12.45 Q32,11.72 34.98,13.1 Q37.96,14.48 41.31,15.26 Q44.66,16.05 46.23,18.95 Q47.8,21.86 48.66,24.93 Q49.52,28 48.22,30.9 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="3.4"></path>
+    <path d="M24,50 L24,42 L40,42 L40,50 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="1.6"></path>
+    <g fill="var(--sm-void, #6b5460)" stroke="none"><circle cx="25" cy="27" r="4.6"></circle><circle cx="39" cy="27" r="4.6"></circle></g>
+    <path d="M32,36 L32,42" fill="none" stroke-width="2"></path>
+  </g>
+</svg>

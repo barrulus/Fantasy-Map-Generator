@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-rifts">
+    <path d="M30,4 L40,20 L32,26 L44,40 L34,44 L42,60 L26,46 L34,40 L20,26 L30,20 L22,6 Z" fill="var(--mk-arcane, #7a4fb0)" stroke-width="3.4"></path>
+    <path d="M12,18 L22,24 M52,22 L42,28 M10,44 L20,40 M54,46 L44,42" fill="none" stroke="var(--mk-arcane-light, #b58fe0)" stroke-width="2.4"></path>
+    <path d="M30,14 L34,22 L28,30 L36,38 L30,48" fill="none" stroke="var(--mk-white, #ffffff)" stroke-width="1.8"></path>
+  </g>
+</svg>

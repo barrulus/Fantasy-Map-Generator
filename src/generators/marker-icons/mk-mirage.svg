@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-mirage">
+    <path d="M0.71,33.89 L20.52,32.8 L41.95,32.21 L64.18,32.85 L63.2,42.86 L63.32,52.69 L63.61,61.54 L42.14,62.01 L20.69,62.88 L-0.09,64.77 L-0.76,53.96 L-0.49,43.93 Z" fill="var(--mk-sand, #e0c489)" stroke-width="1.6"></path>
+    <path d="M29,22 Q22,18 16,22 M29.57,20.59 Q25.79,14.06 19.06,14.48 M31.07,19.72 Q31.95,13.16 27.06,9.83 M32.93,19.72 Q38.13,15.63 36.94,9.83 M34.43,20.59 Q41.97,20.53 44.94,14.48 M35,22 Q42,26 48,22" fill="none" stroke="var(--sm-canopy-b, #74a552)" stroke-width="2.6"></path>
+    <path d="M32,24 Q34,32 33,40" fill="none" stroke="var(--sm-timber, #d9c39a)" stroke-width="2.8"></path>
+    <path d="M4,40 Q18,36 32,40 Q46,44 60,38" fill="none" stroke="var(--mk-water-light, #8fd0e0)" stroke-width="2.6"></path>
+    <path d="M8,48 Q20,45 32,48 Q44,51 56,46" fill="none" stroke="var(--mk-water-light, #8fd0e0)" stroke-width="2.2"></path>
+    <path d="M12,56 Q22,53 32,56 Q42,59 52,54" fill="none" stroke="var(--mk-water-light, #8fd0e0)" stroke-width="1.8"></path>
+  </g>
+</svg>

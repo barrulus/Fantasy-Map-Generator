@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-dances">
+    <path d="M28,26 L12,12 M36,26 L52,14" fill="none" stroke="var(--mk-skin, #9aa86a)" stroke-width="3.2"></path>
+    <path d="M25.91,19.6 L29.85,20.99 L33.85,20.42 L38.56,20.96 L41.53,32.29 L42.5,42.01 L46.04,53.06 L36.42,54.5 L27.08,54.96 L18.58,54.17 L21.13,43.14 L23.8,30.7 Z" fill="var(--mk-party, #d4351c)" stroke-width="3.4"></path>
+    <path d="M26.35,20.23 L32.08,19.56 L38.11,20.08 L38.53,26.44 L39.93,33.95 L31.69,34.41 L24.11,33.91 L25.13,27.35 Z" fill="var(--mk-board-b, #3f6f96)" stroke-width="1.6"></path>
+    <path d="M38.72,14.71 Q38.44,16.42 36.92,17.38 Q35.39,18.35 33.69,18.68 Q32,19.01 30.11,19.02 Q28.22,19.03 26.92,17.71 Q25.61,16.39 25.33,14.69 Q25.05,13 25.46,11.38 Q25.87,9.76 27.29,8.8 Q28.72,7.84 30.36,7.4 Q32,6.97 33.78,7.16 Q35.56,7.35 36.67,8.66 Q37.77,9.97 38.39,11.48 Q39,13 38.72,14.71 Z" fill="var(--mk-skin, #9aa86a)" stroke-width="3.4"></path>
+    <path d="M20,48 Q32,44 44,48" fill="none" stroke="var(--mk-gold, #e3b23c)" stroke-width="1.8"></path>
+    <path d="M44.15,9.74 L49.31,10.68 L54.46,11.9 L53.41,15.45 L51.59,18.22 L47.79,17.06 L44.09,16.36 L43.77,13.27 Z" fill="var(--mk-gold, #e3b23c)" stroke-width="1.6"></path>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-fairs">
+    <path d="M9.31,54.47 L9.27,44.79 L9.48,37.28 L9.64,28.25 L25.01,28.12 L39.21,28.35 L54.17,28.46 L54.75,35.95 L54.56,44.66 L54.62,54.55 L39.9,53.61 L25,53.31 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="3.4"></path>
+    <path d="M6,28 L10,16 L54,16 L58,28 Z" fill="var(--mk-board-a, #b2402f)" stroke-width="3.4"></path>
+    <path d="M20,17 L18,27 M32,16 L32,27 M44,17 L46,27" fill="none" stroke="var(--sm-stone, #e8dcc0)" stroke-width="2"></path>
+    <path d="M6,28 Q10,34 14,28 Q18,34 22,28 Q26,34 30,28 Q34,34 38,28 Q42,34 46,28 Q50,34 54,28 Q56,32 58,28 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="1.6"></path>
+    <path d="M22,40 L42,40 M22,48 L42,48" fill="none" stroke="var(--mk-brass, #c9932e)" stroke-width="1.6"></path>
+    <path d="M32,16 L32,8" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="2.2"></path>
+    <path d="M32.15,8.28 L38.37,9.39 L43.69,11.39 L38.27,12.56 L31.81,14.21 L31.81,10.93 Z" fill="var(--mk-gold, #e3b23c)" stroke-width="1.6"></path>
+  </g>
+</svg>
