@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-ruins">
+    <path d="M8.82,57.35 L7.91,44.62 L7.9,31.34 L7.58,18.58 L9.2,16.14 L12.4,13.1 L13.32,12.17 L17.41,11.12 L21.82,11.41 L26.42,11.2 L25.88,27.35 L25.66,41.95 L25.45,58.09 L19.94,58.4 L13.69,57.3 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="3.4"></path>
+    <path d="M25.45,58.78 L26.6,50.04 L25.93,42.27 L25.7,33.94 L29.32,34.2 L34.49,34.16 L38.08,33.51 L38.85,35.48 L39.23,37.67 L40.43,39.89 L44.07,40.31 L46.23,40.34 L49.72,40.37 L51.44,43.65 L53.36,47.56 L56.03,49.5 L56.12,51.96 L56.28,55.49 L56.5,58.11 L45.53,57.77 L36.22,58.08 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="3.4"></path>
+    <path d="M12,22 L22,22 M12,34 L22,34 M12,46 L22,46" fill="none" stroke="var(--sm-void, #6b5460)" stroke-width="1.5"></path>
+    <path d="M13.24,11.99 L13.16,9.07 L13.03,5.94 L15.65,5.73 L19.34,5.98 L19.19,9.23 L18.69,11.72 L15.7,11.81 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="1.6"></path>
+    <path d="M32,40 L32,52 M44,46 L44,54" fill="none" stroke="var(--sm-void, #6b5460)" stroke-width="1.6"></path>
+  </g>
+</svg>

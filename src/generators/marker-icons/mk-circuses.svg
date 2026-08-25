@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-circuses">
+    <path d="M32.52,11.95 L24.4,28.85 L15.95,46.61 L12.07,46.39 L8.6,46.67 L19.72,29.57 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="1.6"></path>
+    <path d="M31.54,11.67 L27.81,29.68 L23.55,46.05 L19.36,46.54 L15.92,46.07 L24.1,29.3 Z" fill="var(--mk-party, #d4351c)" stroke-width="1.6"></path>
+    <path d="M32.57,12.05 L32.39,29.58 L32.56,46.11 L27.64,45.58 L24.21,46.56 L28.67,28.44 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="1.6"></path>
+    <path d="M32.34,12.66 L35.6,28.55 L40.68,45.93 L35.91,45.36 L32.41,45.91 L32.57,29.28 Z" fill="var(--mk-party, #d4351c)" stroke-width="1.6"></path>
+    <path d="M32.38,11.32 L39.52,28.74 L47.53,46.11 L44.58,46.67 L40.44,46.66 L35.54,29.52 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="1.6"></path>
+    <path d="M31.45,11.67 L43.4,28.85 L55.55,46.38 L52.65,45.99 L47.57,46.64 L39.9,28.85 Z" fill="var(--mk-party, #d4351c)" stroke-width="1.6"></path>
+    <path d="M8,46 Q32,10 56,46 Z" fill="none" stroke-width="3.4"></path>
+    <path d="M7.81,46.53 L24.65,45.78 L39.89,45.54 L55.41,45.39 L56.3,49.36 L55.77,52.69 L56.69,56.47 L40.18,56.02 L23.67,56.2 L7.47,55.82 L8.15,52.36 L7.73,49.75 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="3.4"></path>
+    <path d="M18,48 L18,54 M32,48 L32,54 M46,48 L46,54" fill="none" stroke="var(--mk-party, #d4351c)" stroke-width="1.6"></path>
+    <path d="M32,12 L32,4" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="2.4"></path>
+    <path d="M32.28,3.95 L38.79,6 L45.76,7.93 L39.09,10.03 L32.03,11.69 L31.65,7.95 Z" fill="var(--mk-gold, #e3b23c)" stroke-width="1.6"></path>
+  </g>
+</svg>

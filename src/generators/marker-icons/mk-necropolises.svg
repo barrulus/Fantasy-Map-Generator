@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-necropolises">
+    <path d="M17,50 L17,20 Q32,6 47,20 L47,50 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="3.4"></path>
+    <path d="M32,16 L32,40 M23,27 L41,27" fill="none" stroke-width="2.6"></path>
+    <path d="M11.21,49.54 L31.74,49.55 L53.57,47.38 L53.25,52.06 L52.83,55.69 L31.62,56.94 L11.23,57.9 L11.24,53.84 Z" fill="var(--sm-lead, #8d99a6)" stroke-width="1.6"></path>
+  </g>
+</svg>

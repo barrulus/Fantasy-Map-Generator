@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-bridges">
+    <path d="M-0.76,35.84 L21.11,33.88 L42.35,33.9 L63.86,32.51 L63.74,36.44 L64.47,42.74 L63.43,47.3 L42.5,48.55 L20.47,50.87 L0.53,52.85 L0.35,46.66 L-0.87,40.92 Z" fill="var(--mk-water, #4f93b8)" stroke-width="1.6"></path>
+    <path d="M2,42 Q18,38 32,42 Q46,46 62,40" fill="none" stroke="var(--mk-water-light, #8fd0e0)" stroke-width="2"></path>
+    <g transform="rotate(-9 32 32)">
+    <path d="M6,44 L6,32 Q32,8 58,32 L58,44 Q32,22 6,44 Z" fill="var(--sm-stone, #e8dcc0)" stroke-width="3.4"></path>
+    <path d="M8,33 Q32,11 56,33" fill="none" stroke="var(--sm-void, #6b5460)" stroke-width="1.5"></path>
+    </g>
+  </g>
+</svg>

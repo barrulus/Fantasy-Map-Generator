@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-migration">
+    <path d="M25.01,21.78 Q33.39,20.16 41.42,23.16 Q49.45,26.17 50.73,31.83 Q52.01,37.49 45.87,39.72 Q39.72,41.96 29.9,40.91 Q20.07,39.86 15.78,35.71 Q11.49,31.57 14.07,27.49 Q16.64,23.4 25.01,21.78 Z" fill="var(--mk-hide, #8a6a4f)" stroke-width="3.4"></path>
+    <path d="M55,28 Q60,30 59,35 Q58,40 53,39 Q48,38 49,32 Q50,26 55,28 Z" fill="var(--mk-hide-dark, #6d5340)" stroke-width="1.6"></path>
+    <path d="M18,42 L16,56 M28,42 L27,56 M40,42 L41,56 M48,40 L50,54" fill="none" stroke="var(--mk-hide-dark, #6d5340)" stroke-width="2.6"></path>
+    <path d="M58.37,34.37 L60.67,32.19 L64.06,30.28 L62.9,33.87 L62.16,37.01 L59.6,35.87 Z" fill="var(--mk-page, #f6efdc)" stroke-width="1.3"></path>
+    <path d="M45.68,22.47 L48.7,20.45 L52.16,17.99 L52.07,22.14 L52.46,26.34 L49.1,23.51 Z" fill="var(--mk-hide-dark, #6d5340)" stroke-width="1.6"></path>
+    <circle cx="52" cy="30" r="1.9" fill="var(--sm-void, #6b5460)" stroke="none"></circle>
+    <path d="M14,26 Q8,22 6,16" fill="none" stroke="var(--mk-hide-dark, #6d5340)" stroke-width="2.4"></path>
+  </g>
+</svg>

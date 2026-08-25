@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-encounters">
+    <path d="M50,10 L42,58" fill="none" stroke="var(--sm-timber, #d9c39a)" stroke-width="3.2"></path>
+    <circle cx="52" cy="8" r="5" fill="var(--mk-flame, #e0a03e)" stroke-width="1.6"></circle>
+    <path d="M20.56,58.57 L20.57,49.41 L23.27,42 L23.77,33.31 L26.16,31.66 L29.2,29.67 L32.48,26.7 L35.15,27.87 L36.51,30.55 L39.68,33.87 L40.01,41.11 L40.66,50.32 L41.1,58.72 L34.45,58.13 L27.45,58.91 Z" fill="var(--mk-arcane, #7a4fb0)" stroke-width="3.4"></path>
+    <path d="M37.29,24.42 Q36.8,25.85 35.63,27 Q34.47,28.14 32.73,28.75 Q31,29.37 29.25,28.77 Q27.51,28.18 26.4,26.99 Q25.29,25.79 24.71,24.4 Q24.12,23 24.78,21.65 Q25.45,20.29 26.39,18.91 Q27.34,17.53 29.17,17.15 Q31,16.77 32.66,17.44 Q34.32,18.11 35.86,18.96 Q37.4,19.8 37.6,21.4 Q37.79,23 37.29,24.42 Z" fill="var(--mk-page, #f6efdc)" stroke-width="1.6"></path>
+    <path d="M18,20 L32,4 L44,20 Z" fill="var(--mk-arcane, #7a4fb0)" stroke-width="3.4"></path>
+    <path d="M15.98,20.32 L31.25,20.04 L46.17,19.81 L45.93,22.83 L45.56,24.64 L31.43,24.66 L16.49,24.98 L16.34,22.62 Z" fill="var(--mk-arcane, #7a4fb0)" stroke-width="1.6"></path>
+    <path d="M27,32 L36,32" fill="none" stroke="var(--mk-gold, #e3b23c)" stroke-width="1.6"></path>
+  </g>
+</svg>

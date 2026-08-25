@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-dungeons">
+    <path d="M8.55,54.41 L9.31,39.04 L9.17,24.66 L8.38,10.52 L23.65,10.32 L39.93,9.91 L55.13,10.11 L55.09,25.15 L54.61,39.22 L55.85,53.83 L39.3,53.33 L24.52,53.38 Z" fill="var(--sm-lead, #8d99a6)" stroke-width="3.4"></path>
+    <path d="M17.59,53.33 L17.67,41.83 L17.34,31 L17.68,19.17 L27.51,18.63 L36.95,19.61 L45.75,19.47 L46.59,30.09 L45.96,41.86 L46.48,54.17 L37.16,54.52 L26.88,53.7 Z" fill="var(--sm-timber, #d9c39a)" stroke-width="3.4"></path>
+    <path d="M32,21 L32,52" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="1.6"></path>
+    <circle cx="24" cy="36" r="2.6" fill="var(--sm-void, #6b5460)" stroke="none"></circle><circle cx="40" cy="36" r="2.6" fill="var(--sm-void, #6b5460)" stroke="none"></circle>
+    <path d="M11,12 L53,12" fill="none" stroke="var(--sm-void, #6b5460)" stroke-width="1.4"></path>
+  </g>
+</svg>

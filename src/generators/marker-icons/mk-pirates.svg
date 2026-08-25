@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-pirates">
+    <path d="M14,6 L14,58" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="3.4"></path>
+    <path d="M14.46,9.95 L27.63,10.08 L40.79,11.85 L54.12,12.71 L54.42,20.12 L54.77,28.75 L53.79,38.05 L41.3,37.45 L27.31,36.63 L15.4,36.31 L14.86,26.67 L14.74,18.32 Z" fill="var(--mk-black, #2b2b30)" stroke-width="3.4"></path>
+    <path d="M40.02,23.72 Q39.39,25.44 37.95,26.54 Q36.51,27.64 34.75,28.45 Q33,29.25 30.98,28.91 Q28.95,28.57 27.83,26.98 Q26.7,25.38 26.33,23.69 Q25.95,22 26.24,20.26 Q26.53,18.51 27.78,17.03 Q29.02,15.54 31.01,15.09 Q33,14.64 34.77,15.48 Q36.53,16.32 38.16,17.32 Q39.8,18.32 40.22,20.16 Q40.64,22 40.02,23.72 Z" fill="var(--mk-page, #f6efdc)" stroke-width="1.6"></path>
+    <circle cx="30" cy="21" r="2" fill="var(--mk-black, #2b2b30)" stroke="none"></circle><circle cx="36" cy="21" r="2" fill="var(--mk-black, #2b2b30)" stroke="none"></circle>
+    <path d="M29.04,28.93 L32.68,28.89 L37.06,28.63 L37.14,30.57 L37.15,31.62 L32.81,32.17 L29.36,31.88 L29.05,30.71 Z" fill="var(--mk-page, #f6efdc)" stroke-width="1.3"></path>
+    <path d="M24,33 L42,33" fill="none" stroke="var(--mk-page, #f6efdc)" stroke-width="1.8"></path>
+  </g>
+</svg>

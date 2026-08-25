@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-jousts">
+    <g transform="translate(32,32) rotate(-34)">
+    <path d="M-2.47,-25.85 L0.26,-26.13 L2.63,-25.96 L3.05,-4.05 L2.11,17.59 L0.49,18.36 L-2.88,18.24 L-2.24,-4.04 Z" fill="var(--sm-timber, #d9c39a)" stroke-width="3.4"></path>
+    <path d="M1.7,-29.5 Q3.4,-27 1.7,-25.5 Q0,-24 -1.7,-25.5 Q-3.4,-27 -1.7,-29.5 Q0,-32 1.7,-29.5 Z" fill="var(--mk-iron, #a8b2bd)" stroke-width="1.6"></path>
+    <path d="M-4.9,18.03 L0.17,18.25 L5.24,17.65 L4.77,21.25 L4.7,24.1 L-0.26,24.33 L-5.36,24.04 L-5.15,20.95 Z" fill="var(--mk-brass, #c9932e)" stroke-width="1.6"></path>
+    </g>
+    <path d="M14,20 L50,20 L50,38 Q32,54 14,38 Z" fill="var(--mk-board-a, #b2402f)" stroke-width="3.4"></path>
+    <path d="M32,20 L50,20 L50,38 Q41,46 32,50 Z" fill="var(--mk-board-b, #3f6f96)" stroke-width="1.6"></path>
+    <path d="M14,29 L50,29" fill="none" stroke="var(--mk-gold, #e3b23c)" stroke-width="1.6"></path>
+  </g>
+</svg>

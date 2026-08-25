@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" style="--mk-sw:3.4; --sm-ink:#33262e; --sm-stone:#e8dcc0; --sm-lead:#8d99a6; --mk-iron:#a8b2bd; --sm-timber:#d9c39a; --sm-void:#6b5460; --mk-lava:#e04a2f; --mk-ember:#c8603c; --mk-steam:#e8a690; --mk-heat:#d4634a; --mk-water:#4f93b8; --mk-water-light:#8fd0e0; --sm-canopy-a:#4f7f43; --sm-canopy-b:#74a552; --mk-pine:#33613c; --mk-flame:#e0a03e; --mk-gold:#e3b23c; --mk-brass:#c9932e; --mk-halo:#f0d24b; --mk-arcane:#7a4fb0; --mk-arcane-light:#b58fe0; --mk-page:#f6efdc; --mk-board-a:#b2402f; --mk-board-b:#3f6f96; --mk-party:#d4351c; --mk-white:#ffffff; --mk-sand:#e0c489; --mk-hide:#8a6a4f; --mk-hide-dark:#6d5340; --mk-skin:#9aa86a; --mk-froth:#f8f3e6; --mk-black:#2b2b30;" fill="none" stroke="var(--sm-ink, #33262e)" stroke-width="var(--mk-sw, 3.4)" stroke-linejoin="round" stroke-linecap="round">
+  <g id="mk-battlefields">
+    <g transform="translate(32,32) rotate(34)">
+    <path d="M1.02,-17.83 Q2.45,-14.11 3.88,-8.18 Q5.31,-2.25 4.57,3.66 Q3.83,9.56 -0.37,9.26 Q-4.56,8.95 -4.9,2.98 Q-5.24,-2.99 -4.39,-8.94 Q-3.53,-14.88 -1.96,-18.21 Q-0.4,-21.55 1.02,-17.83 Z" fill="var(--mk-iron, #a8b2bd)" stroke-width="3.4"></path>
+    <path d="M-8.96,8.6 L0.09,8.5 L9.01,8.52 L8.48,10.57 L8.41,12.84 L-0.16,12.99 L-8.46,12.88 L-8.86,10.31 Z" fill="var(--mk-gold, #e3b23c)" stroke-width="1.6"></path>
+    <path d="M-2.47,12.93 L0.32,12.68 L2.53,12.46 L2.2,17.22 L2.36,21.46 L-0.19,21.46 L-1.89,21.26 L-2.13,17.01 Z" fill="var(--mk-brass, #c9932e)" stroke-width="1.6"></path>
+    <circle cx="0" cy="24" r="3" fill="var(--mk-gold, #e3b23c)" stroke-width="1.6"></circle>
+    </g>
+    <g transform="translate(32,32) rotate(-34)">
+    <path d="M1.11,-18.14 Q2.48,-14.29 3.95,-8.74 Q5.42,-3.2 4.6,2.87 Q3.79,8.94 0.05,9.1 Q-3.69,9.27 -4.33,3.46 Q-4.97,-2.35 -3.57,-8.16 Q-2.18,-13.97 -1.22,-17.97 Q-0.26,-21.98 1.11,-18.14 Z" fill="var(--mk-iron, #a8b2bd)" stroke-width="3.4"></path>
+    <path d="M-9.15,8.39 L0.1,8.99 L8.95,8.2 L8.18,10.97 L7.67,12.98 L0.21,13.14 L-8.27,12.47 L-8.6,10.92 Z" fill="var(--mk-gold, #e3b23c)" stroke-width="1.6"></path>
+    <path d="M-2.43,13.1 L0.3,13.09 L2.39,12.68 L2.2,17.08 L2.21,21.71 L-0.06,21.6 L-2.15,21.95 L-2.51,16.93 Z" fill="var(--mk-brass, #c9932e)" stroke-width="1.6"></path>
+    <circle cx="0" cy="24" r="3" fill="var(--mk-gold, #e3b23c)" stroke-width="1.6"></circle>
+    </g>
+  </g>
+</svg>
