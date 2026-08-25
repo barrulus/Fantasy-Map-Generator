@@ -117,8 +117,17 @@ export const LOCAL_URL_STORAGE = "fmg-ai-local-url";
 export const LOCAL_MODEL_STORAGE = "fmg-ai-local-model";
 export const DEFAULT_LOCAL_URL = "http://localhost:11434/v1";
 
+// Models found through live discovery (providers-models.ts) rather than the curated lists above
+const discovered = new Map<string, ProviderSpec["id"]>();
+
+export function registerModels(providerId: ProviderSpec["id"], models: string[]): void {
+  for (const model of models) discovered.set(model, providerId);
+}
+
 export function providerOf(model: string): ProviderSpec {
-  const provider = PROVIDERS.find(candidate => candidate.models.includes(model));
+  const provider =
+    PROVIDERS.find(candidate => candidate.models.includes(model)) ??
+    PROVIDERS.find(candidate => candidate.id === discovered.get(model));
   if (!provider) throw new Error(`Unknown model: ${model}`);
   return provider;
 }
@@ -129,7 +138,8 @@ export async function complete(request: CompletionRequest): Promise<Completion> 
   const provider = providerOf(request.model);
   if (provider.id === "local") {
     const baseUrl = (localStorage.getItem(LOCAL_URL_STORAGE) || DEFAULT_LOCAL_URL).replace(/\/+$/, "");
-    const model = localStorage.getItem(LOCAL_MODEL_STORAGE) ?? "";
+    // The sentinel means "use the typed-in name"; a discovered local model is already the name
+    const model = request.model === LOCAL_MODEL ? (localStorage.getItem(LOCAL_MODEL_STORAGE) ?? "") : request.model;
     if (!model) throw new Error("Enter a local model name (e.g. llama3.2)");
     const { completeOpenAI } = await import("./providers-openai");
     return completeOpenAI(baseUrl, { ...request, model });

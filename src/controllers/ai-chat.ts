@@ -16,11 +16,14 @@ import {
   DEFAULT_LOCAL_URL,
   DEFAULT_MODEL,
   keyStorageFor,
+  LOCAL_MODEL,
   LOCAL_MODEL_STORAGE,
   LOCAL_URL_STORAGE,
   PROVIDERS,
-  providerOf
+  providerOf,
+  registerModels
 } from "@/services/agent/providers";
+import { cachedModels, listModels, mergeModels } from "@/services/agent/providers-models";
 import type { RunResult } from "@/services/agent/runtime";
 import { createSession } from "@/services/agent/session";
 import { openURL } from "@/utils";
@@ -203,22 +206,60 @@ function dialogHtml(): string {
 }
 
 function setInitialValues(): void {
+  // Models found by earlier discovery runs must route before any fetch happens this session
+  PROVIDERS.forEach(provider => {
+    registerModels(provider.id, cachedModels(provider.id));
+  });
+  buildModelSelect();
+
   const select = ensureEl<HTMLSelectElement>("aiChatModel");
-  select.options.length = 0;
+  const stored = localStorage.getItem(MODEL_STORAGE) ?? "";
+  select.value = isKnownModel(stored) ? stored : DEFAULT_MODEL;
+
+  select.addEventListener("change", () => {
+    loadKeyForModel();
+    void refreshModels();
+  });
+  loadKeyForModel();
+  updateSendButton();
+  void refreshModels();
+}
+
+function isKnownModel(model: string): boolean {
+  try {
+    providerOf(model);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function buildModelSelect(): void {
+  const select = ensureEl<HTMLSelectElement>("aiChatModel");
+  const previous = select.value;
+  select.replaceChildren(); // options.length = 0 would leave the old optgroup shells behind
   PROVIDERS.forEach(provider => {
     const group = document.createElement("optgroup");
     group.label = provider.label;
-    provider.models.forEach(model => {
-      group.append(new Option(provider.id === "local" ? "custom model…" : model, model));
+    mergeModels(provider.models, cachedModels(provider.id)).forEach(model => {
+      group.append(new Option(model === LOCAL_MODEL ? "custom model…" : model, model));
     });
     select.append(group);
   });
-  const stored = localStorage.getItem(MODEL_STORAGE) ?? "";
-  select.value = PROVIDERS.some(provider => provider.models.includes(stored)) ? stored : DEFAULT_MODEL;
+  if (previous && isKnownModel(previous)) select.value = previous;
+}
 
-  select.addEventListener("change", loadKeyForModel);
-  loadKeyForModel();
-  updateSendButton();
+// Ask the selected provider what its key can actually use, so new models appear without a release
+async function refreshModels(): Promise<void> {
+  const provider = providerOf(ensureEl<HTMLSelectElement>("aiChatModel").value);
+  const key = ensureEl<HTMLInputElement>("aiChatKey").value;
+  if (provider.id !== "local" && !key) return;
+  try {
+    await listModels(provider.id, key);
+    if (document.getElementById(DIALOG_ID)) buildModelSelect();
+  } catch {
+    // unreachable server or bad key: the curated list stands
+  }
 }
 
 // Each provider has its own key slot, so switching models swaps the key field with it
@@ -232,8 +273,9 @@ function loadKeyForModel(): void {
     ? "Optional API key — most local servers need none. Sent as a Bearer token when set"
     : `${providerOf(model).label} API key. It's stored on your machine only (browser storage) and sent directly to the provider`;
 
-  ensureEl("aiChatLocal").style.display = local ? "flex" : "none";
-  if (local) {
+  // Discovered local models already carry their name; only the sentinel needs the manual fields
+  ensureEl("aiChatLocal").style.display = model === LOCAL_MODEL ? "flex" : "none";
+  if (model === LOCAL_MODEL) {
     ensureEl<HTMLInputElement>("aiChatLocalUrl").value = localStorage.getItem(LOCAL_URL_STORAGE) ?? "";
     ensureEl<HTMLInputElement>("aiChatLocalModel").value = localStorage.getItem(LOCAL_MODEL_STORAGE) ?? "";
   }
@@ -265,7 +307,7 @@ async function send(text?: string): Promise<void> {
     tip("Please enter an API key", true, "error", 4000);
     return;
   }
-  if (local) {
+  if (model === LOCAL_MODEL) {
     const localModel = ensureEl<HTMLInputElement>("aiChatLocalModel").value.trim();
     if (!localModel) {
       ensureEl("aiChatLocalModel").focus();
