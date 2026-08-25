@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { complete, keyStorageFor, LOCAL_MODEL, LOCAL_MODEL_STORAGE, LOCAL_URL_STORAGE, providerOf } from "./providers";
+import {
+  complete,
+  keyStorageFor,
+  LOCAL_MODEL,
+  LOCAL_MODEL_STORAGE,
+  LOCAL_URL_STORAGE,
+  providerOf,
+  registerModels
+} from "./providers";
 import { completeOpenAI } from "./providers-openai";
 
 function memoryStorage(): Storage {
@@ -77,5 +85,19 @@ describe("completeOpenAI auth header", () => {
     await completeOpenAI("http://localhost:11434/v1", { ...request, model: "llama3.2", key: "sk-x" });
     const headers = (fetchStub.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer sk-x");
+  });
+});
+
+describe("discovered local models", () => {
+  it("passes a discovered local model through instead of the stored name", async () => {
+    registerModels("local", ["qwen2.5-coder:7b"]);
+    localStorage.setItem(LOCAL_MODEL_STORAGE, "llama3.2");
+    const fetchStub = stubFetch();
+
+    await complete({ ...request, model: "qwen2.5-coder:7b" });
+
+    expect(JSON.parse((fetchStub.mock.calls[0] as unknown as [string, RequestInit])[1].body as string).model).toBe(
+      "qwen2.5-coder:7b"
+    );
   });
 });
