@@ -16,6 +16,7 @@ import {
   getFileName,
   getFriendlyHeight,
   getGridPolygon,
+  relocateRootFilter,
   rn,
   unique
 } from "@/utils";
@@ -287,7 +288,10 @@ async function getMapURL(type: string, options: GetMapURLOptions = {}): Promise<
   if (noVignette) clone.select("#vignette").remove();
   if (noScaleBar) clone.select("#scaleBar").remove();
 
-  if (type === "svg") removeUnusedElements(clone);
+  if (type === "svg") {
+    removeUnusedElements(clone);
+    relocateRootFilter(cloneEl); // Inkscape renders root-level filters as a blank document
+  }
   if (customization && type === "mesh") updateMeshCells(clone);
   inlineStyle(clone);
 
@@ -332,13 +336,15 @@ async function getMapURL(type: string, options: GetMapURLOptions = {}): Promise<
   }
 
   {
-    // replace ocean pattern href to base64
+    // replace ocean pattern href to base64; drop the image if it cannot be loaded,
+    // as an app-relative href is dead in an exported file
     const image = cloneEl.getElementById("oceanicPattern");
     const href = image?.getAttribute("href");
     if (image && href) {
       await new Promise<void>(resolve => {
         getBase64(href, base64 => {
           if (typeof base64 === "string") image.setAttribute("href", base64);
+          else image.remove();
           resolve();
         });
       });
@@ -346,13 +352,14 @@ async function getMapURL(type: string, options: GetMapURLOptions = {}): Promise<
   }
 
   {
-    // replace texture href to base64
+    // replace texture href to base64; drop the image if it cannot be loaded
     const image = cloneEl.querySelector("#texture > image");
     const href = image?.getAttribute("href");
     if (image && href) {
       await new Promise<void>(resolve => {
         getBase64(href, base64 => {
           if (typeof base64 === "string") image.setAttribute("href", base64);
+          else image.remove();
           resolve();
         });
       });

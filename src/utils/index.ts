@@ -40,7 +40,7 @@ import {
   poissonDiscSampler,
   shouldRegenerateGrid
 } from "./graphUtils";
-import { applyOption, ensureEl, findEl, getComposedPath, getNextId, getPointer } from "./nodeUtils";
+import { applyOption, ensureEl, findEl, getComposedPath, getNextId, getPointer, relocateRootFilter } from "./nodeUtils";
 import {
   connectVertices,
   findPath,
@@ -254,6 +254,7 @@ export {
   poissonDiscSampler,
   ra,
   rand,
+  relocateRootFilter,
   rn,
   rollups,
   round,
