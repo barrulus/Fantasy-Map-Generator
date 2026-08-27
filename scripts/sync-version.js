@@ -10,6 +10,12 @@
  * two drift and the desktop release still builds, but every client compares equal and is
  * never offered the update.
  *
+ * Fork note: the package version may carry a `-fork.N` suffix (e.g. 1.149.2-fork.1). That suffix
+ * names a desktop release built from this fork on top of the same upstream version, and it must stay
+ * out of versioning.ts: VERSION is stamped into every saved .map, and a non-numeric patch makes
+ * isValidVersion fail, which would silently skip every auto-update migration for those maps.
+ * package.json is read only by electron-builder, so the suffix is safe there.
+ *
  * Usage:
  *   node scripts/sync-version.js           # write both files
  *   node scripts/sync-version.js --check   # exit 1 if they disagree, write nothing
@@ -32,6 +38,19 @@ function readSourceVersion() {
   return match[1];
 }
 
+/** A desktop release cut from this fork on top of the same upstream version */
+const FORK_SUFFIX = /-fork\.\d+$/;
+
+/** package versions agree with VERSION either exactly or as a `-fork.N` release of it */
+function agrees(packageVersion, version) {
+  return packageVersion === version || String(packageVersion).replace(FORK_SUFFIX, "") === version;
+}
+
+/** keep the fork suffix when it still sits on the current VERSION, otherwise fall back to plain VERSION */
+function targetVersion(packageVersion, version) {
+  return agrees(packageVersion, version) ? packageVersion : version;
+}
+
 /** JSON.stringify drops the trailing newline npm writes, so put it back and leave the diff clean */
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -45,13 +64,14 @@ function collectUpdates(version) {
   const updates = [];
 
   const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-  if (pkg.version !== version) {
+  const packageVersion = targetVersion(pkg.version, version);
+  if (pkg.version !== packageVersion) {
     updates.push({
       label: "package.json",
       from: pkg.version,
       filePath: packageJsonPath,
       apply: () => {
-        pkg.version = version;
+        pkg.version = packageVersion;
         writeJson(packageJsonPath, pkg);
       }
     });
@@ -60,14 +80,14 @@ function collectUpdates(version) {
   if (fs.existsSync(packageLockJsonPath)) {
     const lock = JSON.parse(fs.readFileSync(packageLockJsonPath, "utf8"));
     const rootEntry = lock.packages && lock.packages[""];
-    if (lock.version !== version || (rootEntry && rootEntry.version !== version)) {
+    if (lock.version !== packageVersion || (rootEntry && rootEntry.version !== packageVersion)) {
       updates.push({
         label: "package-lock.json",
         from: lock.version,
         filePath: packageLockJsonPath,
         apply: () => {
-          lock.version = version;
-          if (rootEntry) rootEntry.version = version;
+          lock.version = packageVersion;
+          if (rootEntry) rootEntry.version = packageVersion;
           writeJson(packageLockJsonPath, lock);
         }
       });
