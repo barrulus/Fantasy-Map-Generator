@@ -148,7 +148,16 @@ export const gestures = {
   },
 };
 
-/** Frame stats for one gesture, tagged with `extra` so callers can name the runtime and preset */
+/**
+ * Frame stats for one gesture, tagged with `extra` so callers can name the runtime and preset.
+ *
+ * The two halves measure different things, and the commit is usually the one that matters.
+ * Mid-gesture the app only rewrites the viewbox transform and a couple of cheap layers
+ * (`handleZoomPerFrame`); labels, icons and culling are materialized once when the gesture
+ * settles (`handleZoomEnd`). So the in-gesture numbers describe riding the transform, not the
+ * cost of the map, and for a pan — which changes position but not scale — they are close to
+ * driver-paced. commitMaxFrameMs is the frame that materialization lands in.
+ */
 export async function measureScenario(
   page: Page,
   scenario: string,
@@ -162,6 +171,7 @@ export async function measureScenario(
   const frames = await stopFrames(page);
 
   const gestureGaps = gaps(frames, start, gestureEnd).sort((a, b) => a - b);
+  const commitGaps = gaps(frames, gestureEnd, Infinity);
   record({
     kind: "interaction",
     scenario,
@@ -170,6 +180,8 @@ export async function measureScenario(
     medianFrameMs: quantile(gestureGaps, 0.5),
     p95FrameMs: quantile(gestureGaps, 0.95),
     longFrames: gestureGaps.filter(g => g > 50).length,
+    commitMaxFrameMs: commitGaps.length ? Math.round(Math.max(...commitGaps) * 10) / 10 : null,
+    commitLongFrames: commitGaps.filter(g => g > 50).length,
     settleMs: settleMs(frames, gestureEnd),
     domNodes: await domNodes(page),
   });

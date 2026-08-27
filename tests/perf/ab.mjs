@@ -148,6 +148,8 @@ function collect(records) {
     if (r.kind === "load") put(`${key} :: wallMs`, r.wallMs, true);
     if (r.kind === "interaction") {
       put(`${key} :: p95FrameMs`, r.p95FrameMs, false);
+      // the frame materialization lands in: mid-gesture the app only rides the viewbox transform
+      put(`${key} :: commitMaxFrameMs`, r.commitMaxFrameMs, false);
       put(`${key} :: settleMs`, r.settleMs, false);
       put(`${key} :: domNodes`, r.domNodes, false);
     }
