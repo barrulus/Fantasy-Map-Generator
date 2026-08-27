@@ -8,6 +8,9 @@ const skipBuild = !!process.env.SKIP_BUILD;
 // different canvas generates a different map, so numbers across viewport sizes are not comparable.
 export default defineConfig({
   testDir: ".",
+  // the desktop spec launches Electron and has no dev server to point at: it runs under
+  // electron.config.ts, and would fail here simply for being in the same directory
+  testIgnore: "electron.spec.ts",
   fullyParallel: false,
   workers: 1,
   retries: 0,
