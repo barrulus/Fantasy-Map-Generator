@@ -72,6 +72,27 @@ export const ZOOM_MAX = Number(process.env.PERF_ZOOM_MAX || 90);
 export const applyZoomExtent = (page: Page) =>
   page.evaluate(max => (window as any).setZoomExtent(1, max), ZOOM_MAX);
 
+/**
+ * Regenerate at a chosen density. The fixtures are ~1.5K-cell maps, so gesture numbers taken on
+ * them say nothing about how the app behaves on a dense one — which is the case that hurts.
+ */
+export async function generateAt(page: Page, cells: number, seed: string) {
+  await page.evaluate(n => {
+    // a stored "points" key stops randomizeOptions() resetting the density mid-generate, and the
+    // dataset value is what generateGrid actually reads — so any cell count works
+    localStorage.setItem("points", "4");
+    document.getElementById("pointsInput")!.dataset.cells = String(n);
+  }, cells);
+
+  await page.evaluate(config => {
+    (window as any).__regenerated = new Promise<void>(resolve =>
+      window.addEventListener("map:generated", () => resolve(), { once: true })
+    );
+    (0, eval)(`regenerateMap(${config})`);
+  }, JSON.stringify({ seed }));
+  await page.evaluate(() => (window as any).__regenerated);
+}
+
 export function gaps(frames: number[], from: number, to: number): number[] {
   const result: number[] = [];
   for (let i = 1; i < frames.length; i++) {

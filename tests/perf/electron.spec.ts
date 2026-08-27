@@ -2,7 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
-import { applyZoomExtent, denseTarget, gestures, measureScenario, record, ZOOM_MAX } from "./metrics";
+import { applyZoomExtent, denseTarget, generateAt, gestures, measureScenario, record, ZOOM_MAX } from "./metrics";
 
 /**
  * Desktop-app timing: what the Electron build does that the web build cannot be asked about —
@@ -17,7 +17,12 @@ import { applyZoomExtent, denseTarget, gestures, measureScenario, record, ZOOM_M
  * build` produces and what ab.mjs builds for each side.
  */
 
+// PERF_CELLS generates a map at that density instead of loading a fixture: the fixtures are small,
+// and gesture cost on a 1.5K-cell map says nothing about a 500K one
+const CELLS = process.env.PERF_CELLS ? Number(process.env.PERF_CELLS.split(",").pop()) : 0;
+const SEED = process.env.PERF_SEEDS?.split(",")[0] || "123456789";
 const FIXTURE = process.env.PERF_MAP || "1.139.4.map";
+const SUBJECT = CELLS ? `${CELLS / 1000}K generated cells` : FIXTURE;
 const RUNTIME = "electron";
 const LAYERS = ["borders", "burgIcons", "ice", "labels", "lakes", "rivers", "routes", "scaleBar", "states", "vignette"];
 
@@ -113,9 +118,11 @@ async function silenceUpdateDialog(page: Page) {
   await page.reload();
 }
 
-async function loadFixture(page: Page) {
+async function loadMap(page: Page) {
   await silenceUpdateDialog(page);
   await page.waitForFunction(() => (window as any).mapId !== undefined, { timeout: 180_000 });
+  if (CELLS) return generateAt(page, CELLS, SEED);
+
   const previous = await page.evaluate(() => (window as any).mapId);
   await page.locator("#mapToLoad").setInputFiles(path.join(__dirname, "../fixtures", FIXTURE));
   await page.waitForFunction(
@@ -144,9 +151,9 @@ test("cold start to a rendered map", async () => {
   await quit(app);
 });
 
-test(`gestures on ${FIXTURE}`, async () => {
+test(`gestures on ${SUBJECT}`, async () => {
   const { app, page } = await launch();
-  await loadFixture(page);
+  await loadMap(page);
   await page.evaluate(ids => (window as any).Layers.set(ids), LAYERS);
   await applyZoomExtent(page);
   await page.waitForTimeout(1500);
@@ -154,13 +161,13 @@ test(`gestures on ${FIXTURE}`, async () => {
   const target = await denseTarget(page);
   const cx = WINDOW.width / 2;
   const cy = WINDOW.height / 2;
-  const tag = { runtime: RUNTIME, preset: "political", fixture: FIXTURE, zoomMax: ZOOM_MAX };
+  const tag = { runtime: RUNTIME, preset: "political", fixture: SUBJECT, zoomMax: ZOOM_MAX };
 
   const frames = await measureScenario(page, "zoom-in", gestures.zoomIn(page, target), tag);
   await measureScenario(page, "pan", gestures.pan(page, cx, cy), tag);
   await measureScenario(page, "zoom-out", gestures.zoomOut(page, cx, cy), tag);
 
-  record({ kind: "memory", runtime: RUNTIME, fixture: FIXTURE, phase: "after-gestures", ...(await memoryMb(app)) });
+  record({ kind: "memory", runtime: RUNTIME, fixture: SUBJECT, phase: "after-gestures", ...(await memoryMb(app)) });
   expect(frames).toBeGreaterThan(0);
   await quit(app);
 });
