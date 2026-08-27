@@ -4,7 +4,7 @@ import type { MessageBoxOptions } from "electron";
 import { app, BrowserWindow, dialog, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 
-const RELEASES_URL = "https://github.com/Azgaar/Fantasy-Map-Generator/releases/latest";
+const RELEASES_URL = "https://github.com/barrulus/Fantasy-Map-Generator/releases/latest";
 const FIRST_CHECK_DELAY = 30_000;
 const CHECK_INTERVAL = 6 * 60 * 60 * 1000;
 const CAN_SELF_INSTALL = process.platform === "win32" || Boolean(process.env.APPIMAGE);
