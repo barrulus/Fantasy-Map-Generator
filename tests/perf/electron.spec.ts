@@ -83,6 +83,15 @@ async function launch(): Promise<{ app: ElectronApplication; page: Page; started
   return { app, page, startedAt };
 }
 
+/**
+ * `app.close()` closes the window, which main.ts intercepts with the "Quit the Fantasy Map
+ * Generator?" confirmation — the dialog then blocks teardown until Playwright times out.
+ * `app.exit()` skips the close handlers entirely, which is what a measurement run wants.
+ */
+async function quit(app: ElectronApplication) {
+  await app.evaluate(({ app: electronApp }) => electronApp.exit(0)).catch(() => app.close());
+}
+
 /** Total resident memory of every process the app owns, which a browser tab cannot report */
 async function memoryMb(app: ElectronApplication) {
   const metrics = await app.evaluate(({ app: electronApp }) => electronApp.getAppMetrics());
@@ -93,7 +102,19 @@ async function memoryMb(app: ElectronApplication) {
   };
 }
 
+/**
+ * Every launch gets a fresh profile, so the app sees no stored version and pops its update dialog
+ * six seconds in — on top of whatever is being measured. Recording the current version and
+ * reloading starts the measured session with that dialog already settled.
+ */
+async function silenceUpdateDialog(page: Page) {
+  await page.waitForFunction(() => (window as any).VERSION !== undefined, { timeout: 180_000 });
+  await page.evaluate(() => localStorage.setItem("version", (window as any).VERSION));
+  await page.reload();
+}
+
 async function loadFixture(page: Page) {
+  await silenceUpdateDialog(page);
   await page.waitForFunction(() => (window as any).mapId !== undefined, { timeout: 180_000 });
   const previous = await page.evaluate(() => (window as any).mapId);
   await page.locator("#mapToLoad").setInputFiles(path.join(__dirname, "../fixtures", FIXTURE));
@@ -120,7 +141,7 @@ test("cold start to a rendered map", async () => {
 
   record({ kind: "startup", runtime: RUNTIME, readyMs, ...nav, ...(await memoryMb(app)) });
   expect(readyMs).toBeGreaterThan(0);
-  await app.close();
+  await quit(app);
 });
 
 test(`gestures on ${FIXTURE}`, async () => {
@@ -140,5 +161,5 @@ test(`gestures on ${FIXTURE}`, async () => {
 
   record({ kind: "memory", runtime: RUNTIME, fixture: FIXTURE, phase: "after-gestures", ...(await memoryMb(app)) });
   expect(frames).toBeGreaterThan(0);
-  await app.close();
+  await quit(app);
 });
