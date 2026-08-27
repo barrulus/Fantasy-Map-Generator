@@ -3,8 +3,11 @@
   buildNpmPackage,
   copyDesktopItems,
   electron_43,
+  fetchNpmDeps,
+  jq,
   makeDesktopItem,
   makeWrapper,
+  runCommand,
 }:
 
 buildNpmPackage (finalAttrs: {
@@ -26,7 +29,25 @@ buildNpmPackage (finalAttrs: {
     ];
   };
 
-  npmDepsHash = "sha256-QOoAQRSHYDuwNBcLjTulJ3XDzupgW1emudEvXxcp3D4=";
+  # Hashing the lock file as-is would tie this hash to the app version, because
+  # `sync-version.js` rewrites the root version in package-lock.json on every bump —
+  # a pre-commit hook, so it happens constantly. Nothing but the dependency set should
+  # move this hash, so the version is flattened out before it is taken.
+  npmDeps = fetchNpmDeps {
+    name = "${finalAttrs.pname}-npm-deps";
+    src = runCommand "${finalAttrs.pname}-package-lock" { nativeBuildInputs = [ jq ]; } ''
+      mkdir -p $out
+      jq '(.version, .packages."".version) |= "0.0.0"' \
+        ${../package-lock.json} > $out/package-lock.json
+    '';
+    hash = "sha256-mSoln9q2FsGxByX+N8lCuZYso3k04UVQ+SbKTOSC2Pc=";
+  };
+
+  # the lock file is hashed with its version flattened, so the copy npm checks must match
+  postPatch = ''
+    ${lib.getExe jq} '(.version, .packages."".version) |= "0.0.0"' package-lock.json > lock.tmp
+    mv lock.tmp package-lock.json
+  '';
 
   # `prepare` installs git hooks, and electron's postinstall downloads a browser we do not use
   npmFlags = [ "--ignore-scripts" ];

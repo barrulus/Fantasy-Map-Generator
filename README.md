@@ -105,6 +105,19 @@ Burgs can fly. Toggle **Flying** in the burg editor (or _Add sky burg_ from the 
 
 Generic improvements are submitted back to Azgaar's repo rather than kept fork-only — editor pagination ([#1469](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1469)), data-driven editor table columns ([#1564](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1564)), a Voronoi precision fix ([#1559](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1559)), chunk-preload recovery after deploys ([#1560](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1560)), burg-preview zoom ([#1569](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1569)), and a Full-JSON importer ([#1468](https://github.com/Azgaar/Fantasy-Map-Generator/pull/1468), closed unmerged).
 
+## Installing
+
+Desktop builds for Linux, Windows and macOS are on the
+[releases page](https://github.com/barrulus/Fantasy-Map-Generator/releases). Nix
+users can skip the AppImage and install from the flake instead:
+
+```sh
+nix run github:barrulus/Fantasy-Map-Generator          # run it once
+nix profile install github:barrulus/Fantasy-Map-Generator   # install it
+```
+
+See [docs/nix.md](docs/nix.md) for NixOS and Home Manager setup, and troubleshooting.
+
 ## Development
 
 ```sh
