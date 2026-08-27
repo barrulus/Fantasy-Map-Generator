@@ -8,26 +8,44 @@
   outputs =
     { self, nixpkgs }:
     let
-      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
+      forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
-      devShells.x86_64-linux.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          nodejs
-        ];
+      packages = forAllSystems (pkgs: {
+        fantasy-map-generator = pkgs.callPackage ./nix/package.nix { };
+        default = self.packages.${pkgs.stdenv.hostPlatform.system}.fantasy-map-generator;
+      });
 
-        shellHook = ''
-          echo ""
-          echo "=== Fantasy Map Generator ==="
-          echo ""
-          echo "Available commands:"
-          echo "  npm run dev      - Start dev server (http://localhost:5173)"
-          echo "  npm run build    - Type-check + production build"
-          echo "  npm run preview  - Preview production build"
-          echo "  npm test         - Run tests"
-          echo "  tsc --noEmit     - Type-check only"
-          echo ""
-        '';
-      };
+      devShells = forAllSystems (pkgs: {
+        default = pkgs.mkShell {
+          buildInputs = with pkgs; [
+            nodejs
+          ];
+
+          shellHook = ''
+            echo ""
+            echo "=== Fantasy Map Generator ==="
+            echo ""
+            echo "Available commands:"
+            echo "  npm run dev         - Start dev server (http://localhost:5173)"
+            echo "  npm run build       - Type-check + production build"
+            echo "  npm run preview     - Preview production build"
+            echo "  npm run electron    - Run the desktop app against the dev server"
+            echo "  npm test            - Run tests"
+            echo "  tsc --noEmit        - Type-check only"
+            echo ""
+            echo "  nix build           - Build the desktop app as a Nix package"
+            echo ""
+          '';
+        };
+      });
+
+      formatter = forAllSystems (pkgs: pkgs.nixfmt-tree);
     };
 }
