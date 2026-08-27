@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
 // fonts populates the font selector at import time, which needs the real app dom

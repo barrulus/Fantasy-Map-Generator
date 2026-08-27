@@ -1,4 +1,4 @@
-import type Delaunator from "delaunator";
+import Delaunator from "delaunator";
 import type { Point } from "@/types/global";
 
 export type { Point } from "@/types/global";
@@ -156,3 +156,35 @@ export class Voronoi {
     ];
   }
 }
+
+/**
+ * Builds the Voronoi diagram for the given points, using the boundary pseudo-points to clip the outer cells
+ * @param points - cell points
+ * @param boundary - pseudo-points along the map edge, they get no cells of their own
+ */
+export const calculateVoronoi = (points: Point[], boundary: Point[]): { cells: Cells; vertices: Vertices } => {
+  TIME && console.time("calculateDelaunay");
+  const allPoints = points.concat(boundary);
+  const delaunay = Delaunator.from(allPoints);
+  TIME && console.timeEnd("calculateDelaunay");
+
+  TIME && console.time("calculateVoronoi");
+  const { cells, vertices } = new Voronoi(delaunay, allPoints, points.length);
+  cells.i = Uint32Array.from({ length: points.length }, (_, i) => i);
+
+  // Delaunator silently drops exactly-coincident input points, so the Voronoi builder never assigns a
+  // neighbour list for the duplicate's index. cells.i stays dense, so the hole leaves cells.c[i] undefined
+  // and crashes every downstream `for (const n of cells.c[cellId])`. Backfill holes so an orphaned point
+  // becomes a neighbourless border cell rather than a crash.
+  for (let i = 0; i < points.length; i++) {
+    if (cells.c[i] === undefined) {
+      cells.c[i] = [];
+      cells.v[i] = [];
+      cells.b[i] = 1;
+    }
+  }
+
+  TIME && console.timeEnd("calculateVoronoi");
+
+  return { cells, vertices };
+};

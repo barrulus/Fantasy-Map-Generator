@@ -1,18 +1,7 @@
 import Alea from "alea";
 import { curveCatmullRom, line, select } from "d3";
 import Delaunator from "delaunator";
-import {
-  distanceSquared,
-  findClosestCell,
-  findPath,
-  findPathTree,
-  getAdjective,
-  isLand,
-  ra,
-  rn,
-  round,
-  rw
-} from "../utils";
+import { distanceSquared, findPath, findPathTree, getAdjective, isLand, ra, rn, round, rw } from "../utils";
 import { buildAirRoutes } from "./air-routes-generator";
 import type { Burg } from "./burgs-generator";
 import type { Label } from "./labels-generator";
@@ -1438,7 +1427,7 @@ class RoutesModule {
             newY = rn((currY + middleY) / 2, 2);
           }
 
-          if (findClosestCell(newX, newY, undefined, pack) === cellId) {
+          if (Pack.findCell(newX, newY) === cellId) {
             data[i] = [newX, newY, cellId];
             points[cellId] = [data[i][0], data[i][1]]; // change cell coordinate for all routes
           }

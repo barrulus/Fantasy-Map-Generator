@@ -92,6 +92,7 @@ beforeAll(async () => {
     }
   };
 
+  await import("./grid-generator"); // heightmap ops resolve points through the Grid module
   await import("./heightmap-generator");
   HeightmapGenerator = g.window.HeightmapGenerator;
 });
@@ -124,7 +125,7 @@ function buildSquareGrid(cellsX: number, cellsY: number, cellsDesired: number) {
     cellsX,
     cellsY,
     points,
-    cells: { c, h: null }
+    cells: { c, h: new Uint8Array(totalCells) }
   };
 }
 

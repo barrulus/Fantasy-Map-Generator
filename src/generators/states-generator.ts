@@ -239,7 +239,6 @@ class StatesModule {
   }
 
   generate() {
-    TIME && console.time("generateStates");
     pack.states = this.createStates();
     this.expandStates();
     this.normalize();
@@ -248,8 +247,6 @@ class StatesModule {
     this.assignColors();
     this.generateCampaigns();
     this.generateDiplomacy();
-
-    TIME && console.timeEnd("generateStates");
   }
 
   expandStates() {
@@ -533,7 +530,6 @@ class StatesModule {
 
   // calculate states data like area, population etc.
   collectStatistics() {
-    TIME && console.time("collectStatistics");
     const { cells, states } = pack;
 
     states.forEach(s => {
@@ -568,8 +564,6 @@ class StatesModule {
         states[s].rural! += cells.pop[i];
       }
     }
-
-    TIME && console.timeEnd("collectStatistics");
   }
 
   generateCampaign(state: State): Campaign[] {
@@ -792,7 +786,6 @@ class StatesModule {
 
   // select a forms for listed or all valid states
   defineStateForms(list: number[] | null = null) {
-    TIME && console.time("defineStateForms");
     const states = pack.states.filter(s => s.i && !s.removed && !s.lock);
     if (states.length < 1) return;
 
@@ -932,8 +925,6 @@ class StatesModule {
       s.salesTax = taxes.salesTax;
       s.pollTax = taxes.pollTax;
     }
-
-    TIME && console.timeEnd("defineStateForms");
   }
 
   defineTaxRates(state: State) {

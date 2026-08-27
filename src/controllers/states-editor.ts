@@ -29,11 +29,9 @@ import { highlightElement } from "@/renderers/overlays/highlight";
 import { applyOption, downloadFile, getArea, getAreaUnit, getFileName, speak } from "@/utils";
 import {
   ensureEl,
-  findAllCellsInRadius,
   formatPrice,
   getAdjective,
   getMixedColor,
-  getPackPolygon,
   getPointer,
   getRandomColor,
   isLand,
@@ -1435,7 +1433,7 @@ function stageStateDemotion(stateId: number): void {
         .attr("data-cell", i)
         .attr("data-state", ownerId)
         .attr("data-demote", stateId)
-        .attr("points", getPackPolygon(i, pack))
+        .attr("points", String(Pack.getPolygon(i)))
         .attr("fill", demoteColor)
         .attr("stroke", demoteColor);
   }
@@ -1455,7 +1453,7 @@ function selectStateOnLineClick(this: HTMLElement): void {
 
 function selectStateOnMapClick(this: any, event: any): void {
   const point = getPointer(event, this);
-  const i = findCell(point[0], point[1]);
+  const i = Pack.findCell(point[0], point[1]);
   if (pack.cells.h[i!] < 20) return;
 
   // In picker mode, the clicked cell's true owner (from pack, ignoring any staged preview) is the
@@ -1484,7 +1482,7 @@ function dragStateBrush(this: any, event: any): void {
     const p = getPointer(dragEvent, this);
     moveCircle(p[0], p[1], r);
 
-    const found = r > 5 ? findAllCellsInRadius(p[0], p[1], r, pack) : [findCell(p[0], p[1])];
+    const found = r > 5 ? Pack.findAll(p[0], p[1], r) : [Pack.findCell(p[0], p[1])];
     const selection = found.filter((i): i is number => i !== undefined && isLand(i, pack));
     if (selection) changeStateForSelection(selection);
   });
@@ -1512,7 +1510,7 @@ function changeStateForSelection(selection: number[]): void {
         .append("polygon")
         .attr("data-cell", i)
         .attr("data-state", stateNew)
-        .attr("points", getPackPolygon(i, pack))
+        .attr("points", String(Pack.getPolygon(i)))
         .attr("fill", color)
         .attr("stroke", color);
   });
@@ -1801,7 +1799,7 @@ function enterAddStateMode(this: HTMLElement): void {
 function addState(this: SVGElement, event: MouseEvent): void {
   const { cells, states, burgs } = pack as any;
   const point = getPointer(event, this);
-  const center = findCell(point[0], point[1])!;
+  const center = Pack.findCell(point[0], point[1])!;
   if (cells.h[center] < 20) {
     tip("You cannot place state into the water. Please click on a land cell", false, "error");
     return;

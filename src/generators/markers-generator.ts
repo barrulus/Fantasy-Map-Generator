@@ -509,8 +509,6 @@ class MarkersModule {
   }
 
   private generateTypes() {
-    TIME && console.time("addMarkers");
-
     this.config.forEach(({ type, icon, dx, dy, px, size, pin, fill, stroke, min, each, multiplier, list, add }) => {
       if (multiplier === 0) return;
 
@@ -529,7 +527,6 @@ class MarkersModule {
     });
 
     this.occupied = [];
-    TIME && console.timeEnd("addMarkers");
   }
 
   private getQuantity(array: any[], min: number, each: number, multiplier: number) {
