@@ -4,6 +4,7 @@ import { Layers } from "@/components/layers";
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { GraphOverride } from "@/generators/graph-override";
+import { invalidateEmblems } from "@/renderers/draw-emblems";
 import { clearLegend } from "@/renderers/draw-legend";
 import { Services } from "@/services";
 import { declareFont } from "@/services/fonts";
@@ -294,6 +295,8 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
       // there, and turnButtonOn -> ViewportLayers.renderNow() reads options.labels.groups — so a
       // very old map threw before its own migration could run.
       options.labels ??= Labels.getDefaultOptions();
+      options.emblems ??= { showAll: false };
+      options.emblems.showAll ??= false;
       options.burgs ??= { groups: Burgs.getDefaultGroups() };
       // setting 16 and 17 (temperature) are part of options now, kept as "" in newer versions for compatibility
       if (settings[16]) options.temperatureEquator = +settings[16];
@@ -335,7 +338,9 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
     // A loaded map replaces the SVG, so the fork's element globals point at detached nodes.
     // Rebind them (see bindElementGlobals in public/main.js) before anything reads them.
     (window as any).bindElementGlobals?.();
+    invalidateEmblems(); // the viewport scene belongs to the map that was just dropped
 
+    // TODO: check if we need it or if LayersRegistry resolves it automatically?
     const viewbox = select("#viewbox");
     if (!select("#texture").size()) {
       viewbox.insert("g", "#landmass").attr("id", "texture").attr("data-href", "./images/textures/plaster.jpg");
@@ -434,7 +439,7 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
 
     {
       const { resolveVersionConflicts } = await import("./auto-update");
-      resolveVersionConflicts(mapVersion!, data);
+      await resolveVersionConflicts(mapVersion!, data);
     }
 
     if (data[51]) GraphOverride.restore(JSON.parse(data[51]));

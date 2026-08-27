@@ -103,6 +103,7 @@ function prepareMapData(): string {
   // ice shapes are stored in pack.ice, the layer holds only the currently visible ones
   const cloneIce = cloneEl.querySelector("#ice");
   if (cloneIce) cloneIce.innerHTML = "";
+  for (const group of Array.from(cloneEl.querySelectorAll("#emblems > g"))) group.innerHTML = "";
 
   const cloneRuler = cloneEl.querySelector("#ruler");
   if (cloneRuler) cloneRuler.innerHTML = ""; // always remove rulers

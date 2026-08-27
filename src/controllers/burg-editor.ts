@@ -4,6 +4,8 @@ import { Layers } from "@/components/layers";
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
+import { removeEmblem } from "@/renderers/draw-emblems";
+import { EmblemRenderer } from "@/renderers/emblems/renderer";
 import { getHeight, openURL, speak } from "@/utils";
 import { MAX_ZOOM, PAN_ZOOM_IDENTITY, type PanZoom, panBy, zoomAt } from "@/utils/panZoomUtils";
 import { type Burg, cellSlotAfterRemoval, groundSlotOnPlacement } from "../generators/burgs-generator";
@@ -385,7 +387,7 @@ function updateBurgValues(): void {
   // set emblem image — small burgs get no coat of arms at generation, so guard the
   // renderer call (it warns "Emblem … is undefined" on a missing coa).
   const coaID = `burgCOA${id}`;
-  if (b.coa) COArenderer.trigger(coaID, b.coa);
+  if (b.coa) EmblemRenderer.trigger(coaID, b.coa);
   ensureEl("burgEmblem").setAttribute("href", `#${coaID}`);
 
   void updateBurgPreview(b);
@@ -947,6 +949,7 @@ function removeSelectedBurg(): void {
       confirm: "Remove",
       onConfirm: () => {
         Burgs.remove(burgId);
+        removeEmblem("burg", burgId);
         Layers.draw("burgIcons", "labels");
         $("#burgEditor").dialog("close");
       }

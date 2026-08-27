@@ -1,6 +1,5 @@
 import { type D3ZoomEvent, select, zoom, zoomIdentity } from "d3";
 import { Layers } from "@/components/layers";
-import { redrawEmblemGroup } from "@/renderers/draw-emblems";
 import { ViewportLayers } from "@/renderers/viewport/viewport-renderer";
 import { ensureEl, findEl } from "@/utils/nodeUtils";
 import { rn } from "@/utils/numberUtils";
@@ -15,7 +14,7 @@ export function applyZoomBehavior(): void {
 let frameId: number | null = null;
 let pendingScaleChange = false;
 let pendingPositionChange = false;
-let viewChangedInGesture = false;
+let isViewChanged = false;
 
 function onZoom(event: D3ZoomEvent<SVGSVGElement, unknown>): void {
   const { k, x, y } = event.transform;
@@ -23,14 +22,12 @@ function onZoom(event: D3ZoomEvent<SVGSVGElement, unknown>): void {
   const isScaleChanged = scale !== k;
   const isPositionChanged = viewX !== x || viewY !== y;
   if (!isScaleChanged && !isPositionChanged) return;
+  isViewChanged = true;
 
   scale = k;
   viewX = x;
   viewY = y;
-  viewChangedInGesture = true;
 
-  // Coalesce a burst of zoom events into one paint: the globals already hold the latest transform,
-  // so keep OR-ing the change flags until the scheduled frame consumes them.
   pendingScaleChange = pendingScaleChange || isScaleChanged;
   pendingPositionChange = pendingPositionChange || isPositionChanged;
   if (frameId !== null) return;
@@ -62,12 +59,10 @@ function handleZoomPerFrame(): void {
     }
   }
 
-  if (didPositionChange) {
-    Layers.draw("coordinates");
-  }
+  if (didPositionChange) Layers.draw("coordinates");
 }
 
-/** Rewrite map content once the gesture settles */
+/** Rewrite map content once zoom gesture settles */
 function handleZoomEnd(): void {
   // Labels and icons recalculate ONCE per gesture, here at its end - and only when the
   // transform actually changed. A pending frame is not a proxy for that: wheel gestures end
@@ -77,16 +72,16 @@ function handleZoomEnd(): void {
   // guard-band escape, making long zooms recalculate many times over. A plain click is a
   // zero-movement "gesture" too: rendering on its mouseup would churn the DOM between
   // mousedown and click dispatch and swallow the click.
+  if (!isViewChanged) return;
+  isViewChanged = false;
+
   if (frameId !== null) {
     cancelAnimationFrame(frameId);
     frameId = null;
     handleZoomPerFrame();
   }
 
-  if (viewChangedInGesture) {
-    viewChangedInGesture = false;
-    ViewportLayers.renderNow();
-  }
+  ViewportLayers.renderNow();
 
   invokeActiveZooming();
 }
@@ -109,17 +104,7 @@ function redrawTracedImage(): void {
 function invokeActiveZooming(): void {
   const isOptimized = ensureEl<HTMLSelectElement>("shapeRendering").value === "optimizeSpeed";
 
-  const emblems = select<SVGGElement, unknown>("#emblems");
-  if (emblems.style("display") !== "none") {
-    const hideSmallEmblems = ensureEl<HTMLInputElement>("hideEmblems").checked;
-    for (const group of emblems.selectAll<SVGGElement, unknown>("g").nodes()) {
-      const size = Number(group.getAttribute("font-size")) * scale;
-      const hidden = hideSmallEmblems && (size < 25 || size > 300);
-      group.classList.toggle("hidden", hidden);
-      const emblem = group.children[0];
-      if (!hidden && window.COArenderer && emblem && !emblem.getAttribute("href")) redrawEmblemGroup(group);
-    }
-  }
+  ViewportLayers.renderNow();
 
   if (!customization && !isOptimized) {
     const statesHalo = select("#statesHalo");
