@@ -17,9 +17,12 @@ import { Layers } from "@/components/layers";
 import { clearMainTip, showMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
+import { Emblems } from "@/generators/emblems-generator";
 import type { Province } from "@/generators/provinces-generator";
 import type { State } from "@/generators/states-generator";
+import { redrawEmblem, redrawEmblems, removeEmblem } from "@/renderers/draw-emblems";
 import { clearLegend, drawLegend } from "@/renderers/draw-legend";
+import { EmblemRenderer } from "@/renderers/emblems/renderer";
 import { moveCircle, removeCircle } from "@/renderers/overlays/brush-circle";
 import { fog, unfog } from "@/renderers/overlays/fogging";
 import { highlightElement } from "@/renderers/overlays/highlight";
@@ -401,7 +404,7 @@ function renderStatesPage(view: TableView<State>): void {
     }
 
     const capital = pack.burgs[s.capital].name;
-    COArenderer.trigger(`stateCOA${s.i}`, s.coa);
+    EmblemRenderer.trigger(`stateCOA${s.i}`, s.coa);
     lines += /* html */ `<div
       class="states"
       data-id=${s.i}
@@ -1044,9 +1047,7 @@ function stateRemove(stateId: number): void {
   });
 
   // remove emblem
-  const coaId = `stateCOA${stateId}`;
-  ensureEl(coaId).remove();
-  select("#emblems").select(`#stateEmblems > use[data-i='${stateId}']`).remove();
+  removeEmblem("state", stateId);
 
   // remove provinces
   (pack.states[stateId].provinces || []).forEach((p: number) => {
@@ -1055,9 +1056,7 @@ function stateRemove(stateId: number): void {
       if (pr === p) pack.cells.province[i] = 0;
     });
 
-    const coaId = `provinceCOA${p}`;
-    if (document.getElementById(coaId)) ensureEl(coaId).remove();
-    select("#emblems").select(`#provinceEmblems > use[data-i='${p}']`).remove();
+    removeEmblem("province", p);
     const g = select("#provs").select("#provincesBody");
     g.select(`#province${p}`).remove();
     g.select(`#province-gap${p}`).remove();
@@ -1584,6 +1583,7 @@ function applyStatesManualAssignent(): void {
 
 function adjustProvinces(affectedProvinces: number[]): void {
   const { cells, provinces, states, burgs } = pack as any;
+  const createdProvinces: number[] = [];
 
   affectedProvinces.forEach(provinceId => {
     if (!provinces[provinceId]) return; // lands without province captured => do nothing
@@ -1602,6 +1602,8 @@ function adjustProvinces(affectedProvinces: number[]): void {
     splitProvince(provinceId, provStates, provCells);
   });
 
+  redrawEmblems(createdProvinces.map(provinceId => ["province", provinceId] as const));
+
   function changeProvinceOwner(provinceId: number, newOwnerId: number, provinceCells: number[]) {
     const province = provinces[provinceId];
     const prevOwner = states[province.state];
@@ -1616,6 +1618,7 @@ function adjustProvinces(affectedProvinces: number[]): void {
     } else {
       // new owner is neutral => remove province
       provinces[provinceId] = { i: provinceId, removed: true };
+      removeEmblem("province", provinceId);
       provinceCells.forEach(i => {
         cells.province[i] = 0;
       });
@@ -1637,6 +1640,7 @@ function adjustProvinces(affectedProvinces: number[]): void {
         // province center is captured by neutrals => remove province
         if (!stateId) {
           provinces[provinceId] = { i: provinceId, removed: true };
+          removeEmblem("province", provinceId);
           stateProvinceCells.forEach(i => {
             cells.province[i] = 0;
           });
@@ -1693,8 +1697,8 @@ function adjustProvinces(affectedProvinces: number[]): void {
 
     const kinship = nameByBurg ? 0.8 : 0.4;
     const type = Burgs.getType(center, burg?.port);
-    const coa = COA.generate(burg?.coa || states[stateId].coa, kinship, burg ? null : 0.9, type);
-    coa.shield = COA.getShield(culture, stateId);
+    const coa = Emblems.generate(burg?.coa || states[stateId].coa, kinship, burg ? null : 0.9, type);
+    coa.shield = Emblems.getShield(culture, stateId);
 
     provinces.push({
       i: newProvinceId,
@@ -1713,6 +1717,7 @@ function adjustProvinces(affectedProvinces: number[]): void {
     });
 
     states[stateId].provinces.push(newProvinceId);
+    createdProvinces.push(newProvinceId);
   }
 
   function findClosestProvince(provinceId: number, stateId: number, sourceCells: number[]) {
@@ -1808,7 +1813,10 @@ function addState(this: SVGElement, event: MouseEvent): void {
     return;
   }
 
-  if (!burgId) burgId = Burgs.add(point as [number, number]);
+  if (!burgId) {
+    burgId = Burgs.add(point as [number, number]);
+    redrawEmblem("burg", burgId);
+  }
 
   const oldState = cells.state[center];
   const newState = states.length;
@@ -1828,8 +1836,8 @@ function addState(this: SVGElement, event: MouseEvent): void {
 
   // generate emblem
   const cultureType = pack.cultures[culture].type;
-  const coa = COA.generate(burgs[burgId].coa, 0.4, null, cultureType);
-  coa.shield = COA.getShield(culture, undefined);
+  const coa = Emblems.generate(burgs[burgId].coa, 0.4, null, cultureType);
+  coa.shield = Emblems.getShield(culture, undefined);
 
   // update diplomacy and reverse relations
   const diplomacy = states.map((s: any) => {
@@ -1884,7 +1892,7 @@ function addState(this: SVGElement, event: MouseEvent): void {
   adjustProvinces([cells.province[center]]);
 
   Layers.draw("labels");
-  COArenderer.add("state", newState, coa as any, states[newState].pole[0], states[newState].pole[1]);
+  redrawEmblem("state", newState);
 
   Layers.hide("provinces");
   Layers.show("states", "borders");
@@ -2052,9 +2060,7 @@ function mergeStates(statesToMerge: number[], rulingStateId: number, mergeToProv
     // collapse the state's existing internal provinces
     (pack.provinces as any[]).forEach(province => {
       if (!province.i || province.removed || province.state !== stateId) return;
-      const coaId = `provinceCOA${province.i}`;
-      document.getElementById(coaId)?.remove();
-      emblems.select(`#provinceEmblems > use[data-i='${province.i}']`).remove();
+      removeEmblem("province", province.i);
       (pack.provinces as any[])[province.i] = { i: province.i, removed: true };
     });
 
@@ -2093,7 +2099,7 @@ function mergeStates(statesToMerge: number[], rulingStateId: number, mergeToProv
     rulingState.provinces = rulingState.provinces || [];
     rulingState.provinces.push(newProvinceId);
 
-    COArenderer.add("province", newProvinceId, coa, pole[0], pole[1]);
+    redrawEmblem("province", newProvinceId);
   }
 
   // remove states to be merged
@@ -2106,8 +2112,7 @@ function mergeStates(statesToMerge: number[], rulingStateId: number, mergeToProv
     select("#statesHalo").select(`#state-border${stateId}`).remove();
     delete pack.states[stateId].label;
 
-    document.getElementById(`stateCOA${stateId}`)?.remove();
-    select("#emblems").select(`#stateEmblems > use[data-i='${stateId}']`).remove();
+    removeEmblem("state", stateId);
 
     // add merged state regiments to the ruling state
     (state.military || []).forEach((regiment: any) => {
