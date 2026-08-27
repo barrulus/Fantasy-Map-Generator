@@ -1,6 +1,6 @@
-import fs from "fs";
 import path from "path";
 import { test, expect, type Page } from "@playwright/test";
+import { record } from "./metrics";
 
 /**
  * Generation timing: regenerate the map at fixed (seed, cells) points and record the total time,
@@ -17,14 +17,6 @@ import { test, expect, type Page } from "@playwright/test";
 const SEEDS = (process.env.PERF_SEEDS || "123456789,987654321").split(",");
 const CELLS = (process.env.PERF_CELLS || "10000,100000").split(",").map(Number);
 const FIXTURES = (process.env.PERF_FIXTURES || "1.112.1.map,1.139.4.map").split(",");
-const OUT = process.env.PERF_OUT || "";
-
-function record(result: Record<string, unknown>) {
-  const line = JSON.stringify(result);
-  console.log("PERF_RESULT " + line);
-  if (OUT) fs.appendFileSync(OUT, line + "\n");
-}
-
 /** Collects `console.timeEnd` lines ("stage: 12.3ms") and the "TOTAL: 1.23s" warn line */
 function captureStages(page: Page) {
   const capture = { stages: {} as Record<string, number>, totalMs: 0, lastMessageAt: Date.now() };

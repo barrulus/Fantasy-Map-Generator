@@ -8,7 +8,7 @@
  *
  * Options:
  *   --rounds N        measurement rounds per side (default 5)
- *   --specs a,b       spec files to run: generation,interaction (default both)
+ *   --specs a,b       spec files to run: generation,interaction,electron (default first two)
  *   --threshold PCT   gate: fail if a gated metric's median slows by more than PCT% (default 25)
  *   --out DIR         output dir for results and comment.md (default .perf-ab/results)
  *   --keep            keep the worktrees for inspection
@@ -36,7 +36,10 @@ const flag = name => args.includes(`--${name}`);
 const base = opt("base", "master");
 const head = opt("head", "HEAD");
 const rounds = Number(opt("rounds", "5"));
-const specs = opt("specs", "generation,interaction").split(",").map(s => `tests/perf/${s.trim()}.spec.ts`);
+const specNames = opt("specs", "generation,interaction").split(",").map(s => s.trim());
+const browserSpecs = specNames.filter(s => s !== "electron").map(s => `tests/perf/${s}.spec.ts`);
+// the desktop app serves its own renderer, so it runs under a config with no dev server
+const runsElectron = specNames.includes("electron");
 const threshold = Number(opt("threshold", "25"));
 
 const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
@@ -66,13 +69,17 @@ for (const side of sides) {
   }
   // Both sides run the measurement code from head, so the specs themselves are never part of the diff
   fs.mkdirSync(path.join(side.repo, "tests/perf"), { recursive: true });
-  for (const file of ["playwright.config.ts", "generation.spec.ts", "interaction.spec.ts"]) {
+  const measurementFiles = ["playwright.config.ts", "metrics.ts", "generation.spec.ts", "interaction.spec.ts"];
+  if (runsElectron) measurementFiles.push("electron.config.ts", "electron.spec.ts");
+  for (const file of measurementFiles) {
     fs.copyFileSync(path.join(repoRoot, "tests/perf", file), path.join(side.repo, "tests/perf", file));
   }
   if (!flag("skip-install")) {
     console.log(`\n== npm ci + build: ${side.name} (${side.sha}) ==`);
     run("npm", ["ci", "--no-audit", "--no-fund"], side.repo);
     run("npm", ["run", "build"], side.repo);
+    // the desktop spec launches dist-electron/, which only `npm run electron build` produces
+    if (runsElectron) run("npm", ["run", "electron", "build"], side.repo);
   }
 }
 
@@ -85,12 +92,17 @@ for (let round = 1; round <= rounds; round++) {
     console.log(`\n== round ${round}/${rounds}: ${side.name} ==`);
     const outFile = path.join(outDir, `${side.name}-r${round}.jsonl`);
     fs.rmSync(outFile, { force: true });
-    const pw = spawnSync("npx", ["playwright", "test", "-c", "tests/perf/playwright.config.ts", ...specs], {
-      cwd: side.repo,
-      stdio: "inherit",
-      env: { ...process.env, SKIP_BUILD: "1", PERF_OUT: outFile },
-    });
-    if (pw.status !== 0) console.error(`WARNING: playwright exited ${pw.status} for ${side.name} round ${round}`);
+    const suites = [];
+    if (browserSpecs.length) suites.push(["tests/perf/playwright.config.ts", browserSpecs]);
+    if (runsElectron) suites.push(["tests/perf/electron.config.ts", []]);
+    for (const [config, files] of suites) {
+      const pw = spawnSync("npx", ["playwright", "test", "-c", config, ...files], {
+        cwd: side.repo,
+        stdio: "inherit",
+        env: { ...process.env, SKIP_BUILD: "1", PERF_OUT: outFile },
+      });
+      if (pw.status !== 0) console.error(`WARNING: playwright exited ${pw.status} for ${side.name} round ${round} (${config})`);
+    }
     if (fs.existsSync(outFile)) {
       for (const line of fs.readFileSync(outFile, "utf8").split("\n").filter(Boolean)) {
         results[side.name].push(JSON.parse(line));
@@ -107,10 +119,15 @@ const median = values => {
 };
 
 function metricKey(r) {
+  // the runtime prefix keeps browser and desktop numbers apart: the same preset and scenario are
+  // measured in both, and merging them would average two different things into one statistic
+  const runtime = r.runtime && r.runtime !== "browser" ? `${r.runtime} ` : "";
   if (r.kind === "generation") return `generation ${r.cells / 1000}K cells seed=${r.seed}`;
   if (r.kind === "load") return `load ${r.fixture}`;
-  if (r.kind === "interaction") return `${r.preset}/${r.scenario}`;
+  if (r.kind === "interaction") return `${runtime}${r.preset}/${r.scenario}`;
   if (r.kind === "layer-draw") return `draw ${r.layer}`;
+  if (r.kind === "startup") return `${runtime}startup`;
+  if (r.kind === "memory") return `${runtime}memory ${r.phase}`;
   return null;
 }
 
@@ -135,6 +152,11 @@ function collect(records) {
       put(`${key} :: domNodes`, r.domNodes, false);
     }
     if (r.kind === "layer-draw" && r.drawMs >= 5) put(`${key} :: drawMs`, r.drawMs, false);
+    if (r.kind === "startup") {
+      put(`${key} :: readyMs`, r.readyMs, true);
+      put(`${key} :: rssMb`, r.rssMb, false);
+    }
+    if (r.kind === "memory") put(`${key} :: rssMb`, r.rssMb, false);
   }
   return metrics;
 }
