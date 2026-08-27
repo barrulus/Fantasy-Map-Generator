@@ -7,7 +7,7 @@ on:
 
   # Cheap guard: make sure the desktop app still compiles when its own files change
   pull_request:
-    branches: [master]
+    branches: [main]
     paths:
       - "electron/**"
       - "electron-builder.yml"

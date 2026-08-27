@@ -1,4 +1,4 @@
-appId: com.azgaar.fantasy-map-generator
+appId: com.barrulus.fantasy-map-generator
 copyright: Copyright © 2017-2026 Azgaar and contributors
 directories:
   output: release
@@ -38,4 +38,6 @@ nsis:
   buildUniversalInstaller: false
 publish:
   provider: github
+  owner: barrulus
+  repo: Fantasy-Map-Generator
   releaseType: draft

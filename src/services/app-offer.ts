@@ -1,6 +1,6 @@
 // The Desktop App dialog: what the app is and which file this visitor needs
-const RELEASES_API = "https://api.github.com/repos/Azgaar/Fantasy-Map-Generator/releases/latest";
-const RELEASES_PAGE = "https://github.com/Azgaar/Fantasy-Map-Generator/releases/latest";
+const RELEASES_API = "https://api.github.com/repos/barrulus/Fantasy-Map-Generator/releases/latest";
+const RELEASES_PAGE = "https://github.com/barrulus/Fantasy-Map-Generator/releases/latest";
 
 type Os = "windows" | "mac" | "linux";
 type Asset = { name: string; browser_download_url: string; size: number };
