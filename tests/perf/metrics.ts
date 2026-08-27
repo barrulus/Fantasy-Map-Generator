@@ -62,6 +62,16 @@ export const denseTarget = (page: Page) =>
     return { x: t.applyX(best.x / best.n), y: t.applyY(best.y / best.n) };
   });
 
+/**
+ * The app resets the zoom extent to [1, 20] on every load and never stores it, so a perf run that
+ * wants to exercise deep zoom has to widen it each time. This is a measurement setting only — it
+ * changes nothing about what users get.
+ */
+export const ZOOM_MAX = Number(process.env.PERF_ZOOM_MAX || 90);
+
+export const applyZoomExtent = (page: Page) =>
+  page.evaluate(max => (window as any).setZoomExtent(1, max), ZOOM_MAX);
+
 export function gaps(frames: number[], from: number, to: number): number[] {
   const result: number[] = [];
   for (let i = 1; i < frames.length; i++) {

@@ -1,6 +1,6 @@
 import path from "path";
 import { test, expect, type Page } from "@playwright/test";
-import { denseTarget, domNodes, gestures, measureScenario, record } from "./metrics";
+import { applyZoomExtent, denseTarget, domNodes, gestures, measureScenario, record, ZOOM_MAX } from "./metrics";
 
 /**
  * Interaction timing on a fixture map: real wheel/drag gestures (never the zoom API — programmatic
@@ -44,11 +44,12 @@ for (const [preset, layerIds] of Object.entries(PRESETS)) {
   test(`gestures on ${FIXTURE} with ${preset} layers`, async ({ page }) => {
     await loadFixture(page);
     await page.evaluate(ids => (window as any).Layers.set(ids), layerIds);
+    await applyZoomExtent(page);
     await page.waitForTimeout(1500);
 
     const target = await denseTarget(page);
 
-    const tag = { runtime: "browser", preset, fixture: FIXTURE };
+    const tag = { runtime: "browser", preset, fixture: FIXTURE, zoomMax: ZOOM_MAX };
     await measureScenario(page, "zoom-in", gestures.zoomIn(page, target), tag);
     await measureScenario(page, "pan", gestures.pan(page, 640, 360), tag);
     await measureScenario(page, "zoom-out", gestures.zoomOut(page, 640, 360), tag);

@@ -15,7 +15,9 @@ import { record } from "./metrics";
  */
 
 const SEEDS = (process.env.PERF_SEEDS || "123456789,987654321").split(",");
-const CELLS = (process.env.PERF_CELLS || "10000,100000").split(",").map(Number);
+// 500K is where the fork's own maps live and where generation cost stops being linear; drop back
+// to "10000,100000" via PERF_CELLS for a quick run, since it roughly triples a round
+const CELLS = (process.env.PERF_CELLS || "10000,100000,500000").split(",").map(Number);
 const FIXTURES = (process.env.PERF_FIXTURES || "1.112.1.map,1.139.4.map").split(",");
 /** Collects `console.timeEnd` lines ("stage: 12.3ms") and the "TOTAL: 1.23s" warn line */
 function captureStages(page: Page) {

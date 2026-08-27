@@ -2,7 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
-import { denseTarget, gestures, measureScenario, record } from "./metrics";
+import { applyZoomExtent, denseTarget, gestures, measureScenario, record, ZOOM_MAX } from "./metrics";
 
 /**
  * Desktop-app timing: what the Electron build does that the web build cannot be asked about —
@@ -148,12 +148,13 @@ test(`gestures on ${FIXTURE}`, async () => {
   const { app, page } = await launch();
   await loadFixture(page);
   await page.evaluate(ids => (window as any).Layers.set(ids), LAYERS);
+  await applyZoomExtent(page);
   await page.waitForTimeout(1500);
 
   const target = await denseTarget(page);
   const cx = WINDOW.width / 2;
   const cy = WINDOW.height / 2;
-  const tag = { runtime: RUNTIME, preset: "political", fixture: FIXTURE };
+  const tag = { runtime: RUNTIME, preset: "political", fixture: FIXTURE, zoomMax: ZOOM_MAX };
 
   const frames = await measureScenario(page, "zoom-in", gestures.zoomIn(page, target), tag);
   await measureScenario(page, "pan", gestures.pan(page, cx, cy), tag);
