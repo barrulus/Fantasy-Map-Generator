@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { relocateRootFilter } from "./nodeUtils";
+import { describe, expect, it, vi } from "vitest";
+
+// fonts populates the font selector at import time, which needs the real app dom
+vi.mock("@/services/fonts", () => ({ getUsedFonts: vi.fn(), loadFontsAsDataURI: vi.fn() }));
+
+import { relocateRootFilter } from "./export";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 

@@ -16,32 +16,6 @@ export const ensureEl = <T extends Element = HTMLElement>(id: string): T => {
 };
 
 /**
- * Move a filter attribute from the root svg element to its #viewbox group.
- * Inkscape renders a document with a filter on the root svg element as fully blank,
- * so exported files must carry global filters on an inner group instead.
- * All filters then get an explicit region: with the default objectBoundingBox regions
- * Inkscape miscomposites the large filtered group (blank output, or racy black artifacts
- * when child layers carry their own filters). A full-viewport region is a superset of any
- * in-viewport default region, so this does not clip anything browsers would have drawn
- * @param svg - The root svg element (an export clone)
- */
-export const relocateRootFilter = (svg: SVGSVGElement): void => {
-  const filter = svg.getAttribute("filter");
-  const viewbox = svg.querySelector("#viewbox");
-  if (!filter || !viewbox) return;
-  svg.removeAttribute("filter");
-  viewbox.setAttribute("filter", filter);
-
-  svg.querySelectorAll("filter").forEach(filterEl => {
-    filterEl.setAttribute("filterUnits", "userSpaceOnUse");
-    filterEl.setAttribute("x", "0");
-    filterEl.setAttribute("y", "0");
-    filterEl.setAttribute("width", "100%");
-    filterEl.setAttribute("height", "100%");
-  });
-};
-
-/**
  * @param id - The ID of the element to retrieve
  * @typeParam T - The type of the element to retrieve, HTMLElement unless a SVG element is requested
  * @returns The element with the specified ID, cast to the specified type, or null if not found

@@ -16,7 +16,6 @@ import {
   getFileName,
   getFriendlyHeight,
   getGridPolygon,
-  relocateRootFilter,
   rn,
   unique
 } from "@/utils";
@@ -290,7 +289,7 @@ async function getMapURL(type: string, options: GetMapURLOptions = {}): Promise<
 
   if (type === "svg") {
     removeUnusedElements(clone);
-    relocateRootFilter(cloneEl); // Inkscape renders root-level filters as a blank document
+    relocateRootFilter(cloneEl);
   }
   if (customization && type === "mesh") updateMeshCells(clone);
   inlineStyle(clone);
@@ -520,6 +519,24 @@ async function getMapURL(type: string, options: GetMapURLOptions = {}): Promise<
   const url = window.URL.createObjectURL(blob);
   window.setTimeout(() => window.URL.revokeObjectURL(url), 5000);
   return url;
+}
+
+// Inkscape can't render filters on the root svg element and miscomposites default filter regions on large groups,
+// so move the global filter to #viewbox and give all filters an explicit full-viewport region
+export function relocateRootFilter(svg: SVGSVGElement): void {
+  const filter = svg.getAttribute("filter");
+  const viewbox = svg.querySelector("#viewbox");
+  if (!filter || !viewbox) return;
+  svg.removeAttribute("filter");
+  viewbox.setAttribute("filter", filter);
+
+  svg.querySelectorAll("filter").forEach(filterEl => {
+    filterEl.setAttribute("filterUnits", "userSpaceOnUse");
+    filterEl.setAttribute("x", "0");
+    filterEl.setAttribute("y", "0");
+    filterEl.setAttribute("width", "100%");
+    filterEl.setAttribute("height", "100%");
+  });
 }
 
 // remove hidden g elements and g elements without children to make downloaded svg smaller in size
