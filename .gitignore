@@ -26,3 +26,8 @@
 /.envrc
 *.har
 /*Full*.json
+
+# electron build output
+/dist-electron
+/release
+.DS_Store

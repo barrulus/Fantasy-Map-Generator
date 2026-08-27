@@ -3,11 +3,12 @@ import { Emblems } from "@/generators/emblems-generator";
 import { buildSettlemakerUrl } from "@/services/previews/settlemaker";
 import type { BurgGroup } from "@/types/burg-groups";
 import type { Emblem } from "@/types/emblems";
-import { each, ensureEl, findClosestCell, gauss, minmax, normalize, P, rn } from "../utils";
+import { each, ensureEl, gauss, minmax, normalize, P, rn } from "../utils";
 import { buildBurgContext } from "./burg-context";
 import { type CultureType, DEFAULT_CULTURE_TYPE } from "./cultures-generator";
 import { NON_NAVIGABLE_LAKE_GROUPS } from "./features";
 import type { Label } from "./labels-generator";
+import { Population } from "./population-generator";
 import type { ProductionRecord } from "./production-generator";
 import type { River } from "./river-generator";
 import type { Point } from "./voronoi";
@@ -216,7 +217,6 @@ class BurgModule {
   }
 
   generate() {
-    TIME && console.time("generateBurgs");
     const { cells } = pack;
 
     let burgs: Burg[] = [0 as any]; // burgs array
@@ -618,7 +618,7 @@ class BurgModule {
         if (x < 0 || x > graphWidth || y < 0 || y > graphHeight) continue;
         if (skyQuadtree.find(x, y, minSpacing) !== undefined) continue;
 
-        const cell = window.findCell(x, y, undefined, pack) as number;
+        const cell = Pack.findCell(x, y) as number;
         // Terrain weighting: density traces coastlines and islands inside the
         // disc instead of a uniform circular blob.
         if (Math.random() > skyburgPlacementWeight(cells.t[cell])) continue;
@@ -669,8 +669,6 @@ class BurgModule {
 
     pack.burgs = burgs;
     this.assignPorts();
-
-    TIME && console.timeEnd("generateBurgs");
 
     function getCapitalsNumber() {
       let number = (ensureEl("statesNumber") as HTMLInputElement).valueAsNumber;
@@ -1423,7 +1421,7 @@ class BurgModule {
     const flying = Boolean(options?.flying);
 
     const burgId = pack.burgs.length;
-    const cellId = findClosestCell(x, y, undefined, pack);
+    const cellId = Pack.findCell(x, y);
     const culture = cells.culture[cellId as number];
     const name = Names.getCulture(culture);
     // Flying burgs aren't tied to ground political ownership; default to neutral.
@@ -1479,7 +1477,7 @@ class BurgModule {
 
   regenerate(): void {
     const { cells, burgs, states, provinces } = pack;
-    rankCells();
+    Population.rankCells();
 
     notes = notes.filter(note => {
       if (!note.id.startsWith("burg")) return true;

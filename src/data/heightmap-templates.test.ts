@@ -34,7 +34,7 @@ function buildSquareGrid(cellsX: number, cellsY: number, cellsDesired: number) {
     }
   }
 
-  return { cellsDesired, spacing: 1, cellsX, cellsY, points, cells: { c, h: null } };
+  return { cellsDesired, spacing: 1, cellsX, cellsY, points, cells: { c, h: new Uint8Array(totalCells) } };
 }
 
 describe("blank heightmap template", () => {

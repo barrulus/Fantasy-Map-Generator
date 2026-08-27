@@ -35,8 +35,6 @@ export class ProductionModule {
   }
 
   produce() {
-    TIME && console.time("generateProduction");
-
     this.zoneCellSets = null; // rebuild lookup to reflect any in-place zone edits
     Markets.collectRuralProduction();
     Markets.initializeMarketPrices();
@@ -69,8 +67,6 @@ export class ProductionModule {
 
     Markets.runGlobalTrade();
     this.fillBurgsDemand(sortedBurgs, index);
-
-    TIME && console.timeEnd("generateProduction");
   }
 
   private fillBurgsDemand(sortedBurgs: Burg[], index: ProductionIndex): void {

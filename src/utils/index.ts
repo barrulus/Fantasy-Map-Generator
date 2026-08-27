@@ -1,4 +1,4 @@
-import { createTypedArray, getTypedArray, last, TYPED_ARRAY_MAX, unique } from "./arrayUtils";
+import { last, TYPED_ARRAY_MAX, unique } from "./arrayUtils";
 import { abbreviate, getAdjective, isVowel, list, nth, trimVowels } from "./languageUtils";
 import { lerp, lim, minmax, normalize, rn } from "./numberUtils";
 import "./polyfills";
@@ -24,22 +24,7 @@ import {
 import { drawCellsValue, drawPath, drawPoint, drawPolygons, drawRouteConnections } from "./debugUtils";
 import { downloadFile, getFileName, sanitizeSvgIcon, svgToDataUri, uploadFile } from "./fileUtils";
 import { distanceSquared, rollups } from "./functionUtils";
-import {
-  calculateVoronoi,
-  drawHeights,
-  findAllCellsInRadius,
-  findAllInQuadtree,
-  findClosestCell,
-  findGridAll,
-  findGridCell,
-  generateGrid,
-  getGridPolygon,
-  getPackPolygon,
-  isLand,
-  isWater,
-  poissonDiscSampler,
-  shouldRegenerateGrid
-} from "./graphUtils";
+import { isLand, isWater, SEA_LEVEL } from "./heightUtils";
 import { applyOption, ensureEl, findEl, getComposedPath, getNextId, getPointer } from "./nodeUtils";
 import {
   connectVertices,
@@ -50,6 +35,7 @@ import {
   getVertexPath
 } from "./pathUtils";
 import { biased, each, gauss, generateSeed, getNumberInRange, P, Pint, ra, rand, rw } from "./probabilityUtils";
+import { findAllInQuadtree } from "./quadtree";
 import { capitalize, isValidJSON, parseTransform, round, safeParseJSON, sanitizeId, splitInTwo } from "./stringUtils";
 import {
   convertTemperature,
@@ -75,7 +61,6 @@ window.list = list;
 
 window.last = last;
 window.unique = unique;
-window.createTypedArray = createTypedArray;
 
 window.rand = rand;
 window.P = P;
@@ -124,22 +109,6 @@ declare global {
   }
 }
 
-window.shouldRegenerateGrid = (grid: any, expectedSeed: number) =>
-  shouldRegenerateGrid(grid, expectedSeed, (window as any).graphWidth, (window as any).graphHeight);
-window.generateGrid = () => generateGrid((window as any).seed, (window as any).graphWidth, (window as any).graphHeight);
-window.findGridAll = (x: number, y: number, radius: number) => findGridAll(x, y, radius, (window as any).grid);
-window.findGridCell = (x: number, y: number) => findGridCell(x, y, (window as any).grid);
-window.findCell = (x: number, y: number, radius?: number) => {
-  const pack = (window as any).pack;
-  if (!pack?.cells?.p) return undefined;
-  return findClosestCell(x, y, radius, pack);
-};
-window.findAll = (x: number, y: number, radius: number) => findAllCellsInRadius(x, y, radius, (window as any).pack);
-window.getPackPolygon = (cellIndex: number) => getPackPolygon(cellIndex, (window as any).pack);
-window.getGridPolygon = (cellIndex: number) => getGridPolygon(cellIndex, (window as any).grid);
-window.calculateVoronoi = calculateVoronoi;
-window.drawHeights = drawHeights;
-
 window.debounce = debounce;
 window.parseError = parseError;
 window.openURL = openURL;
@@ -163,9 +132,6 @@ window.drawPath = drawPath;
 window.downloadFile = downloadFile;
 window.uploadFile = uploadFile;
 
-// classic main.js still calls this one; the rest are imported by their consumers
-window.getPrecipitation = getPrecipitation;
-
 window.TYPED_ARRAY_MAX = TYPED_ARRAY_MAX;
 
 export {
@@ -173,35 +139,27 @@ export {
   applyOption,
   biased,
   C_12,
-  calculateVoronoi,
   capitalize,
   clipPoly,
   connectVertices,
   convertTemperature,
-  createTypedArray,
   debounce,
   distanceSquared,
   downloadFile,
   drawCellsValue,
-  drawHeights,
   drawPath,
   drawPoint,
   drawPolygons,
   drawRouteConnections,
   each,
   ensureEl,
-  findAllCellsInRadius,
   findAllInQuadtree,
-  findClosestCell,
   findEl,
-  findGridAll,
-  findGridCell,
   findPath,
   findPathTree,
   formatPrice,
   gauss,
   generateDate,
-  generateGrid,
   generateSeed,
   getAdjective,
   getArea,
@@ -214,7 +172,6 @@ export {
   getFileName,
   getFriendlyHeight,
   getFriendlyPrecipitation,
-  getGridPolygon,
   getHeight,
   getIntegerFromSI,
   getIsolines,
@@ -223,14 +180,12 @@ export {
   getMixedColor,
   getNextId,
   getNumberInRange,
-  getPackPolygon,
   getPointer,
   getPolesOfInaccessibility,
   getPrecipitation,
   getRandomColor,
   getSegmentId,
   getTemperatureLikeness,
-  getTypedArray,
   getVertexPath,
   initializePrompt,
   isCtrlClick,
@@ -251,17 +206,16 @@ export {
   Pint,
   parseError,
   parseTransform,
-  poissonDiscSampler,
   ra,
   rand,
   rn,
   rollups,
   round,
   rw,
+  SEA_LEVEL,
   safeParseJSON,
   sanitizeId,
   sanitizeSvgIcon,
-  shouldRegenerateGrid,
   si,
   speak,
   splitInTwo,
