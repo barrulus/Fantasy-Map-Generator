@@ -69,6 +69,7 @@ function collectUpdates(version) {
     updates.push({
       label: "package.json",
       from: pkg.version,
+      to: packageVersion,
       filePath: packageJsonPath,
       apply: () => {
         pkg.version = packageVersion;
@@ -84,6 +85,7 @@ function collectUpdates(version) {
       updates.push({
         label: "package-lock.json",
         from: lock.version,
+        to: packageVersion,
         filePath: packageLockJsonPath,
         apply: () => {
           lock.version = packageVersion;
@@ -117,9 +119,9 @@ function main() {
     process.exit(1);
   }
 
-  for (const { label, from, apply } of updates) {
+  for (const { label, from, to, apply } of updates) {
     apply();
-    console.log(`[sync-version] ${label}  ${from}  →  ${version}`);
+    console.log(`[sync-version] ${label}  ${from}  →  ${to ?? version}`);
   }
 
   if (stage) {
