@@ -19,10 +19,12 @@ import { dialogState } from "@/components/dialog/state";
 import { tip } from "@/components/tooltips";
 import { isElectron } from "./platform";
 
-export const VERSION = "1.149.2";
+export const VERSION = "1.151.1";
 
 // new changes on top
 const latestPublicChanges = [
+  "Brushes: smooth, gap-free painting at any screen refresh rate",
+  "Journey Editor and new Journeys layer",
   "Desktop App",
   "URL params to open specific layers or preset",
   "Emblems rendering optimization",

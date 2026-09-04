@@ -6,7 +6,7 @@ interface MapSnapshot {
   pack: typeof pack;
   grid: typeof grid;
   options: typeof options;
-  style: typeof style;
+  styles: typeof styles;
   notes: typeof notes;
 }
 
@@ -18,7 +18,7 @@ export function capture(): void {
       pack: structuredClone(pack),
       grid: structuredClone(grid),
       options: structuredClone(options),
-      style: structuredClone(style),
+      styles: structuredClone(styles),
       notes: structuredClone(notes)
     };
   } catch (error) {
@@ -36,7 +36,7 @@ export function restore(): boolean {
   globalThis.pack = snapshot.pack;
   globalThis.grid = snapshot.grid;
   globalThis.options = snapshot.options;
-  globalThis.style = snapshot.style;
+  Styles.set(snapshot.styles);
   globalThis.notes = snapshot.notes;
   if (typeof Layers !== "undefined") Layers.drawAll();
   return true;

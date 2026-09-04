@@ -10,6 +10,8 @@ import type { LabelData } from "@/renderers/labels/labels";
 import type { Point } from "@/types/global";
 import { fitStateLabel } from "./fit-state-label";
 
+window.getLabelsData = getLabelsData;
+
 export function getLabelsData(): LabelData[] {
   const megalopolises = getMegalopolisLabels();
   const byType: Record<LabelType, LabelData[]> = {

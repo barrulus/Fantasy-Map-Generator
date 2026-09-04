@@ -200,6 +200,7 @@
     "opacity": 0.9,
     "stroke": "#d06324",
     "stroke-width": 1.4,
+    "stroke-dasharray": null,
     "stroke-linecap": "butt",
     "filter": null,
     "mask": null
@@ -222,141 +223,13 @@
     "filter": null,
     "mask": null
   },
-  "#airroutes": {
-    "opacity": 0.8,
-    "stroke": "#8a2be2",
-    "stroke-width": 0.9,
-    "stroke-dasharray": "6 4",
+  "#journeys": {
+    "opacity": 1,
+    "stroke-width": 1.8,
+    "stroke-dasharray": 0,
     "stroke-linecap": "round",
     "filter": null,
     "mask": null
-  },
-  "#traderoutes": {
-    "opacity": 0.9,
-    "stroke": "#262626",
-    "stroke-width": 1.3,
-    "stroke-dasharray": "6 2 1 2",
-    "stroke-linecap": "butt"
-  },
-  "#routes #royal": {
-    "stroke-width": 2,
-    "stroke-linecap": "butt"
-  },
-  "#routes #main": {
-    "stroke-width": 1.4,
-    "stroke-linecap": "butt"
-  },
-  "#routes #market": {
-    "stroke-width": 1.1,
-    "stroke-linecap": "butt",
-    "stroke-dasharray": "6 4"
-  },
-  "#routes #town": {
-    "stroke-width": 0.9,
-    "stroke-linecap": "butt",
-    "stroke-dasharray": "4 3"
-  },
-  "#routes #trail": {
-    "stroke-width": 0.6,
-    "stroke-linecap": "round",
-    "stroke-dasharray": "0.5 3"
-  },
-  "#routes #footpath": {
-    "stroke-width": 0.5,
-    "stroke-linecap": "round",
-    "stroke-dasharray": "0.5 2"
-  },
-  "#routes #local": {
-    "stroke-width": 0.7,
-    "stroke-linecap": "butt",
-    "stroke-dasharray": "2.5 2.5"
-  },
-  "#labels > #skyburg": {
-    "opacity": 1,
-    "fill": "#6a0dad",
-    "style": "text-shadow: white 0px 0px 4px",
-    "letter-spacing": 0,
-    "font-size": "5%",
-    "font-family": "Almendra SC",
-    "data-dy": -0.5,
-    "font-weight": "bold"
-  },
-  "#burgIcons > g#skyburg": {
-    "data-icon": "#icon-diamond",
-    "opacity": 1,
-    "fill": "#e0c0ff",
-    "fill-opacity": 0.8,
-    "font-size": 1.5,
-    "stroke": "#6a0dad",
-    "stroke-width": 1,
-    "stroke-dasharray": null,
-    "stroke-linecap": "butt",
-    "stroke-linejoin": "round"
-  },
-  "#anchors > g#skyburg": {
-    "opacity": 1,
-    "fill": "#e0c0ff",
-    "font-size": 1.5,
-    "stroke": "#6a0dad",
-    "stroke-width": 1.2
-  },
-  "#labels > #skyburg-mid": {
-    "opacity": 1,
-    "fill": "#6a0dad",
-    "style": "text-shadow: white 0px 0px 4px",
-    "letter-spacing": 0,
-    "font-size": "5%",
-    "font-family": "Almendra SC",
-    "data-dy": -0.5,
-    "font-weight": "bold"
-  },
-  "#burgIcons > g#skyburg-mid": {
-    "data-icon": "#icon-diamond",
-    "opacity": 1,
-    "fill": "#e0c0ff",
-    "fill-opacity": 0.8,
-    "font-size": 1.5,
-    "stroke": "#6a0dad",
-    "stroke-width": 1,
-    "stroke-dasharray": null,
-    "stroke-linecap": "butt",
-    "stroke-linejoin": "round"
-  },
-  "#anchors > g#skyburg-mid": {
-    "opacity": 1,
-    "fill": "#e0c0ff",
-    "font-size": 1.5,
-    "stroke": "#6a0dad",
-    "stroke-width": 1.2
-  },
-  "#labels > #skyburg-small": {
-    "opacity": 1,
-    "fill": "#6a0dad",
-    "style": "text-shadow: white 0px 0px 4px",
-    "letter-spacing": 0,
-    "font-size": "5%",
-    "font-family": "Almendra SC",
-    "data-dy": -0.5,
-    "font-weight": "bold"
-  },
-  "#burgIcons > g#skyburg-small": {
-    "data-icon": "#icon-diamond",
-    "opacity": 1,
-    "fill": "#e0c0ff",
-    "fill-opacity": 0.8,
-    "font-size": 1.5,
-    "stroke": "#6a0dad",
-    "stroke-width": 1,
-    "stroke-dasharray": null,
-    "stroke-linecap": "butt",
-    "stroke-linejoin": "round"
-  },
-  "#anchors > g#skyburg-small": {
-    "opacity": 1,
-    "fill": "#e0c0ff",
-    "font-size": 1.5,
-    "stroke": "#6a0dad",
-    "stroke-width": 1.2
   },
   "#statesBody": {
     "opacity": 0.4,
@@ -475,8 +348,7 @@
     "letter-spacing": 0,
     "font-size": "6%",
     "font-family": "Almendra SC",
-    "data-dy": -0.5,
-    "font-weight": "bold"
+    "data-dy": -0.5
   },
   "#burgIcons > g#capital": {
     "data-icon": "#icon-square",
@@ -504,8 +376,7 @@
     "letter-spacing": 0,
     "font-size": "5%",
     "font-family": "Almendra SC",
-    "data-dy": -0.4,
-    "font-weight": "bold"
+    "data-dy": -0.4
   },
   "#burgIcons > g#city": {
     "data-icon": "#icon-circle",
@@ -533,8 +404,7 @@
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
-    "data-dy": -0.5,
-    "font-weight": "bold"
+    "data-dy": -0.5
   },
   "#burgIcons > g#fort": {
     "data-icon": "#icon-square",
@@ -562,8 +432,7 @@
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
-    "data-dy": -0.5,
-    "font-weight": "bold"
+    "data-dy": -0.5
   },
   "#burgIcons > g#monastery": {
     "data-icon": "#icon-cross",
@@ -591,8 +460,7 @@
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
-    "data-dy": -0.5,
-    "font-weight": "bold"
+    "data-dy": -0.5
   },
   "#burgIcons > g#caravanserai": {
     "data-icon": "#icon-triangle",
@@ -620,8 +488,7 @@
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
-    "data-dy": -0.5,
-    "font-weight": "bold"
+    "data-dy": -0.5
   },
   "#burgIcons > g#trading_post": {
     "data-icon": "#icon-triangle",
@@ -649,8 +516,7 @@
     "letter-spacing": 0,
     "font-size": "3%",
     "font-family": "Almendra SC",
-    "data-dy": -0.4,
-    "font-weight": "bold"
+    "data-dy": -0.4
   },
   "#burgIcons > g#village": {
     "data-icon": "#icon-circle",
@@ -678,8 +544,7 @@
     "letter-spacing": 0,
     "font-size": "2%",
     "font-family": "Almendra SC",
-    "data-dy": -0.4,
-    "font-weight": "bold"
+    "data-dy": -0.4
   },
   "#burgIcons > g#hamlet": {
     "data-icon": "#icon-circle",
@@ -707,8 +572,7 @@
     "letter-spacing": 0,
     "font-size": "4%",
     "font-family": "Almendra SC",
-    "data-dy": -0.4,
-    "font-weight": "bold"
+    "data-dy": -0.4
   },
   "#burgIcons > g#town": {
     "data-icon": "#icon-circle",
@@ -832,7 +696,7 @@
     "stroke-opacity": 0.8,
     "data-size": 3,
     "font-size": 5,
-    "data-icon": "⚖️",
+    "data-icon": "\u2696\ufe0f",
     "filter": null
   },
   "#goodsIcons": {
@@ -851,5 +715,23 @@
   "#tradeAnimation": {
     "opacity": null,
     "filter": null
+  },
+  "#airroutes": {
+    "opacity": 0.8,
+    "stroke": "#8a2be2",
+    "stroke-width": 0.9,
+    "stroke-dasharray": "6 4",
+    "stroke-linecap": "round",
+    "filter": null,
+    "mask": null
+  },
+  "#traderoutes": {
+    "opacity": 0.9,
+    "stroke": "#262626",
+    "stroke-width": 1.3,
+    "stroke-dasharray": "6 2 1 2",
+    "stroke-linecap": "butt",
+    "filter": null,
+    "mask": null
   }
 }
