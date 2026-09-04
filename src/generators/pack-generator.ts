@@ -2,7 +2,7 @@
 import { polygonArea, type Quadtree, quadtree } from "d3";
 import type { Point } from "@/types/global";
 import type { PackedGraph } from "@/types/PackedGraph";
-import { findAllInQuadtree, rn, SEA_LEVEL, TYPED_ARRAY_MAX } from "@/utils";
+import { findAllInQuadtree, rn, SEA_LEVEL } from "@/utils";
 import { calculateVoronoi } from "./voronoi";
 
 declare global {
@@ -64,9 +64,9 @@ class PackModule {
     pack.cells.p = newCells.p;
     pack.cells.g = Uint32Array.from(newCells.g) as unknown as number[]; // parent grid cell of every packed cell
     pack.cells.h = Uint8Array.from(newCells.h);
-    pack.cells.area = new Uint16Array(cells.i.length).map((_, cellId) =>
-      Math.min(Math.abs(polygonArea(this.getPolygon(cellId))), TYPED_ARRAY_MAX.UINT16)
-    );
+    // Float32: past ~2M cells a cell is under one square pixel, and an integer area rounds to 0,
+    // which zeroes population and with it cultures and burgs
+    pack.cells.area = new Float32Array(cells.i.length).map((_, cellId) => Math.abs(polygonArea(this.getPolygon(cellId))));
   }
 
   /** generate does clean pack graph so clear data where required */
