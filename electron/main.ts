@@ -22,6 +22,10 @@ const DISCORD_URL = "https://discord.gg/X7E84HU";
  */
 app.setPath("userData", path.join(app.getPath("appData"), "fantasy-map-generator"));
 
+// V8 caps the renderer heap near 4 GB whatever the machine has; a large map dies there on a layer
+// redraw. The browser build cannot change this, the desktop can
+app.commandLine.appendSwitch("js-flags", "--max-old-space-size=16384");
+
 app.setAboutPanelOptions({
   applicationName: app.name,
   applicationVersion: app.getVersion(),
