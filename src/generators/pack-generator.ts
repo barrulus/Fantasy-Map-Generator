@@ -66,7 +66,9 @@ class PackModule {
     pack.cells.h = Uint8Array.from(newCells.h);
     // Float32: past ~2M cells a cell is under one square pixel, and an integer area rounds to 0,
     // which zeroes population and with it cultures and burgs
-    pack.cells.area = new Float32Array(cells.i.length).map((_, cellId) => Math.abs(polygonArea(this.getPolygon(cellId))));
+    pack.cells.area = new Float32Array(cells.i.length).map((_, cellId) =>
+      Math.abs(polygonArea(this.getPolygon(cellId)))
+    );
   }
 
   /** generate does clean pack graph so clear data where required */
