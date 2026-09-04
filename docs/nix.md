@@ -132,6 +132,11 @@ NIXOS_OZONE_WL= fantasy-map-generator
 The wrapper enables native Wayland only when `NIXOS_OZONE_WL` is set, so
 clearing it falls back to XWayland.
 
+**Very large maps die with `V8 javascript OOM` in the terminal** — the renderer
+ran out of heap. The desktop app raises V8's default cap of about 4 GB to 16 GB,
+so this needs a map of several million cells plus a layer redraw. Reduce the
+cell count or keep fewer layers on; the polygon layers are drawn whole.
+
 **Stale build after pulling** — Nix caches by flake revision. Refresh it:
 
 ```sh
