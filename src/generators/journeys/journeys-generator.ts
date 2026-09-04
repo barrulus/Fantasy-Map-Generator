@@ -1,6 +1,6 @@
 import { DEFAULT_JOURNEY_TYPE } from "@/data/journey-lore";
 import type { Journey, JourneyPoint, JourneySegment } from "@/types/Journey";
-import { getDistanceUnitRatio, isLand } from "@/utils";
+import { getDistanceUnit, getDistanceUnitRatio, isLand, rn } from "@/utils";
 import { getCardinalColor } from "@/utils/colorUtils";
 import type { Burg } from "../burgs-generator";
 import type { Route } from "../routes-generator";
@@ -20,7 +20,15 @@ export interface PathfindingResult {
   points: JourneyPoint[];
   distance: number;
   warning?: string;
-  errorCode?: "no-water" | "no-land" | "no-water-path" | "no-land-path";
+  errorCode?:
+    | "no-water"
+    | "no-land"
+    | "no-water-path"
+    | "no-land-path"
+    | "no-skyport"
+    | "no-airroute"
+    | "rotor-corridor"
+    | "rotor-range";
 }
 
 class JourneysModule {
@@ -221,9 +229,11 @@ class JourneysModule {
    *   water: cell must be water, or land a boat can put in at (see {@link isMoorage})
    *   air:   any cell
    */
-  isValidEndpoint(cellId: number, domain: TransportDomain): boolean {
+  isValidEndpoint(cellId: number, domain: TransportDomain, transport?: string): boolean {
     if (cellId === undefined || cellId === null) return false;
     if (domain === "air" || domain === "stay") return true;
+    if (domain === "flight") return Boolean(this.getSkyport(cellId));
+    if (domain === "rotor") return this.isInRotorCorridor(this.getPoint(cellId), transport);
     if (domain === "land") return isLand(cellId, pack);
     return !isLand(cellId, pack) || this.isMoorage(cellId);
   }
@@ -232,28 +242,37 @@ class JourneysModule {
    * Stricter than {@link isValidEndpoint}: a water route may start or end on the shore
    * (you board from land), but overland it may only follow a navigable river, as searoutes do.
    */
-  isValidPathPoint(cellId: number, domain: TransportDomain): boolean {
+  isValidPathPoint(cellId: number, domain: TransportDomain, transport?: string): boolean {
     if (cellId === undefined || cellId === null) return false;
-    if (domain === "air" || domain === "stay") return true;
+    if (domain === "air" || domain === "stay" || domain === "flight") return true;
+    if (domain === "rotor") return this.isInRotorCorridor(this.getPoint(cellId), transport);
     if (domain === "land") return isLand(cellId, pack);
     return !isLand(cellId, pack) || Rivers.isNavigable(cellId);
   }
 
   /** Endpoints and intermediate points answer to different rules; this picks the right one */
-  isValidPointAt(cellId: number, domain: TransportDomain, isEndpoint: boolean): boolean {
-    return isEndpoint ? this.isValidEndpoint(cellId, domain) : this.isValidPathPoint(cellId, domain);
+  isValidPointAt(cellId: number, domain: TransportDomain, isEndpoint: boolean, transport?: string): boolean {
+    return isEndpoint
+      ? this.isValidEndpoint(cellId, domain, transport)
+      : this.isValidPathPoint(cellId, domain, transport);
   }
 
-  /** Whole-path form of {@link isValidPathPoint}; endpoints are skipped deliberately. */
-  isValidPath(points: JourneyPoint[], domain: TransportDomain): boolean {
+  /**
+   * Whole-path form of {@link isValidPathPoint}; endpoints are skipped deliberately.
+   * A rotor path is also bounded by its transport's range.
+   */
+  isValidPath(points: JourneyPoint[], domain: TransportDomain, transport?: string): boolean {
     for (let i = 1; i < points.length - 1; i++) {
-      if (!this.isValidPathPoint(points[i][2], domain)) return false;
+      if (!this.isValidPathPoint(points[i][2], domain, transport)) return false;
     }
+    if (domain === "rotor" && this.getPathLength(points) > this.getRotorRange(transport)) return false;
     return true;
   }
 
   describeCell(cellId: number): string {
     if (cellId === undefined || cellId === null) return "no cell";
+    const skyport = this.getSkyport(cellId);
+    if (skyport) return `skyport ${skyport.name} (cell ${cellId})`;
     if (!isLand(cellId, pack)) return `water cell ${cellId}`;
     if (Rivers.isNavigable(cellId)) return `navigable river cell ${cellId}`;
     if (this.isCoastalLand(cellId)) return `coastal land cell ${cellId}`;
@@ -266,9 +285,13 @@ class JourneysModule {
     domain: TransportDomain,
     options: {
       avoidRoads?: boolean;
+      transport?: string; // rotor legs take their range from it
     } = {}
   ): PathfindingResult {
     if (from === to) return { points: [this.getPoint(from)], distance: 0 };
+
+    if (domain === "flight") return this.findFlightPath(from, to);
+    if (domain === "rotor") return this.findRotorPath(from, to, options.transport);
 
     // domain gate: refuse before pathfinding when the endpoints obviously don't match
     if (domain === "land" && (!isLand(from, pack) || !isLand(to, pack))) {
@@ -293,6 +316,117 @@ class JourneysModule {
     if (domain === "water") return this.findWaterPath(from, to);
     if (domain === "land") return this.findLandPath(from, to, options.avoidRoads);
     return this.toResult([this.getPoint(from), this.getPoint(to)]); // air and stay go in a direct line
+  }
+
+  /** Airplanes land only at skyports and fly the air route network: one existing route per leg */
+  private findFlightPath(from: number, to: number): PathfindingResult {
+    if (!this.getSkyport(from) || !this.getSkyport(to)) {
+      return {
+        points: [],
+        distance: 0,
+        errorCode: "no-skyport",
+        warning: "Flights travel between skyports only. At least one endpoint is not a skyport."
+      };
+    }
+
+    const routeId = pack.cells.routes?.[from]?.[to];
+    const route = routeId === undefined ? undefined : pack.routes.find((r: Route) => r.i === routeId);
+    if (!route || route.group !== "airroutes") {
+      return {
+        points: [],
+        distance: 0,
+        errorCode: "no-airroute",
+        warning:
+          "No air route connects these skyports. Flights follow the air route network: pick connected skyports or add one leg per hop."
+      };
+    }
+
+    const points = route.points.map(point => [...point] as JourneyPoint);
+    if (points[0][2] !== from) points.reverse();
+    return this.toResult(points);
+  }
+
+  /**
+   * A helicopter flies straight, but must always be able to turn back: the whole leg stays inside
+   * a corridor of half its range around the skyports, and the leg itself is at most one range long.
+   */
+  private findRotorPath(from: number, to: number, transport?: string): PathfindingResult {
+    const radius = this.getRotorRadius(transport);
+    const corridor = `${this.formatPx(radius)} of a skyport`;
+    const start = this.getPoint(from);
+    const end = this.getPoint(to);
+
+    for (const [label, point] of [
+      ["start", start],
+      ["end", end]
+    ] as const) {
+      if (this.isInRotorCorridor(point, transport)) continue;
+      return {
+        points: [],
+        distance: 0,
+        errorCode: "rotor-corridor",
+        warning: `The ${label} is ${this.formatPx(this.distanceToSkyport(point))} from the nearest skyport. This transport must stay within ${corridor}.`
+      };
+    }
+
+    const length = this.getDistance(start, end);
+    const range = this.getRotorRange(transport);
+    if (length > range) {
+      return {
+        points: [],
+        distance: 0,
+        errorCode: "rotor-range",
+        warning: `The leg is ${this.formatPx(length)} long, beyond this transport's range of ${this.formatPx(range)}.`
+      };
+    }
+
+    // the endpoints are inside the corridor, but the straight line between them may leave it
+    const skyports = this.getSkyports();
+    const samples = Math.ceil(length / Math.max(radius / 4, 1));
+    for (let i = 1; i < samples; i++) {
+      const t = i / samples;
+      const point: JourneyPoint = [start[0] + (end[0] - start[0]) * t, start[1] + (end[1] - start[1]) * t, -1];
+      if (this.isInRotorCorridor(point, transport, skyports)) continue;
+      return {
+        points: [],
+        distance: 0,
+        errorCode: "rotor-corridor",
+        warning: `The straight line leaves the skyport corridor: it passes ${this.formatPx(this.distanceToSkyport(point, skyports))} from the nearest skyport, more than ${corridor}.`
+      };
+    }
+
+    return this.toResult([start, end]);
+  }
+
+  private getSkyport(cellId: number): Burg | undefined {
+    return (pack.burgs as Burg[]).find(burg => burg?.i && !burg.removed && burg.skyPort && burg.cell === cellId);
+  }
+
+  private getSkyports(): Burg[] {
+    return (pack.burgs as Burg[]).filter(burg => burg?.i && !burg.removed && burg.skyPort);
+  }
+
+  private distanceToSkyport([x, y]: JourneyPoint, skyports = this.getSkyports()): number {
+    let min = Infinity;
+    for (const burg of skyports) min = Math.min(min, Math.hypot(burg.x - x, burg.y - y));
+    return min;
+  }
+
+  private isInRotorCorridor(point: JourneyPoint, transport?: string, skyports?: Burg[]): boolean {
+    return this.distanceToSkyport(point, skyports) <= this.getRotorRadius(transport);
+  }
+
+  /** transport range in px: ranges are km, the map is distanceScale km per px */
+  private getRotorRange(transport?: string): number {
+    return Transports.getRange(transport ?? "") / distanceScale;
+  }
+
+  private getRotorRadius(transport?: string): number {
+    return this.getRotorRange(transport) / 2;
+  }
+
+  private formatPx(px: number): string {
+    return `${rn(px * distanceScale * getDistanceUnitRatio())} ${getDistanceUnit()}`;
   }
 
   private findLandPath(from: number, to: number, avoidRoads = false): PathfindingResult {

@@ -414,7 +414,7 @@ function onSegTransportChange(this: HTMLSelectElement): void {
   };
 
   // endpoints were checked above, but a custom-drawn path body can still clash with the new domain
-  if (segment.custom && !Journeys.isValidPath(segment.points, newType.domain)) {
+  if (segment.custom && !Journeys.isValidPath(segment.points, newType.domain, newType.name)) {
     this.value = previousType;
     confirmationDialog({
       title: "Overwrite custom path?",

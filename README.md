@@ -92,6 +92,8 @@ On full-globe maps (360° longitude), sea and air routes can cross the antimerid
 
 Burgs can fly. Toggle **Flying** in the burg editor (or _Add sky burg_ from the overview) to lift a settlement above the map at a chosen altitude, and **Sky Port** to mark any ground burg as an air-route hub. Sky ports are connected by an `airroutes` group (Urquhart graph), regenerated automatically whenever the set changes. Map generation can also seed a floating-island archipelago cluster with capital skyports, and sky burgs get their own layer toggle and zoom tiering.
 
+Journeys respect them too. Two transport domains join upstream's land, water, air and stay: **flight** (Aircraft, Modern Airplane) travels skyport to skyport along an existing air route, one route per leg; **rotor** (Helicopter, with a configurable range) flies a straight line that stays within half its range of a skyport, so it can always turn back. Dirigibles and teleports remain unrestricted air travel. Transport sets saved in the browser before this change are upgraded on load.
+
 ![Sky port editor with altitude field](docs/images/readme-image-2026-05-22_22-20-00.png)
 
 ## Other additions

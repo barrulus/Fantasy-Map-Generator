@@ -448,3 +448,142 @@ describe("land pathfinding respects terrain", () => {
     expect(points.some(([, , cellId]: any) => cells.biome[cellId] === GLACIER)).toBe(false);
   });
 });
+
+describe("skyport-bound flight and rotor domains", () => {
+  let Journeys: any;
+
+  /**
+   * Six cells in a row 10 px apart, all land. Skyport burgs sit on cells 0 and 3 with one air
+   * route between them; cell 4 hosts an ordinary burg; cell 5 is far out at x = 200.
+   * distanceScale = 10, so 1 px is 10 km and the Helicopter's 600 km range is 60 px.
+   */
+  beforeEach(async () => {
+    (globalThis as any).distanceScale = 10;
+    (globalThis as any).pack = {
+      cells: {
+        h: [30, 30, 30, 30, 30, 30],
+        f: [1, 1, 1, 1, 1, 1],
+        p: [
+          [0, 0],
+          [10, 0],
+          [20, 0],
+          [30, 0],
+          [40, 0],
+          [200, 0]
+        ],
+        c: [[1], [0, 2], [1, 3], [2, 4], [3, 5], [4]],
+        g: [0, 1, 2, 3, 4, 5],
+        burg: [1, 0, 0, 2, 3, 0],
+        routes: { 0: { 3: 7 }, 3: { 0: 7 } }
+      },
+      burgs: [
+        0,
+        { i: 1, name: "Alpha", cell: 0, x: 0, y: 0, skyPort: 1 },
+        { i: 2, name: "Beta", cell: 3, x: 30, y: 0, skyPort: 1 },
+        { i: 3, name: "Gamma", cell: 4, x: 40, y: 0 }
+      ],
+      routes: [
+        {
+          i: 7,
+          group: "airroutes",
+          points: [
+            [0, 0, 0],
+            [30, 0, 3]
+          ]
+        }
+      ]
+    };
+    (globalThis as any).grid = { cells: { temp: [20, 20, 20, 20, 20, 20] } };
+    await import("../transports-generator");
+    (globalThis as any).options = { transports: (globalThis as any).Transports.getDefaults() };
+    await import("./journeys-generator");
+    Journeys = (globalThis as any).Journeys;
+  });
+
+  it("flight endpoints must be skyport cells", () => {
+    expect(Journeys.isValidEndpoint(0, "flight")).toBe(true);
+    expect(Journeys.isValidEndpoint(3, "flight")).toBe(true);
+    expect(Journeys.isValidEndpoint(4, "flight")).toBe(false); // a burg, but not a skyport
+    expect(Journeys.isValidEndpoint(1, "flight")).toBe(false);
+  });
+
+  it("a flight leg follows the air route between two skyports", () => {
+    const result = Journeys.findPath(0, 3, "flight");
+    expect(result.errorCode).toBeUndefined();
+    expect(result.points).toEqual([
+      [0, 0, 0],
+      [30, 0, 3]
+    ]);
+    expect(result.distance).toBe(30);
+  });
+
+  it("refuses a flight to a cell that is not a skyport", () => {
+    expect(Journeys.findPath(0, 4, "flight").errorCode).toBe("no-skyport");
+  });
+
+  it("refuses a flight between skyports with no air route between them", () => {
+    (globalThis as any).pack.burgs[3].skyPort = 1;
+    expect(Journeys.findPath(0, 4, "flight").errorCode).toBe("no-airroute");
+  });
+
+  it("describes a skyport cell by its burg", () => {
+    expect(Journeys.describeCell(0)).toMatch(/skyport/i);
+    expect(Journeys.describeCell(0)).toContain("Alpha");
+  });
+
+  it("rotor endpoints must lie within half the range of a skyport", () => {
+    expect(Journeys.isValidEndpoint(4, "rotor", "Helicopter")).toBe(true); // 10 px from Beta, radius 30
+    expect(Journeys.isValidEndpoint(5, "rotor", "Helicopter")).toBe(false); // 170 px out
+  });
+
+  it("a rotor leg is a straight line inside the corridor", () => {
+    const result = Journeys.findPath(0, 4, "rotor", { transport: "Helicopter" });
+    expect(result.errorCode).toBeUndefined();
+    expect(result.points).toEqual([
+      [0, 0, 0],
+      [40, 0, 4]
+    ]);
+  });
+
+  it("refuses a rotor leg longer than the range even between skyports", () => {
+    (globalThis as any).pack.cells.p[3] = [100, 0];
+    (globalThis as any).pack.burgs[2].x = 100;
+    expect(Journeys.findPath(0, 3, "rotor", { transport: "Helicopter" }).errorCode).toBe("rotor-range");
+  });
+
+  it("refuses a rotor leg whose straight line leaves the corridor", () => {
+    // skyports at (0,0) and (0,120); endpoints 100 px east of each; the midpoint is 117 px from both
+    const p = (globalThis as any).pack;
+    p.cells.p = [
+      [0, 0],
+      [100, 0],
+      [100, 120],
+      [0, 120],
+      [40, 0],
+      [200, 0]
+    ];
+    p.burgs[2].cell = 3;
+    p.burgs[2].x = 0;
+    p.burgs[2].y = 120;
+    p.cells.burg = [1, 0, 0, 2, 3, 0];
+    (globalThis as any).options.transports.find((t: any) => t.name === "Helicopter").range = 2200; // 220 px, radius 110
+    expect(Journeys.isValidEndpoint(1, "rotor", "Helicopter")).toBe(true);
+    expect(Journeys.isValidEndpoint(2, "rotor", "Helicopter")).toBe(true);
+    expect(Journeys.findPath(1, 2, "rotor", { transport: "Helicopter" }).errorCode).toBe("rotor-corridor");
+  });
+
+  it("custom rotor paths are checked point by point and for total length", () => {
+    const inside = [
+      [0, 0, 0],
+      [20, 0, 2],
+      [40, 0, 4]
+    ];
+    const outside = [
+      [0, 0, 0],
+      [200, 0, 5],
+      [40, 0, 4]
+    ];
+    expect(Journeys.isValidPath(inside, "rotor", "Helicopter")).toBe(true);
+    expect(Journeys.isValidPath(outside, "rotor", "Helicopter")).toBe(false);
+  });
+});

@@ -20,6 +20,12 @@ const columns: EditorColumn<Transport>[] = [
   { key: "speed", label: "Speed", width: "5em" },
   { key: "hoursPerDay", label: "h/day", width: "4em", tip: "Hours of travel a day sustains with this transport" },
   { key: "domain", label: "Domain", width: "5em" },
+  {
+    key: "range",
+    label: "Range",
+    width: "5em",
+    tip: "Rotor only: distance it can fly before it must be back at a skyport"
+  },
   { key: "actions", width: "1.4em", permanent: true, align: "right" }
 ];
 
@@ -32,6 +38,8 @@ const DOMAIN_LABEL: Record<TransportDomain, string> = {
   land: "Land: walks, wheels and hooves. Endpoints must be on land",
   water: "Water: boats and ships. Endpoints must be in water or on a coast touching water",
   air: "Air: flight and magic. No restrictions, travels in a straight line",
+  flight: "Flight: airplanes. Skyport to skyport along an existing air route",
+  rotor: "Rotor: helicopters. A straight line that stays within half the range of a skyport",
   stay: "Stay: no movement. For preparation, tavern rests and delays"
 };
 const DOMAINS = Object.keys(DOMAIN_LABEL) as TransportDomain[];
@@ -98,6 +106,8 @@ function renderTypesPage(view: TableView<Transport>): void {
       <div data-col="hoursPerDay"><input class="ttHours" type="number" min="1" max="${MAX_HOURS_PER_DAY}" step="1" value="${Transports.resolveHoursPerDay(type)}"
         data-tip="${isStay ? "Hours a day of waiting covers: 24 means a full day passes" : "Hours of travel a day sustains: a caravan walks ~8 h/day, a ship sails 24"}" /></div>
       <div data-col="domain"><select class="ttDomain" data-tip="${DOMAIN_LABEL[type.domain]}">${options}</select></div>
+      <div data-col="range"><input class="ttRange" type="number" min="1" step="10" value="${convertSpeed(Transports.getRange(type.name))}" ${type.domain === "rotor" ? "" : "disabled"}
+        data-tip="${type.domain === "rotor" ? `Range in ${unit}: the leg stays within half of it from a skyport` : "Only rotor transports have a range"}" /></div>
       <div data-col="actions"><span data-tip="Remove the transport type" class="ttDelete pointer icon-trash-empty"></span></div>
     </div>`;
   }
@@ -113,6 +123,7 @@ function renderTypesPage(view: TableView<Transport>): void {
   on(".ttSpeed:not([disabled])", "input", onSpeedInput);
   on(".ttHours", "change", onHoursChange);
   on(".ttDomain", "change", onDomainChange);
+  on(".ttRange:not([disabled])", "input", onRangeInput);
   on(".ttDelete", "click", triggerTypeRemove);
 
   renderEditorPagination(ensureEl("transportFooter"), view, typesTable.goto);
@@ -160,6 +171,14 @@ function onHoursChange(this: HTMLInputElement): void {
 
   type.hoursPerDay = hours;
   this.value = String(hours);
+  Transports.save();
+}
+
+function onRangeInput(this: HTMLInputElement): void {
+  const type = getLineType(this);
+  if (!type) return;
+  const range = parseSpeed(+this.value || 0); // km, typed in the user distance unit
+  if (range > 0) type.range = range;
   Transports.save();
 }
 
