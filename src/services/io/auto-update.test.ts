@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
+
 import { beforeEach, describe, expect, it } from "vitest";
+import { Styles } from "@/generators/styles";
 import indexHtml from "@/index.html?raw";
 import "@/generators/added-labels";
 import "@/generators/features"; // migrations call the Features module through its global
@@ -126,7 +128,10 @@ describe("v1.145 svg layer cleanup", () => {
     expect(cults).not.toBeNull();
     expect(cults?.getAttribute("stroke")).toBe("#777777");
     expect(cults?.getAttribute("stroke-width")).toBe("0.5");
-    expect(document.querySelector("#texture")?.getAttribute("data-href")).toBe("./images/textures/marble-big.jpg");
+    // the style migration harvests store-owned attrs off the DOM: the href now lives in the store
+    expect(document.querySelector("#texture")).not.toBeNull();
+    expect(document.querySelector("#texture")?.getAttribute("data-href")).toBeNull();
+    expect((globalThis as any).styles.texture.options.href).toBe("./images/textures/marble-big.jpg");
   });
 
   it("keeps an empty declared child group that is the only one with its id", () => {
@@ -323,7 +328,7 @@ describe("v1.140 label group migration", () => {
       labels: { groups: [] },
       burgs: { groups: LEGACY_BURG_GROUPS.map(({ id }) => ({ name: id })) }
     } as unknown as typeof globalThis.options;
-    globalThis.style = { labels: { groups: {} } } as unknown as typeof globalThis.style;
+    globalThis.styles = structuredClone(Styles.defaults) as typeof globalThis.styles;
     globalThis.pack = {
       features: [],
       burgs: [0, { i: 1, group: "river" }],
@@ -346,7 +351,8 @@ describe("v1.140 label group migration", () => {
 
     // a group already larger than 12px at any zoom has no lower bound
     expect(options.labels.groups.find(({ name }) => name === "state")?.zoom).toEqual({ min: null, max: 2.4 });
-    expect(options.labels.groups.find(({ name }) => name === "towns")?.zoom).toEqual({ min: 7, max: 79 });
+    // a legacy burg group named like a modern one takes the modern group's bounds (1.150 migration)
+    expect(options.labels.groups.find(({ name }) => name === "towns")?.zoom).toEqual({ min: 2, max: 30 });
   });
 
   // group styles and the rendered <g> ids are keyed by name alone, so a duplicate name means one

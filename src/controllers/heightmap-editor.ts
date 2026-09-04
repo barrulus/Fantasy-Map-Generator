@@ -14,6 +14,7 @@ import { type HeightmapDraft, parseHeightmapDraft, serializeHeightmapDraft } fro
 import type { GridGraph } from "@/types/GridGraph";
 import { downloadFile, getFileName, uploadFile } from "@/utils";
 import { ensureEl, findEl, generateSeed, getPointer, last, lim, link, minmax, rn, unique } from "../utils";
+import { createBrushStroke } from "../utils/brushUtils";
 import type { PromptOptions } from "../utils/commonUtils";
 
 // Legacy app prompt shadows the DOM built-in (same pattern as burg-editor / route-groups-editor). TODO: replace with dialog
@@ -1337,11 +1338,8 @@ function dragBrush(this: SVGElement, event: any): void {
   const [startX, startY] = getPointer(event, this);
   const start = Grid.findCell(startX, startY); // fixed once per drag: Align replicates this cell's height
 
-  const applyBrush = (pointerEvent: any) => {
-    const p = getPointer(pointerEvent, this);
-    moveCircle(p[0], p[1], r);
-
-    const inRadius = Grid.findAll(p[0], p[1], r);
+  const applyAt = (x: number, y: number) => {
+    const inRadius = Grid.findAll(x, y, r);
     let selection = inRadius;
     const cellTypeFilter = ensureEl<HTMLSelectElement>("cellTypeFilter").value;
     if (cellTypeFilter === "land") {
@@ -1352,8 +1350,14 @@ function dragBrush(this: SVGElement, event: any): void {
     if (selection?.length) changeHeightForSelection(selection, start);
   };
 
-  applyBrush(event); // apply once on start so a plain click changes height
-  event.on("drag", applyBrush);
+  const stroke = createBrushStroke(r / 2, applyAt);
+  stroke.moveTo(startX, startY); // so a plain click changes height
+
+  event.on("drag", (dragEvent: any) => {
+    const [x, y] = getPointer(dragEvent, this);
+    moveCircle(x, y, r);
+    stroke.moveTo(x, y);
+  });
   event.on("end", updateHeightmap);
 }
 

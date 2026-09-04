@@ -23,16 +23,18 @@ function setGroups(specs: GroupSpec[]): void {
       }))
     }
   };
-  (globalThis as any).style = {
+  (globalThis as any).styles = {
     labels: {
       groups: Object.fromEntries(
         specs.map(spec => [
           spec.name,
           {
-            "font-size": spec.fontSize,
-            fill: spec.fill ?? "#3e3e4b",
-            stroke: spec.stroke ?? "",
-            "stroke-width": spec.strokeWidth ?? 0
+            attrs: {
+              "font-size": spec.fontSize,
+              fill: spec.fill ?? "#3e3e4b",
+              stroke: spec.stroke ?? "",
+              "stroke-width": spec.strokeWidth ?? 0
+            }
           }
         ])
       )

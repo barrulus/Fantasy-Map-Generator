@@ -68,7 +68,7 @@ export function readBurgLabelStyles(root: ParentNode = document): Record<string,
 
   for (const group of burgGroups) {
     const name = group.name;
-    const groupStyle = getGroupStyle({ name, type: "burg" });
+    const groupStyle = getGroupStyle({ name, type: "burg" }).attrs;
     const shell = shells.get(name);
     const fontSize = authoredSizeFromStyle(groupStyle["font-size"]);
     const factor = authoredSizeFactor(name, fontSize);

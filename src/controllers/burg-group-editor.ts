@@ -421,6 +421,8 @@ function submitForm(event: Event): void {
   const populations = validBurgs.map(b => b.population!).sort((a, b) => a - b);
   const popIndex = Burgs.buildPopIndex(populations);
   validBurgs.forEach(burg => void Burgs.defineGroup(burg, popIndex, populations.length));
+  window.Labels.ensureBurgLabelGroups();
+  window.Burgs.ensureBurgGroupStyles();
 
   Layers.draw("burgIcons");
   Layers.draw("labels");

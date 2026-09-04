@@ -1,19 +1,21 @@
 import { select } from "d3";
 import type { Route } from "@/generators/routes-generator";
-import { applyRouteLineStyle, readPresetAttrs, routeGroupStyle, routeTypeStyle } from "@/renderers/route-styles";
+import { applyRouteLineStyle, routeTypeStyle } from "@/renderers/route-styles";
 import { ensureEl } from "@/utils";
 
-// The route groups whose content drawRoutes owns. airroutes and traderoutes are fork additions.
-const ROUTE_GROUPS = ["roads", "trails", "searoutes", "airroutes", "traderoutes"];
-const GROUP_STYLE_ATTRS = ["stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "opacity", "filter", "mask"];
-
+// Group line style is the style store's (Styles.write("routes") sets it on the group). The fork
+// splits each group by route type into a sub-group so trunk roads, market roads and footpaths
+// keep their own width and dash; types have no place in the store, so they use the built-in table.
 function applyRouteTypeStyle(el: Element, type: string): void {
-  applyRouteLineStyle(el, routeTypeStyle(type), style.routes[type]);
+  applyRouteLineStyle(el, routeTypeStyle(type), undefined);
+}
+
+function removeTypeGroups(): void {
+  for (const group of Array.from(document.querySelectorAll("#routes > g > g"))) group.remove();
 }
 
 export function drawRoutes(): void {
   TIME && console.time("drawRoutes");
-  // routes of the same group are split by type so each type can carry its own line style
   const typedPaths: Record<string, { group: string; type: string; paths: string[] }> = {};
 
   for (const route of pack.routes) {
@@ -26,23 +28,15 @@ export function drawRoutes(): void {
   }
 
   const routes = select(ensureEl<SVGGElement>("routes"));
-  routes.attr("fill", "none");
-  routes.selectAll(ROUTE_GROUPS.map(g => `#${g}`).join(", ")).html("");
-
-  const styledGroups = new Set<string>();
+  routes.attr("fill", "none").selectAll("path").remove();
+  removeTypeGroups();
 
   for (const key in typedPaths) {
     const { group, type, paths } = typedPaths[key];
     const groupEl = routes.select<SVGGElement>(`#${group}`);
     if (groupEl.empty()) continue;
-
-    if (!styledGroups.has(group)) {
-      styledGroups.add(group);
-      // Read the group's own attributes first so a preset's values win over the default
-      // hierarchy instead of being clobbered by it.
-      const groupNode = groupEl.node()!;
-      applyRouteLineStyle(groupNode, routeGroupStyle(group), readPresetAttrs(groupNode, GROUP_STYLE_ATTRS));
-    }
+    // custom groups from loaded maps miss the data-group the layer registry stamps on declared ones
+    groupEl.attr("data-group", group);
 
     if (type) {
       const subGroup = groupEl.append("g").attr("id", type);
@@ -59,6 +53,7 @@ export function drawRoutes(): void {
 /** drop the paths, keeping the route groups: they are user data carrying the group styles */
 export function removeRoutes(): void {
   for (const path of Array.from(document.querySelectorAll("#routes path"))) path.remove();
+  removeTypeGroups();
 }
 
 export function drawRoute(route: Route): void {

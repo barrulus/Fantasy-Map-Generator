@@ -760,6 +760,20 @@ class RoutesModule {
     return segments;
   }
 
+  /** Cell chain of a water path between two cells, or null when they are not connected by sea */
+  findWaterPath(start: number, exit: number): number[] | null {
+    const getCost = this.createCostEvaluator({ isWater: true, connections: new Set<number>() });
+    const wrap = isWrapEnabled();
+    const seaAdjacency = wrap ? this.buildSeaAdjacency() : undefined;
+    const graph = seaAdjacency ? { ...pack, cells: { ...pack.cells, c: seaAdjacency } } : pack;
+    return findPath(start, current => current === exit, getCost, graph, exit, wrap ? graphWidth : undefined);
+  }
+
+  /** Sea route geometry for a cell chain: burg positions at ports, cell centres elsewhere */
+  getWaterPoints(cells: number[]): [number, number, number][] {
+    return this.getPoints("searoutes", cells, this.preparePointsArray()) as [number, number, number][];
+  }
+
   private generateRoyalRoads(connections: Set<number>, burgIndex: RouteBurgIndex) {
     TIME && console.time("generateRoyalRoads");
     const { capitalsByFeature } = burgIndex;
@@ -1387,12 +1401,16 @@ class RoutesModule {
   }
 
   private preparePointsArray(): Point[] {
+    return pack.cells.p.map((_point, cellId) => this.getCellAnchor(cellId));
+  }
+
+  /** The point a route passes through in a cell: the burg's position at a port, the cell centre otherwise */
+  private getCellAnchor(cellId: number): Point {
     const { cells, burgs } = pack;
-    return cells.p.map(([x, y], cellId) => {
-      const burgId = cells.burg[cellId];
-      if (burgId) return [burgs[burgId].x, burgs[burgId].y];
-      return [x, y];
-    });
+    const burgId = cells.burg[cellId];
+    if (burgId) return [burgs[burgId].x, burgs[burgId].y];
+    const [x, y] = cells.p[cellId];
+    return [x, y];
   }
 
   private getPoints(group: string, cells: number[], points: Point[]) {
@@ -1561,6 +1579,18 @@ class RoutesModule {
   regenerate(): void {
     const lockedRoutes = pack.routes.filter(route => route.lock).map((route, index) => ({ ...route, i: index }));
     this.generate(lockedRoutes, Math.random());
+  }
+
+  /** custom route groups (old maps, the route groups editor) can miss a style entry - without
+   * one the style editor's edits are DOM-only and presets drop the group */
+  ensureRouteGroupStyles(): void {
+    const { groups } = styles.routes;
+    const template = groups.roads || Object.values(groups)[0];
+    if (!template) return;
+    // presets are also applied on initial page load, before any map (and its routes) exists
+    for (const group of new Set((pack.routes ?? []).map(route => route.group))) {
+      if (!groups[group]) groups[group] = structuredClone(template);
+    }
   }
 
   generate(lockedRoutes: Route[] = [], randomSeed?: number) {

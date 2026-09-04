@@ -11,13 +11,12 @@ import {
   routeTypeStyle
 } from "./route-styles";
 
-// Read via fs rather than importing the JSON: the preset lives under public/, outside the TS
-// rootDir, so an ESM json import would fight tsc's include config. fs is robust in vitest.
-// Use node:url's URL (not the jsdom-patched global URL, which resolves file:// bases against
-// window.location instead of the given base) to resolve the path.
-const defaultPreset = JSON.parse(
-  readFileSync(fileURLToPath(new NodeURL("../../public/styles/default.json", import.meta.url)), "utf8")
-) as Record<string, any>;
+// The shipped defaults live in the style store's bundled JSON (src/generators/default-styles.json).
+// Read via fs with node:url's URL (not the jsdom-patched global URL, which resolves file:// bases
+// against window.location instead of the given base) to resolve the path.
+const defaultStyles = JSON.parse(
+  readFileSync(fileURLToPath(new NodeURL("../generators/default-styles.json", import.meta.url)), "utf8")
+) as { routes: { groups: Record<string, { attrs: Record<string, unknown> }> } };
 
 // Every overland type the generator can emit (routes-generator.ts assigns these).
 const EMITTED_TYPES = ["royal", "main", "market", "town", "local", "trail", "footpath"];
@@ -100,25 +99,13 @@ describe("applyRouteLineStyle (preset wins, defaults fill gaps)", () => {
   });
 });
 
-describe("default preset matches the hierarchy (width/dash/cap, not colour)", () => {
-  it("sets each overland type to its default width and dash", () => {
-    for (const type of ["royal", "main", "market", "town", "local", "trail", "footpath"]) {
-      const sel = `#routes #${type}`;
-      const preset = defaultPreset[sel];
-      expect(preset, sel).toBeDefined();
-      expect(preset["stroke-width"], sel).toBe(ROUTE_TYPE_DEFAULTS[type]["stroke-width"]);
-      const dash = ROUTE_TYPE_DEFAULTS[type]["stroke-dasharray"];
-      // solid types carry no dasharray (or null); dashed/dotted carry the exact pattern
-      if (dash === null) expect(preset["stroke-dasharray"] ?? null, sel).toBeNull();
-      else expect(String(preset["stroke-dasharray"]), sel).toBe(dash);
-    }
-  });
-
-  it("sets the special groups to their default width", () => {
-    for (const group of ["searoutes", "airroutes", "traderoutes"]) {
-      const preset = defaultPreset[`#${group}`];
-      expect(preset, group).toBeDefined();
-      expect(preset["stroke-width"], group).toBe(ROUTE_GROUP_DEFAULTS[group]["stroke-width"]);
+describe("default styles match the group hierarchy (width, not colour)", () => {
+  // route types have no place in the style store, so only the groups are cross-checked
+  it("sets every route group to its default width", () => {
+    for (const group of GROUPS) {
+      const attrs = defaultStyles.routes.groups[group]?.attrs;
+      expect(attrs, group).toBeDefined();
+      expect(attrs["stroke-width"], group).toBe(ROUTE_GROUP_DEFAULTS[group]["stroke-width"]);
     }
   });
 });

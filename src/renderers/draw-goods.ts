@@ -14,7 +14,6 @@ const PLATE_PAD_X = 1;
 const PLATE_PAD_Y = 0.6;
 const PLATE_RX = 1;
 const PLATE_FILL = "#f5f5f5";
-const DEFAULT_SIZE = 6;
 
 const CELL_BUCKETS = 5;
 const MAX_PLATES = 1000;
@@ -152,9 +151,8 @@ function buildGoodsCellsContent(displayedGoods: Set<number>): string {
 function buildIconItems(displayedGoods: Set<number>): SceneItem[] {
   if (!displayedGoods.size || !pack.cells.good) return [];
 
-  const iconsGroup = select("#goods").select("#goodsIcons");
-  const drawCircle = +iconsGroup.attr("data-circle");
-  const iconSize = +iconsGroup.attr("data-size") || DEFAULT_SIZE;
+  const drawCircle = styles.goods.goodsIcons.options.circle;
+  const iconSize = styles.goods.goodsIcons.options.size;
   const half = iconSize / 2;
 
   const items: SceneItem[] = [];
@@ -178,7 +176,7 @@ function buildPlateItems(displayedGoods: Set<number>): SceneItem[] {
   if (!displayedGoods.size) return [];
 
   // plate icon size is user-defined; the rest of the geometry and font scale with it
-  const plateIcon = +select("#goods").select("#goodsBurgs").attr("data-size") || PLATE_ICON;
+  const plateIcon = styles.goods.goodsBurgs.options.size;
   const scale = plateIcon / PLATE_ICON;
   const plateFont = PLATE_FONT * scale;
   const plateGap = PLATE_GAP * scale;

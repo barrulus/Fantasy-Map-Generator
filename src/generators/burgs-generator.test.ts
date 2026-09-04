@@ -678,3 +678,29 @@ describe("generate on an all-water map", () => {
     expect(Array.from(g.pack.cells.burg)).toEqual([0, 0, 0]);
   });
 });
+
+describe("ensureBurgGroupStyles", () => {
+  it("seeds icon and anchor styles for custom groups from the fallback group, keeping existing entries", async () => {
+    globalThis.window = globalThis.window || ({} as any);
+    await import("./burgs-generator");
+    const Burgs = (globalThis as any).Burgs;
+
+    (globalThis as any).options = { burgs: { groups: [{ name: "town" }, { name: "fortresses" }] } };
+    const town = { attrs: { fill: "#aaa" }, options: { size: 1, icon: "#icon-burg" } };
+    const townAnchor = { attrs: { fill: "#bbb" }, options: { size: 2 } };
+    (globalThis as any).styles = {
+      burgIcons: {
+        burgIcons: { groups: { town: structuredClone(town) } },
+        anchors: { groups: { town: structuredClone(townAnchor) } }
+      }
+    };
+
+    Burgs.ensureBurgGroupStyles();
+
+    const { burgIcons, anchors } = (globalThis as any).styles.burgIcons;
+    expect(burgIcons.groups.town).toEqual(town);
+    expect(burgIcons.groups.fortresses).toEqual(town);
+    expect(burgIcons.groups.fortresses).not.toBe(burgIcons.groups.town);
+    expect(anchors.groups.fortresses).toEqual(townAnchor);
+  });
+});
