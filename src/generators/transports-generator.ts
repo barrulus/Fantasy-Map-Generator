@@ -3,9 +3,11 @@
  *   land: walks, wheels, hooves: land-only (endpoints must be on land or coastal). Uses road network if possible.
  *   water: boats, ships: water-only (endpoints must be in water or coastal). Uses sea findPath.
  *   air: flight, magic: unrestricted; goes in a direct line, ignores terrain.
+ *   flight: airplanes: skyport to skyport along an existing air route (fork: burgs with skyPort).
+ *   rotor: helicopters: a straight line that stays within half its range of a skyport, so it can turn back.
  *   stay: no movement: for story-telling delays (tavern rest, waiting).
  */
-export type TransportDomain = "land" | "water" | "air" | "stay";
+export type TransportDomain = "land" | "water" | "air" | "flight" | "rotor" | "stay";
 
 export interface Transport {
   i: number;
@@ -14,18 +16,23 @@ export interface Transport {
   domain: TransportDomain;
   /** Hours of travel a day sustains with this transport: a caravan walks 8, a dirigible drifts 24 */
   hoursPerDay?: number; // absent in maps saved before it became configurable
+  /** rotor only: km it can fly before it must be back at a skyport */
+  range?: number;
   icon?: string;
 }
 
 const STORAGE_KEY = "options-transports";
 
 export const MAX_HOURS_PER_DAY = 24;
+export const DEFAULT_ROTOR_RANGE = 600; // km
 
 /** Fallback travel hours per day, by domain: used for transports saved before the setting existed */
 const FALLBACK_HOURS_PER_DAY: Record<TransportDomain, number> = {
   land: 8,
   water: 12,
   air: 8,
+  flight: 12,
+  rotor: 6,
   stay: MAX_HOURS_PER_DAY
 };
 
@@ -44,10 +51,10 @@ const DEFAULT_TRANSPORTS: readonly Transport[] = [
   { i: 12, name: "Sailing Ship", speed: 10, domain: "water", hoursPerDay: 24 },
   { i: 13, name: "Steamship", speed: 25, domain: "water", hoursPerDay: 24 },
   { i: 14, name: "Modern Ship", speed: 35, domain: "water", hoursPerDay: 24 },
-  { i: 15, name: "Aircraft", speed: 120, domain: "air", hoursPerDay: 4 },
+  { i: 15, name: "Aircraft", speed: 120, domain: "flight", hoursPerDay: 4 },
   { i: 16, name: "Dirigible", speed: 20, domain: "air", hoursPerDay: 24 },
-  { i: 17, name: "Helicopter", speed: 220, domain: "air", hoursPerDay: 6 },
-  { i: 18, name: "Modern Airplane", speed: 800, domain: "air", hoursPerDay: 12 },
+  { i: 17, name: "Helicopter", speed: 220, domain: "rotor", hoursPerDay: 6, range: DEFAULT_ROTOR_RANGE },
+  { i: 18, name: "Modern Airplane", speed: 800, domain: "flight", hoursPerDay: 12 },
   { i: 19, name: "Teleport", speed: 10000, domain: "air", hoursPerDay: 24 },
   { i: 20, name: "Stay", speed: 0, domain: "stay", hoursPerDay: 24 }
 ];
@@ -88,6 +95,12 @@ class TransportsModule {
     return FALLBACK_HOURS_PER_DAY[transport.domain] ?? FALLBACK_HOURS_PER_DAY.land;
   }
 
+  /** Range in km of a rotor transport; unknown names and unset values take the default helicopter's */
+  getRange(name: string): number {
+    const range = Number(this.get(name)?.range);
+    return Number.isFinite(range) && range > 0 ? range : DEFAULT_ROTOR_RANGE;
+  }
+
   /** First transport able to travel the domain, undefined if the user removed them all */
   getByDomain(domain: TransportDomain): Transport | undefined {
     return this.all.find(transport => transport.domain === domain);
@@ -108,6 +121,14 @@ class TransportsModule {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.all));
   }
 
+  /** Sets stored before aviation was bound to skyports carry the default airplanes and helicopter as plain air */
+  private upgrade(transport: Transport): Transport {
+    if (transport.domain !== "air") return transport;
+    const current = DEFAULT_TRANSPORTS.find(entry => entry.name === transport.name && entry.domain !== "air");
+    if (!current) return transport;
+    return { ...transport, domain: current.domain, range: transport.range ?? current.range };
+  }
+
   /** The set the user configured last, falling back to the defaults if there is none or it is unreadable */
   private getStored(): Transport[] {
     try {
@@ -115,7 +136,7 @@ class TransportsModule {
       if (!stored) return this.getDefaults();
 
       const parsed = JSON.parse(stored) as Transport[];
-      return parsed.length ? parsed : this.getDefaults();
+      return parsed.length ? parsed.map(transport => this.upgrade(transport)) : this.getDefaults();
     } catch (error) {
       ERROR && console.error("Invalid stored transports", error);
       return this.getDefaults();

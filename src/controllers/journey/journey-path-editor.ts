@@ -195,7 +195,7 @@ export class JourneyPathEditor {
     const cellId = clicked[2];
 
     const domain = Transports.getDomain(seg.transport);
-    if (!Journeys.isValidEndpoint(cellId, domain)) {
+    if (!Journeys.isValidEndpoint(cellId, domain, seg.transport)) {
       warn(`Can't put an endpoint there — ${terrainRejection(cellId, domain, seg.transport)}`);
       return;
     }
@@ -237,7 +237,7 @@ export class JourneyPathEditor {
     const originalFrom = seg.from;
     const originalTo = seg.to;
 
-    const isAllowed = (cellId: number) => Journeys.isValidPointAt(cellId, domain, isEndpoint);
+    const isAllowed = (cellId: number) => Journeys.isValidPointAt(cellId, domain, isEndpoint, seg.transport);
 
     let droppedCell = original[2];
 
@@ -278,7 +278,7 @@ export class JourneyPathEditor {
     const [x, y, cellId] = clicked;
 
     const domain = Transports.getDomain(seg.transport);
-    if (!Journeys.isValidPathPoint(cellId, domain)) {
+    if (!Journeys.isValidPathPoint(cellId, domain, seg.transport)) {
       warn(`Can't add a point there — ${terrainRejection(cellId, domain, seg.transport)}`);
       return;
     }
@@ -314,13 +314,16 @@ export class JourneyPathEditor {
 
     // a mid-path point valid only as an endpoint (e.g. a port) can never be continued from
     const last = points.length > 1 ? points[points.length - 1] : undefined;
-    if (last && !Journeys.isValidPathPoint(last[2], domain)) {
+    if (last && !Journeys.isValidPathPoint(last[2], domain, seg.transport)) {
       warn("The path reached a terminal point — finish the drawing there, or undo it with a right-click.");
       return;
     }
 
     // any click may turn out to be the last one, so cells valid only as endpoints are accepted too
-    if (!Journeys.isValidPathPoint(cellId, domain) && !Journeys.isValidEndpoint(cellId, domain)) {
+    if (
+      !Journeys.isValidPathPoint(cellId, domain, seg.transport) &&
+      !Journeys.isValidEndpoint(cellId, domain, seg.transport)
+    ) {
       warn(`Can't add a point there — ${terrainRejection(cellId, domain, seg.transport)}`);
       return;
     }
@@ -352,7 +355,7 @@ export class JourneyPathEditor {
     // points are checked as they are added, but the transport type can be changed
     // mid-draw, so the finished path has to be re-checked as a whole
     const domain = Transports.getDomain(seg.transport);
-    if (!Journeys.isValidPath(points, domain)) {
+    if (!Journeys.isValidPath(points, domain, seg.transport)) {
       warn(`This path isn't valid for a ${domain} transport type — right-click to undo the bad points.`);
       return;
     }
@@ -383,7 +386,8 @@ export function recomputeSegment(seg: JourneySegment): void {
   const domain = Transports.getDomain(seg.transport);
   // a stay has no movement: a direct line anchors it between its endpoints
   const result = Journeys.findPath(seg.from, seg.to, domain === "stay" ? "air" : domain, {
-    avoidRoads: domain === "land" && !!seg.avoidRoads
+    avoidRoads: domain === "land" && !!seg.avoidRoads,
+    transport: seg.transport
   });
   seg.points = result.points;
   seg.distance = result.distance;
@@ -402,24 +406,34 @@ export function domainMismatchMessage(seg: JourneySegment, domain: TransportDoma
   const bad: string[] = [];
   for (const endpoint of ["from", "to"] as const) {
     const cellId = seg[endpoint];
-    if (cellId !== undefined && !Journeys.isValidEndpoint(cellId, domain)) {
+    if (cellId !== undefined && !Journeys.isValidEndpoint(cellId, domain, seg.transport)) {
       bad.push(`<b>${endpoint}</b> is a ${Journeys.describeCell(cellId)}`);
     }
   }
   if (!bad.length) return null;
 
-  const need =
-    domain === "land"
-      ? "endpoints must be on land (coastal is fine)"
-      : "endpoints must be in water, on a coast touching water, or on a navigable river";
+  const need = DOMAIN_ENDPOINT_RULE[domain] ?? "endpoints must fit its travel domain";
   return `${bad.join(" and ")}.<br/><br/>This transport type is <b>${domain}</b> — ${need}.`;
 }
 
 type DragStart = D3DragEvent<SVGCircleElement, unknown, unknown>;
 
+const DOMAIN_ENDPOINT_RULE: Partial<Record<TransportDomain, string>> = {
+  land: "endpoints must be on land (coastal is fine)",
+  water: "endpoints must be in water, on a coast touching water, or on a navigable river",
+  flight: "endpoints must be skyports, joined by an air route",
+  rotor: "endpoints must lie within half its range of a skyport"
+};
+
+const DOMAIN_PATH_RULE: Partial<Record<TransportDomain, string>> = {
+  land: "its path has to stay on land",
+  water: "its path has to stay on water or a navigable river",
+  flight: "it can only land at skyports",
+  rotor: "its path has to stay within half its range of a skyport"
+};
+
 function terrainRejection(cellId: number, domain: TransportDomain, transport: string): string {
-  const rule =
-    domain === "land" ? "its path has to stay on land" : "its path has to stay on water or a navigable river";
+  const rule = DOMAIN_PATH_RULE[domain] ?? "that spot does not fit its travel domain";
   return `${transport} is a ${domain} transport — ${rule}. That spot is a ${Journeys.describeCell(cellId)}.`;
 }
 
