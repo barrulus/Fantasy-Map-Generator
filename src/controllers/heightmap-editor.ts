@@ -341,11 +341,15 @@ function applyDraft(draft: HeightmapDraft): void {
 
   seed = draft.seed;
   ensureEl<HTMLInputElement>("optionsSeed").value = draft.seed;
-  graphWidth = draft.graphWidth;
-  graphHeight = draft.graphHeight;
+  ensureEl<HTMLInputElement>("mapWidthInput").value = String(draft.graphWidth);
+  ensureEl<HTMLInputElement>("mapHeightInput").value = String(draft.graphHeight);
+  applyGraphSize();
   const densityValue = Object.keys(cellsDensityMap).find(key => cellsDensityMap[+key] === draft.cellsDesired);
-  if (densityValue) $points.value = densityValue;
-  $points.dataset.cells = String(draft.cellsDesired);
+  if (densityValue) changeCellsDensity(densityValue);
+  else {
+    $points.dataset.cells = String(draft.cellsDesired);
+    ensureEl<HTMLOutputElement>("pointsOutputFormatted").value = `${draft.cellsDesired / 1000}K`;
+  }
 
   newGrid.cells.h = Uint8Array.from(draft.heights);
   grid = newGrid;
