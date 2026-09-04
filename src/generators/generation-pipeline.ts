@@ -57,12 +57,20 @@ export const GenerationPipeline = new Pipeline<GenerationPipelineStepId, Generat
   generationPipelineSteps
 );
 
+// erase rebuilds everything except the user's own additions, which no step regenerates
+function clearPackForErase(): void {
+  const { addedLabels = [], measurers = [] } = pack;
+  Pack.clear();
+  Object.assign(pack, { addedLabels, measurers, relief: [] });
+}
+
 const erasePipelineSteps = [
   { id: "markupGrid", run: () => Features.markupGrid() },
   { id: "depressionLakes", run: ({ erosion }) => erosion && Grid.addDeepDepressionLakes() },
   { id: "nearSeaLakes", run: ({ erosion }) => erosion && Grid.openNearSeaLakes() },
   { id: "temperatures", run: () => Temperature.generate() },
   { id: "precipitation", run: () => Precipitation.generate() },
+  { id: "clearPack", run: () => clearPackForErase() },
   { id: "regraph", run: () => Pack.generate() },
   { id: "markupPack", run: () => Features.markupPack() },
   { id: "rivers", run: ({ erosion }) => Rivers.generate(erosion) },

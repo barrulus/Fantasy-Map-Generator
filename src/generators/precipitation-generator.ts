@@ -28,7 +28,9 @@ class PrecipitationModule {
     const { cells, cellsX, cellsY } = grid;
     cells.prec = new Uint8Array(cells.i.length);
 
-    const cellsNumberModifier = (Grid.getCellsDesired() / 10000) ** 0.25;
+    // Wind crosses sqrt(N) cells and loses at least 1 unit per land cell, so both the humidity it
+    // carries and the loss divisor scale with sqrt(N); the fourth root left interiors dry past ~500K
+    const cellsNumberModifier = (Grid.getCellsDesired() / 10000) ** 0.5;
     const modifier = cellsNumberModifier * (options.prec / 100);
 
     const getPrecipitation = (humidity: number, i: number, n: number) => {
@@ -45,7 +47,7 @@ class PrecipitationModule {
         let first: number;
         if (Array.isArray(source)) {
           if (!source[0]) continue; // legacy quirk: a band starting at cell 0 is skipped, fixing it changes every map
-          maxPrec = Math.min(initialMaxPrec * source[1], 255);
+          maxPrec = Math.min(initialMaxPrec * source[1], 255 * cellsNumberModifier);
           first = source[0];
         } else first = source;
 
