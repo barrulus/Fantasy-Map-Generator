@@ -3,6 +3,7 @@ import { Emblems } from "@/generators/emblems-generator";
 import { buildSettlemakerUrl } from "@/services/previews/settlemaker";
 import type { BurgGroup } from "@/types/burg-groups";
 import type { Emblem } from "@/types/emblems";
+import { safeParseJSON } from "@/utils/stringUtils";
 import { each, ensureEl, gauss, minmax, normalize, P, rn } from "../utils";
 import { buildBurgContext } from "./burg-context";
 import { type CultureType, DEFAULT_CULTURE_TYPE } from "./cultures-generator";
@@ -1022,6 +1023,19 @@ class BurgModule {
         burg.temple = Number(P(0.05));
         break;
     }
+  }
+
+  /** burg assignment needs a named, ordered group and a default to fall back on: a value persisted
+   * by an older build can satisfy neither and still parse */
+  parseStoredGroups(stored: string | null): BurgGroup[] {
+    const parsed = stored ? safeParseJSON(stored) : null;
+    const groups: BurgGroup[] = Array.isArray(parsed)
+      ? parsed.filter(group => typeof group?.name === "string" && typeof group?.order === "number")
+      : [];
+    if (!groups.length) return this.getDefaultGroups();
+
+    if (!groups.some(group => group.isDefault)) groups[0].isDefault = true;
+    return groups;
   }
 
   getDefaultGroups(): BurgGroup[] {
