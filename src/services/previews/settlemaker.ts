@@ -1,5 +1,6 @@
 import type { BurgContext, Corridor } from "@/generators/burg-context";
 import { hashSeedToInt } from "@/generators/burg-context";
+import type { WaterContext, WaterSurvey } from "./water-context-types";
 
 type LandRouteClass = "royal" | "main" | "market" | "town" | "local" | "trail" | "footpath";
 
@@ -33,6 +34,7 @@ export interface AzgaarBurgInput {
   urbanDensity?: number;
   coreCapacity?: number;
   coastlineGeometry?: Array<Array<{ x: number; y: number }>>;
+  waterContext?: WaterContext;
   biome?: string;
   trade?: boolean;
 }
@@ -120,18 +122,24 @@ export async function encodeJsonParam(value: unknown): Promise<string> {
 
 export async function buildSettlemakerUrl(
   ctx: BurgContext,
-  opts: { urbanDensity?: number; trade?: boolean }
+  opts: { urbanDensity?: number; trade?: boolean; waterSurvey?: WaterSurvey; baseUrl?: string }
 ): Promise<{ link: string; preview: string }> {
   const input = toSettlemakerInput(ctx, opts);
+  if (opts.waterSurvey) {
+    if (ctx.burg.population < 1 || ctx.burg.population > 1000)
+      throw new Error("Measured water is supported only for villages");
+    Object.assign(input, opts.waterSurvey);
+  }
   const seed = hashSeedToInt(ctx.burg.seedKey);
 
   const encoded = await encodeJsonParam({ v: URL_PAYLOAD_VERSION, burg: input, seed });
   if (encoded.length > MAX_ENCODED_PAYLOAD_BYTES) {
+    if (input.waterContext) throw new Error("This measured water preview is too detailed to fit in a preview link.");
     // The bound is advisory, not a renderer limit. Flat URLs lose route IDs and hints.
     WARN && console.warn(`settlemaker payload ${encoded.length}B exceeds the recommended URL budget`);
   }
 
   // /fmg is already chrome-free, so there is no separate preview variant.
-  const link = `${SETTLEMAKER_BASE_URL}?i=${encoded}`;
+  const link = `${opts.baseUrl ?? SETTLEMAKER_BASE_URL}?i=${encoded}`;
   return { link, preview: link };
 }

@@ -247,6 +247,41 @@ function buildCoastlinePath({ points, origIndices }: FractalizedShape): string {
  */
 class CoastlineGenerator {
   readonly PROFILE_SIZE = PROFILE_SIZE;
+  private paths = new WeakMap<Feature, { source: string; path: string }>();
+  private graph?: typeof pack.vertices;
+  private configuration = "";
+  private revision = 0;
+
+  get boundaryRevision(): number {
+    const configuration = JSON.stringify([
+      options.map.seed,
+      options.map.graph.width,
+      options.map.graph.height,
+      this.settings
+    ]);
+    if (this.graph !== pack.vertices || this.configuration !== configuration) {
+      this.graph = pack.vertices;
+      this.configuration = configuration;
+      this.paths = new WeakMap();
+      this.revision++;
+    }
+    return this.revision;
+  }
+
+  /** IO adopts the saved display geometry before any layer redraw can replace it. */
+  restorePaths(paths: Iterable<[number, string]>): void {
+    this.boundaryRevision;
+    this.paths = new WeakMap();
+    for (const [id, path] of paths) {
+      const feature = pack.features[id];
+      if (feature && path) this.paths.set(feature, { source: this.sourceKey(feature), path });
+    }
+    this.revision++;
+  }
+
+  private sourceKey(feature: Feature): string {
+    return JSON.stringify([feature.type, feature.vertices.map(vertex => pack.vertices.p[vertex])]);
+  }
 
   /** Settings of the map on screen: a fact, read at render time and saved with the file */
   get settings(): CoastlineSettings {
@@ -265,6 +300,10 @@ class CoastlineGenerator {
 
   /** Closed SVG path of the feature outline, fractalized as configured */
   getFeaturePath(feature: Feature): string {
+    this.boundaryRevision;
+    const source = this.sourceKey(feature);
+    const cached = this.paths.get(feature);
+    if (cached?.source === source) return cached.path;
     const points = feature.vertices.map(vertex => pack.vertices.p[vertex]);
     if (points.some(point => point === undefined)) {
       ERROR && console.error("Undefined point in getFeaturePath");
@@ -274,7 +313,10 @@ class CoastlineGenerator {
     const simplifiedPoints = simplify(points, SIMPLIFICATION_TOLERANCE);
     const clippedPoints = clipPoly(simplifiedPoints, options.map.graph.width, options.map.graph.height, 1);
     const shape = this.fractalizeFeature(clippedPoints, feature);
-    return `${round(buildCoastlinePath(shape))}Z`;
+    const path = `${round(buildCoastlinePath(shape))}Z`;
+    this.paths.set(feature, { source, path });
+    this.revision++;
+    return path;
   }
 
   /** Displace a polygon into a naturalistic coastline. Deterministic: the same rand and settings repeat the shape */

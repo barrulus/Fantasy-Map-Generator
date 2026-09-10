@@ -7,6 +7,7 @@ import { syncOptionInputs } from "@/components/options/tabs/options-tab";
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { resetZoom } from "@/components/zoom";
+import { Coastline } from "@/generators/coastline-generator";
 import { GraphOverride } from "@/generators/graph-override";
 import { invalidateEmblems } from "@/renderers/draw-emblems";
 import { onLegendClick } from "@/renderers/draw-legend";
@@ -383,6 +384,12 @@ async function parseLoadedData(data: string[], mapVersion: string | null): Promi
 
     if (data[50]) Layers.restore(JSON.parse(data[50]));
     if (data[51]) GraphOverride.restore(JSON.parse(data[51]));
+    Coastline.restorePaths(
+      Array.from(document.querySelectorAll<SVGPathElement>("#featurePaths > path"), path => [
+        Number(path.dataset.f ?? path.id.replace("feature_", "")),
+        path.getAttribute("d") ?? ""
+      ])
+    );
 
     Goods.sync();
     Markets.sync();

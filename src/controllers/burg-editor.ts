@@ -754,9 +754,10 @@ function getPreviewTextureBudgetK(): number {
 }
 
 async function updateBurgPreview(burg: Burg): Promise<void> {
-  const preview = (await Burgs.getPreview(burg)).preview;
+  const { preview, error } = await Burgs.getPreview(burg);
   if (!preview) {
-    ensureEl("burgPreviewSection").style.display = "none";
+    ensureEl("burgPreviewSection").style.display = error ? "block" : "none";
+    ensureEl("burgPreviewObject").textContent = error ?? "";
     return;
   }
 
@@ -790,8 +791,9 @@ async function updateBurgPreview(burg: Burg): Promise<void> {
 async function openBurgLink(): Promise<void> {
   const id = getSelectedId();
   const burg = pack.burgs[id];
-  const link = (await Burgs.getPreview(burg)).link;
+  const { link, error } = await Burgs.getPreview(burg);
   if (link) openURL(link);
+  else if (error) tip(error, true, "error", 8000);
 }
 
 async function setCustomPreview(): Promise<void> {

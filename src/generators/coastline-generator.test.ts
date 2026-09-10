@@ -49,6 +49,21 @@ describe("settings", () => {
 });
 
 describe("getFeaturePath", () => {
+  it("retains a loaded displayed boundary until its geometry or settings change", () => {
+    pack.features = [undefined, island] as unknown as typeof pack.features;
+    const saved = "M10,10L90,10L90,90L10,90Z";
+    Coastline.restorePaths([[1, saved]]);
+    const revision = Coastline.boundaryRevision;
+    expect(Coastline.getFeaturePath(island)).toBe(saved);
+    expect(Coastline.boundaryRevision).toBe(revision);
+    pack.vertices.p[0] = [12, 10];
+    expect(Coastline.getFeaturePath(island)).not.toBe(saved);
+    expect(Coastline.boundaryRevision).toBeGreaterThan(revision);
+    Coastline.restorePaths([[1, saved]]);
+    Coastline.update({ enabled: false });
+    expect(Coastline.getFeaturePath(island)).not.toBe(saved);
+  });
+
   it("reproduces the same coastline for the same seed and settings", () => {
     const path = Coastline.getFeaturePath(island);
 

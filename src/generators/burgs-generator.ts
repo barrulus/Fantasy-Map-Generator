@@ -1,12 +1,11 @@
 import { quadtree } from "d3-quadtree";
 import { AUTO_BURG_LIMIT } from "@/components/options-schema";
 import { Emblems } from "@/generators/emblems-generator";
-import { buildSettlemakerUrl } from "@/services/previews/settlemaker";
+import { createSettlemakerPreview } from "@/services/previews/settlemaker-burg";
 import type { BurgGroup } from "@/types/burg-groups";
 import type { Emblem } from "@/types/emblems";
 import { safeParseJSON } from "@/utils/stringUtils";
 import { each, gauss, minmax, normalize, P, rn } from "../utils";
-import { buildBurgContext } from "./burg-context";
 import { type CultureType, DEFAULT_CULTURE_TYPE } from "./cultures-generator";
 import { NON_NAVIGABLE_LAKE_GROUPS } from "./features";
 import type { Label } from "./labels-generator";
@@ -1425,7 +1424,7 @@ class BurgModule {
     return { link, preview: `${link}&preview=1` };
   }
 
-  async getPreview(burg: Burg): Promise<{ link: string | null; preview: string | null }> {
+  async getPreview(burg: Burg): Promise<{ link: string | null; preview: string | null; error?: string }> {
     const previewGeneratorsMap: Record<
       string,
       (
@@ -1435,11 +1434,7 @@ class BurgModule {
       "watabou-city": (burg: Burg) => this.createWatabouCityLinks(burg),
       "watabou-village": (burg: Burg) => this.createWatabouVillageLinks(burg),
       "watabou-dwelling": (burg: Burg) => this.createWatabouDwellingLinks(burg),
-      settlemaker: (burg: Burg) =>
-        buildSettlemakerUrl(buildBurgContext(burg), {
-          urbanDensity: options.map.units.population.urbanization.density,
-          trade: burg.tradeRole === "hub"
-        })
+      settlemaker: createSettlemakerPreview
     };
     if (burg.link) return { link: burg.link, preview: burg.link };
 
@@ -1451,7 +1446,11 @@ class BurgModule {
     } catch (error) {
       // Never throw into the editor: a broken preview must not take the dialog down.
       ERROR && console.error("Failed to build burg preview", error);
-      return { link: null, preview: null };
+      return {
+        link: null,
+        preview: null,
+        error: error instanceof Error ? error.message : "Cannot create this burg preview"
+      };
     }
   }
 

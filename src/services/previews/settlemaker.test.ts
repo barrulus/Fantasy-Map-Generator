@@ -232,6 +232,72 @@ async function decodeIParam(url: string) {
 }
 
 describe("buildSettlemakerUrl", () => {
+  it("round-trips an authoritative empty water survey alongside the legacy bearing", async () => {
+    const { link, preview } = await buildSettlemakerUrl(ctx(), {
+      baseUrl: "https://renderer.example/fmg",
+      waterSurvey: {
+        waterContext: {
+          version: 1,
+          status: "measured",
+          coordinateSpace: "burg-local-metres",
+          surveyRadiusM: 3000,
+          geometryErrorM: 0.5,
+          bodies: []
+        },
+        coastlineGeometry: []
+      }
+    });
+    expect(new URL(link).origin).toBe("https://renderer.example");
+    expect(preview).toBe(link);
+    expect((await decodeIParam(link)).burg).toMatchObject({
+      waterContext: { version: 1, status: "measured", bodies: [] },
+      coastlineGeometry: [],
+      oceanBearing: 200
+    });
+  });
+
+  it("preserves unknown custom units without making an empty geographic survey", async () => {
+    const { link } = await buildSettlemakerUrl(ctx(), {
+      waterSurvey: {
+        waterContext: { version: 1, status: "unknown-units", sourceUnit: "hexes" }
+      }
+    });
+    const { burg } = await decodeIParam(link);
+    expect(burg.waterContext).toEqual({ version: 1, status: "unknown-units", sourceUnit: "hexes" });
+    expect(burg).not.toHaveProperty("coastlineGeometry");
+  });
+
+  it("rejects measured payloads for cities", async () => {
+    await expect(
+      buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population: 1001 } }), {
+        waterSurvey: {
+          waterContext: { version: 1, status: "unknown-units", sourceUnit: "hexes" }
+        }
+      })
+    ).rejects.toThrow("only for villages");
+  });
+
+  it("rejects oversized measured geometry without dropping authoritative water state", async () => {
+    const coastlineGeometry = [
+      Array.from({ length: 8000 }, (_, i) => ({ x: Math.sin(i) * 3000, y: Math.cos(i) * 3000 }))
+    ];
+    await expect(
+      buildSettlemakerUrl(ctx(), {
+        waterSurvey: {
+          waterContext: {
+            version: 1,
+            status: "measured",
+            coordinateSpace: "burg-local-metres",
+            surveyRadiusM: 3000,
+            geometryErrorM: 0.5,
+            bodies: []
+          },
+          coastlineGeometry
+        }
+      })
+    ).rejects.toThrow("too detailed");
+  });
+
   it("round-trips through the documented codec into a v1 envelope", async () => {
     const { link } = await buildSettlemakerUrl(ctx(), {});
     expect(link.startsWith(`${SETTLEMAKER_BASE_URL}?i=`)).toBe(true);
