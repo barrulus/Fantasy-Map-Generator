@@ -1,3 +1,4 @@
+import { getKmInDistanceUnit } from "@/utils/unitUtils";
 import { rn } from "../utils";
 import type { Burg } from "./burgs-generator";
 
@@ -604,7 +605,7 @@ export function buildBurgContext(burg: Burg): BurgContext {
     scale: populationRate,
     urbanization: { rate: urbanization }
   } = options.map.units.population;
-  const distanceScale = options.map.units.distance.scale;
+  const distanceScale = options.map.units.distance.scale * (getKmInDistanceUnit() || 1);
 
   const population = scaledPopulation(burg.population ?? 0, populationRate, urbanization);
   const radiusKm = effectiveWindowRadiusKm(DEFAULT_WINDOW_RADIUS_KM, distanceScale, Number(grid?.spacing ?? 0));
