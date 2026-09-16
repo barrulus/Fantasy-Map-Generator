@@ -151,14 +151,9 @@ class GridModule {
 
   /** turn depressions that cannot pour to water into lakes */
   addDeepDepressionLakes(): void {
-    const elevationLimit = options.generation.lakeElevationLimit;
-    if (elevationLimit === 80) return;
-
     const { cells, features } = grid;
-    const { c, h, b } = cells;
-    const n = cells.i.length;
 
-    const addLake = (lakeCells: number[]) => {
+    for (const lakeCells of this.findDeepDepressionLakes(cells, options.generation.lakeElevationLimit)) {
       const featureId = features.length;
 
       for (const i of lakeCells) {
@@ -167,13 +162,24 @@ class GridModule {
         cells.f[i] = featureId;
 
         // only a LAND neighbour becomes shore; an ocean one has to stay at t = -1
-        for (const neibId of c[i]) {
-          if (h[neibId] >= SEA_LEVEL && !lakeCells.includes(neibId)) cells.t[neibId] = 1;
+        for (const neibId of cells.c[i]) {
+          if (cells.h[neibId] >= SEA_LEVEL && !lakeCells.includes(neibId)) cells.t[neibId] = 1;
         }
       }
 
       features.push({ i: featureId, land: false, border: false, type: "lake" });
-    };
+    }
+  }
+
+  /** cell groups of the land depressions that cannot pour to water within the elevation limit: the lakes to be */
+  findDeepDepressionLakes(cells: Pick<GridCells, "i" | "c" | "b" | "h">, elevationLimit: number): number[][] {
+    if (elevationLimit === 80) return [];
+
+    const { c, b } = cells;
+    const h = Uint8Array.from(cells.h); // lakes form in turn: an earlier one is the water a later check can reach
+    const lakes: number[][] = [];
+
+    const n = cells.i.length;
 
     // Priority flood from the ocean: spillpoint[i] is the lowest water level that would flood cell i
     // from the ocean, i.e. the saddle height on the easiest way out. One O((N + E) log N) pass replaces
@@ -208,8 +214,12 @@ class GridModule {
       if (spillpoint[i] - h[i] < elevationLimit) continue;
       if (c[i].some(neibId => h[neibId] < h[i])) continue;
 
-      addLake([i, ...c[i].filter(neibId => h[neibId] === h[i])]);
+      const lakeCells = [i, ...c[i].filter(neibId => h[neibId] === h[i])];
+      for (const cell of lakeCells) h[cell] = 19;
+      lakes.push(lakeCells);
     }
+
+    return lakes;
   }
 
   /** near sea lakes get a lot of water inflow, most of them should break the threshold and flow out to sea (see Ancylus Lake) */

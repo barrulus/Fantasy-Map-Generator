@@ -326,10 +326,10 @@ const DIRECT_MATCHERS: DirectMatcher[] = [
       rank: rank("direct", "coastline"),
       actions: [
         {
-          label: "Edit coastline",
+          label: "Wrap coastline",
           icon: "icon-edit",
           verb: "open",
-          run: () => void Controllers.CoastlineVertexEditor.open(el)
+          run: () => void Controllers.WrapTool.open()
         },
         {
           label: "Coastline settings",

@@ -1,5 +1,5 @@
 import { interpolateString, select, sum } from "d3";
-import { closeDialogs, updateDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, destroyDialog, updateDialog } from "@/components/dialog/dialog-helpers";
 import { fitContent } from "@/components/dialog/fit-content";
 import { applyLineHighlighting } from "@/components/dialog/highlighting";
 import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
@@ -55,7 +55,7 @@ function open(): void {
 
 function renderDialog(): void {
   columns = getMilitaryColumns();
-  document.getElementById("militaryOverview")?.remove();
+  destroyDialog("militaryOverview");
   const editorHtml = /* html */ `<div id="${dialogId}" class="dialog stable editorDialog">
       <div id="militaryBody" class="table" data-type="absolute">
         ${renderEditorHeader({ dialogId, columns })}
@@ -537,6 +537,8 @@ function militaryCustomize(): void {
     $("#alert").dialog({
       width: fitContent(),
       title: "Limit unit",
+      // release the buttons closure that captures the live pack arrays
+      close: () => $("#alert").dialog("option", "buttons", {}),
       buttons: {
         Invert: () => {
           alertMessage.querySelectorAll<HTMLInputElement>("input").forEach(el => {
@@ -630,7 +632,7 @@ function militaryCustomize(): void {
 }
 
 function renderOptions(): void {
-  document.getElementById("militaryOptions")?.remove();
+  destroyDialog("militaryOptions");
   const optionsHtml = /* html */ `<div id="militaryOptions" class="dialog stable">
       <div class="table">
         <table id="militaryOptionsTable">
@@ -696,4 +698,4 @@ function downloadMilitaryData(): void {
   downloadFile(data, name);
 }
 
-export const MilitaryOverview = { open };
+export const MilitaryOverview = { open, exportCsv: downloadMilitaryData };

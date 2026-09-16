@@ -55,6 +55,16 @@ function buildScene(): void {
   sourcePack = pack;
 }
 
+/** Layer teardown: drop the cached scene and the drawn content */
+export function removeGoods(): void {
+  sourcePack = null;
+  iconItems = [];
+  plateItems = [];
+
+  const root = document.getElementById("goods");
+  if (root) for (const child of Array.from(root.children)) child.replaceChildren();
+}
+
 export function encodeCellFill(goodId: number, normalized: number): number {
   const bucket = Math.min(CELL_BUCKETS - 1, Math.floor(normalized * CELL_BUCKETS));
   return goodId * CELL_BUCKETS + bucket + 1;

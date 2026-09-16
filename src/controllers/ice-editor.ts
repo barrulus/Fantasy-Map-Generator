@@ -145,6 +145,7 @@ function closeEditor(): void {
   ensureEl("iceNew").classList.remove("pressed");
   if (wasAdding) applyDefaultViewboxEvents();
   destroyDialog("iceEditor");
+  selectedIce = null!;
 }
 
 export const IceEditor = { open };

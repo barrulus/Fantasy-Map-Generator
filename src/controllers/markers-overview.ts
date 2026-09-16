@@ -1,4 +1,4 @@
-import { closeDialogs, confirmationDialog, updateDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog, updateDialog } from "@/components/dialog/dialog-helpers";
 import { fitContent } from "@/components/dialog/fit-content";
 import { bindColumnSorting, sortDataByColumns } from "@/components/dialog/sorting";
 import { dialogState } from "@/components/dialog/state";
@@ -53,7 +53,7 @@ function open(): void {
 }
 
 function renderDialog(): void {
-  document.getElementById(dialogId)?.remove();
+  destroyDialog(dialogId);
 
   const html = /* html */ `
     <div id="${dialogId}" class="dialog stable editorDialog">
@@ -437,4 +437,4 @@ function exportMarkers(): void {
   downloadFile(data, fileName);
 }
 
-export const MarkersOverview = { open };
+export const MarkersOverview = { open, exportCsv: exportMarkers };

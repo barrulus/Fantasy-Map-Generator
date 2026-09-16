@@ -29,10 +29,23 @@ import { ErasePipeline } from "@/generators/generation-pipeline";
 import { GraphOverride } from "@/generators/graph-override";
 import { removeEmblem } from "@/renderers/draw-emblems";
 import { moveCircle, removeCircle } from "@/renderers/overlays/brush-circle";
+import { drawDrainage, removeDrainage } from "@/renderers/overlays/drainage";
 import { type HeightmapDraft, parseHeightmapDraft, serializeHeightmapDraft } from "@/services/io/heightmap-draft";
 import type { GridGraph } from "@/types/GridGraph";
 import { downloadFile, getFileName, uploadFile } from "@/utils";
-import { ensureEl, findEl, generateSeed, getPointer, last, lim, link, minmax, rn, unique } from "../utils";
+import {
+  createFileInput,
+  ensureEl,
+  findEl,
+  generateSeed,
+  getPointer,
+  last,
+  lim,
+  link,
+  minmax,
+  rn,
+  unique
+} from "../utils";
 import { createBrushStroke } from "../utils/brushUtils";
 import type { PromptOptions } from "../utils/commonUtils";
 
@@ -44,13 +57,19 @@ declare const prompt: (text: string, options: PromptOptions, callback: (value: s
 
 type FilterState = { cellType: "all" | "land" | "water" };
 const dialogId = "heightmapEditor";
+const EDITOR_OPTIONS = ["renderOcean", "showDrainage", "allowErosion"] as const; // the customization menu checkboxes
+let draftInput: HTMLInputElement | undefined;
+const historyLimit = 100;
 let filterState: FilterState;
+let templateInput: HTMLInputElement | null = null;
+let converterInput: HTMLInputElement | null = null;
 
 function open(options?: { mode?: string; tool?: string }): void {
   filterState = dialogState.get(dialogId, "filters", (): FilterState => ({ cellType: "all" }));
   if (!(["all", "land", "water"] as string[]).includes(filterState.cellType)) filterState.cellType = "all";
   dialogState.set(dialogId, "filters", filterState);
   const { mode, tool } = options || {};
+  HeightmapGenerator.clearData(); // release the grid pinned by a previous editing session
   restartHistory();
   select<SVGElement, unknown>("#viewbox").selectAll("#heights").remove();
   select<SVGElement, unknown>("#viewbox").insert("g", "#terrs").attr("id", "heights");
@@ -198,11 +217,7 @@ function renderTemplateEditor(): void {
   ensureEl("templateUndo").addEventListener("click", () => restoreHistory(edits.n - 1));
   ensureEl("templateRedo").addEventListener("click", () => restoreHistory(edits.n + 1));
   ensureEl("templateSave").addEventListener("click", downloadTemplate);
-  ensureEl("templateLoad").addEventListener("click", () => ensureEl("templateToLoad").click());
-
-  ensureEl<HTMLInputElement>("templateToLoad").onchange = () => {
-    uploadFile(ensureEl<HTMLInputElement>("templateToLoad"), uploadTemplate);
-  };
+  ensureEl("templateLoad").addEventListener("click", pickTemplateFile);
 }
 
 function renderImageConverter(): void {
@@ -275,10 +290,7 @@ function renderImageConverter(): void {
     .on("touchmove mousemove", showPalleteHeight)
     .on("click", assignHeight);
 
-  ensureEl("convertImageLoad").addEventListener("click", () => ensureEl("imageToLoad").click());
-  // imageToLoad is a static file input outside the dialog; use property assignment
-  // (idempotent, replaces rather than accumulates) so re-rendering doesn't stack listeners.
-  ensureEl<HTMLInputElement>("imageToLoad").onchange = () => loadImage.call(ensureEl<HTMLInputElement>("imageToLoad"));
+  ensureEl("convertImageLoad").addEventListener("click", pickConverterImage);
   ensureEl("convertAutoLum").addEventListener("click", () => autoAssing("lum"));
   ensureEl("convertAutoHue").addEventListener("click", () => autoAssing("hue"));
   ensureEl("convertAutoFMG").addEventListener("click", () => autoAssing("scheme"));
@@ -302,12 +314,33 @@ function addToolbarListeners(): void {
   ensureEl("heightmapPreview").addEventListener("click", toggleHeightmapPreview);
   ensureEl("heightmap3DView").addEventListener("click", changeViewMode);
   ensureEl("finalizeHeightmap").addEventListener("click", finalizeHeightmap);
-  ensureEl("renderOcean").addEventListener("click", mockHeightmap);
   ensureEl("saveHeightmapDraft").addEventListener("click", saveDraft);
-  ensureEl("loadHeightmapDraft").addEventListener("click", () => ensureEl("heightmapDraftToLoad").click());
-  ensureEl("heightmapDraftToLoad").addEventListener("change", function (this: HTMLInputElement) {
-    uploadFile(this, loadDraft);
+  ensureEl("loadHeightmapDraft").addEventListener("click", () => {
+    draftInput ??= createFileInput(".heightmap");
+    draftInput.id = "heightmapDraftToLoad";
+    draftInput.onchange = () => uploadFile(draftInput!, loadDraft);
+    draftInput.click();
   });
+  for (const key of EDITOR_OPTIONS) {
+    ensureEl<HTMLInputElement>(key).addEventListener("change", function () {
+      Options.set(o => (o.app.heightmapEditor[key] = this.checked));
+      if (key === "renderOcean") mockHeightmap();
+      if (key !== "renderOcean") toggleDrainage();
+    });
+  }
+}
+
+function toggleDrainage(): void {
+  if (options.app.heightmapEditor.showDrainage) redrawDrainage();
+  else removeDrainage();
+}
+
+// the overlay follows the heightmap, the erosion setting and the lake elevation limit, while the editor is active
+function redrawDrainage(): void {
+  if (customization !== 1 || !options.app.heightmapEditor.showDrainage) return;
+  // erosion turns deep depressions into lakes, but not in Keep mode where it never runs
+  const mode = ensureEl("heightmapEditMode").innerHTML;
+  drawDrainage(mode !== "keep" && options.app.heightmapEditor.allowErosion);
 }
 
 function saveDraft(): void {
@@ -380,7 +413,7 @@ function showModeDialog(tool?: string): void {
     <p><i>Erase</i> mode also allows you Convert an Image into a heightmap or use Template Editor.</p>
     <p>You can <i>keep</i> the data, but you won't be able to change the coastline.</p>
     <p>Try <i>risk</i> mode to change the coastline and keep the data. The data will be restored as much as possible, but it can cause unpredictable errors.</p>
-    <p>Please <span class="pseudoLink" onclick="window.Services.Save.saveMap('machine')">save the map</span> before editing the heightmap!</p>
+    <p>Please <span class="pseudoLink" onclick="window.Services.Save.toMachine()">save the map</span> before editing the heightmap!</p>
     <p style="margin-bottom: 0">Check out ${link(
       "https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Heightmap-customization",
       "wiki"
@@ -418,6 +451,7 @@ function enterHeightmapEditMode(mode: string, tool?: string): void {
   ensureEl("customizationMenu").style.display = "block";
   ensureEl("toolsTab").classList.add("active");
   ensureEl("heightmapEditMode").innerHTML = mode;
+  for (const key of EDITOR_OPTIONS) ensureEl<HTMLInputElement>(key).checked = options.app.heightmapEditor[key];
 
   if (mode === "erase") {
     undraw();
@@ -470,6 +504,7 @@ function enterHeightmapEditMode(mode: string, tool?: string): void {
   layersPreset.value = "heightmap";
   layersPreset.disabled = true;
   mockHeightmap();
+  redrawDrainage();
 
   select<SVGElement, unknown>("#viewbox").on("touchmove mousemove", moveCursor);
   select<SVGSVGElement, unknown>("#map").on("dblclick.zoom", null);
@@ -533,6 +568,7 @@ async function finalizeHeightmap(): Promise<void> {
 
   Reflect.deleteProperty(window, "edits");
   setHistoryButtonsDisabled(true, true);
+  HeightmapGenerator.clearData(); // the edited grid is no longer needed once the editor is left
 
   customization = 0;
   ensureEl("customizationMenu").style.display = "none";
@@ -565,6 +601,7 @@ async function finalizeHeightmap(): Promise<void> {
   }
 
   select<SVGElement, unknown>("#viewbox").selectAll("#heights").remove();
+  removeDrainage();
   Layers.draw("ocean", "landmass", "lakes", "coastline");
   Layers.set(storedLayers);
 }
@@ -577,7 +614,7 @@ async function regenerateErasedData(): Promise<void> {
   pack.religions = [];
   pack.relief = [];
 
-  const erosionAllowed = ensureEl<HTMLInputElement>("allowErosion").checked;
+  const erosionAllowed = options.app.heightmapEditor.allowErosion;
   await ErasePipeline.run({ erosion: erosionAllowed });
 }
 
@@ -614,7 +651,7 @@ export const createAvailableLandCellFinder = (cells: {
 function restoreRiskedData(): void {
   INFO && console.group("Edit Heightmap");
   TIME && console.time("restoreRiskedData");
-  const erosionAllowed = ensureEl<HTMLInputElement>("allowErosion").checked;
+  const erosionAllowed = options.app.heightmapEditor.allowErosion;
 
   // assign pack data to grid cells
   const l = grid.cells.i.length;
@@ -803,7 +840,7 @@ function restoreRiskedData(): void {
 
   if (erosionAllowed) {
     Rivers.specify();
-    Lakes.defineNames();
+    Features.defineNames();
   }
 
   const gridToPackMap = new Map<number, number[]>();
@@ -882,7 +919,7 @@ function getColor(value: number, scheme = getColorScheme("bright")): string {
 // draw or update heightmap
 function mockHeightmap(): void {
   const cellIds = Array.from(grid.cells.i);
-  const data = ensureEl<HTMLInputElement>("renderOcean").checked ? cellIds : cellIds.filter(i => grid.cells.h[i] >= 20);
+  const data = options.app.heightmapEditor.renderOcean ? cellIds : cellIds.filter(i => grid.cells.h[i] >= 20);
 
   select<SVGElement, unknown>("#viewbox")
     .select("#heights")
@@ -896,11 +933,11 @@ function mockHeightmap(): void {
 
 // draw or update heightmap for a selection of cells
 function mockHeightmapSelection(selection: number[]): void {
-  const ocean = ensureEl<HTMLInputElement>("renderOcean").checked;
+  const renderOcean = options.app.heightmapEditor.renderOcean;
 
   selection.forEach(i => {
     let cell: any = select<SVGElement, unknown>("#viewbox").select("#heights").select(`#cell${i}`);
-    if (!ocean && grid.cells.h[i] < 20) {
+    if (!renderOcean && grid.cells.h[i] < 20) {
       cell.remove();
       return;
     }
@@ -940,12 +977,25 @@ function updateHistory(noStat?: string): void {
   edits = Object.assign(edits.slice(0, step), { n: step + 1 });
   edits[step] = grid.cells.h.slice();
 
+  // drop the oldest snapshots and shift the cursor with them, keeping the relative undo position
+  if (edits.length > historyLimit) {
+    const removed = edits.length - historyLimit;
+    edits.splice(0, removed);
+    edits.n -= removed;
+  }
+
   setHistoryButtonsDisabled(edits.n <= 1, true);
   if (!noStat) {
     updateStatistics();
-    if (document.getElementById("preview")) drawHeightmapPreview();
-    if (document.getElementById("canvas3d")) Controllers.View3d.redraw();
+    redrawDerivedViews();
   }
+}
+
+// the views derived from the heightmap: the preview, the 3D scene and the drainage overlay
+function redrawDerivedViews(): void {
+  if (document.getElementById("preview")) drawHeightmapPreview();
+  if (document.getElementById("canvas3d")) Controllers.View3d.redraw();
+  redrawDrainage();
 }
 
 // restoreHistory
@@ -956,9 +1006,7 @@ function restoreHistory(step: number): void {
   grid.cells.h = edits[edits.n - 1].slice();
   mockHeightmap();
   updateStatistics();
-
-  if (document.getElementById("preview")) drawHeightmapPreview();
-  if (document.getElementById("canvas3d")) Controllers.View3d.redraw();
+  redrawDerivedViews();
 }
 
 // restart edits from 1st step
@@ -1034,19 +1082,19 @@ function renderBrushesPanel(): void {
     </div>
     <div id="brushesSliders" style="display: none">
       <div data-tip="Change brush size. Shortcut: + to increase; – to decrease">
-        <slider-input id="heightmapBrushRadius" min="1" max="100" value="25">
+        <slider-input id="heightmapBrushRadius" data-brush-size min="1" max="100" value="25">
           <div style="width: 3.5em">Radius:</div>
         </slider-input>
       </div>
       <div data-tip="Change brush power">
-        <slider-input id="heightmapBrushPower" min="1" max="10" value="5">
+        <slider-input id="heightmapBrushPower" data-brush-size min="1" max="10" value="5">
           <div style="width: 3.5em">Power:</div>
         </slider-input>
       </div>
     </div>
     <div id="lineSlider" style="display: none">
       <div data-tip="Change tool power. Shortcut: + to increase; – to decrease">
-        <slider-input id="heightmapLinePower" min="-100" max="100" value="30">
+        <slider-input id="heightmapLinePower" data-brush-size min="-100" max="100" value="30">
           <div style="width: 5.5em">Power:</div>
         </slider-input>
       </div>
@@ -1143,7 +1191,7 @@ function exitBrushMode(): void {
   applyDefaultViewboxEvents();
   select<SVGSVGElement, unknown>("#map").on("dblclick.zoom", null);
   select<SVGElement, unknown>("#viewbox").on("touchmove mousemove", moveCursor);
-  select("#debug").selectAll(".lineCircle").remove();
+  select("#debug").selectAll("#brushCircle, .lineCircle").remove();
   removeCircle();
 
   ensureEl("brushesSliders").style.display = "none";
@@ -1788,8 +1836,7 @@ function executeTemplate(): void {
   grid.cells.h = HeightmapGenerator.getHeights()!;
   updateStatistics();
   mockHeightmap();
-  if (document.getElementById("preview")) drawHeightmapPreview();
-  if (document.getElementById("canvas3d")) Controllers.View3d.redraw();
+  redrawDerivedViews();
 }
 
 function downloadTemplate(): void {
@@ -1817,6 +1864,13 @@ function downloadTemplate(): void {
   downloadFile(data, name);
 }
 
+/** Own the template file input here so repeat opens cannot stack listeners on a shared element */
+function pickTemplateFile(): void {
+  templateInput ??= createFileInput(".txt");
+  templateInput.onchange = () => uploadFile(templateInput!, uploadTemplate);
+  templateInput.click();
+}
+
 function uploadTemplate(dataLoaded: string): void {
   const steps = dataLoaded.split("\r\n");
   if (!steps.length) {
@@ -1835,9 +1889,16 @@ function uploadTemplate(dataLoaded: string): void {
   }
 }
 
+/** Own the image-converter file input here so repeat opens cannot stack listeners on a shared element */
+function pickConverterImage(): void {
+  converterInput ??= createFileInput("image/*");
+  converterInput.onchange = () => loadImage.call(converterInput!);
+  converterInput.click();
+}
+
 function openImageConverter(): void {
   if (document.getElementById("imageConverter")) return;
-  ensureEl("imageToLoad").click();
+  pickConverterImage();
   closeDialogs("#imageConverter");
 
   renderImageConverter();
@@ -2222,7 +2283,7 @@ function downloadPreview(): void {
   };
 }
 
-export const HeightmapEditor = { open };
+export const HeightmapEditor = { open, redrawDrainage };
 
 declare global {
   var edits: Uint8Array[] & { n: number };

@@ -103,6 +103,7 @@ function renderVisibleIcons(context: ViewportRenderContext): void {
 
     const portGroup = root.querySelector<SVGGElement>(`#anchors > g#${CSS.escape(name)}`);
     if (!portGroup) continue;
+    const anchor = anchorPlacement(name);
     const ports = visible.filter(b => b.port);
     const portIds = new Set(ports.map(b => `anchor${b.i}`));
     for (const use of portGroup.querySelectorAll(":scope > use")) {
@@ -113,7 +114,10 @@ function renderVisibleIcons(context: ViewportRenderContext): void {
       portGroup.insertAdjacentHTML(
         "afterbegin",
         missingPorts
-          .map(b => `<use id="anchor${b.i}" data-id="${b.i}" href="#icon-anchor" x="${b.x}" y="${b.y}"></use>`)
+          .map(
+            b =>
+              `<use id="anchor${b.i}" data-id="${b.i}" href="${anchor.icon}" x="${b.x + anchor.dx}" y="${b.y + anchor.dy}"></use>`
+          )
           .join("")
       );
     }
@@ -141,14 +145,15 @@ const drawBurgIconRenderer = (burg: Burg): void => {
     .attr("y", burg.y);
 
   if (burg.port) {
+    const anchor = anchorPlacement(burg.group ?? "");
     select("#anchors")
       .select(`#${burg.group}`)
       .append("use")
-      .attr("href", "#icon-anchor")
+      .attr("href", anchor.icon)
       .attr("id", `anchor${burg.i}`)
       .attr("data-id", burg.i!)
-      .attr("x", burg.x)
-      .attr("y", burg.y);
+      .attr("x", burg.x + anchor.dx)
+      .attr("y", burg.y + anchor.dy);
   }
 };
 
@@ -164,6 +169,18 @@ const removeBurgIconRenderer = (burgId: number): void => {
 export const removeBurgIcons = (): void => {
   for (const icon of Array.from(document.querySelectorAll("#icons use, #icons circle"))) icon.remove();
 };
+
+// anchors follow their group's style: icon, and an offset scaled by the icon size
+function anchorPlacement(group: string): { icon: string; dx: number; dy: number } {
+  const { groups } = styles.burgIcons.anchors;
+  const style = groups[group] || groups.town || Object.values(groups)[0];
+  const size = style?.options.size ?? 1;
+  return {
+    icon: style?.options.icon || "#icon-anchor",
+    dx: (style?.options.dx ?? 0) * size,
+    dy: (style?.options.dy ?? 0) * size
+  };
+}
 
 function createIconGroups(): void {
   // the store is authoritative (the style editor writes it); groups fully recreate from it
@@ -188,7 +205,9 @@ function createIconGroups(): void {
     const anchorStyle = anchors.groups[name] || defaultAnchorStyle;
     if (anchorStyle) {
       for (const [key, value] of Object.entries(anchorStyle.attrs)) anchorGroup.attr(key, value);
-      anchorGroup.attr("font-size", anchorStyle.options.size);
+      anchorGroup
+        .attr("font-size", anchorStyle.options.size)
+        .attr("data-icon", anchorStyle.options.icon || "#icon-anchor");
     }
     anchorGroup.attr("id", name).attr("data-group", name);
   }
