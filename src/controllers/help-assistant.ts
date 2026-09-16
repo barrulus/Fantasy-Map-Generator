@@ -92,8 +92,8 @@ function open(options: OpenOptions = {}): void {
   if (isOfficialOrigin()) void refreshLimits();
 }
 
-// "New chat" belongs with close and minimize — a window action, not chat content. Putting it
-// in the titlebar keeps the body a pure transcript and inherits the FMG button styling.
+// "New chat" belongs with close and minimize: a window action, not chat content. Its own button,
+// apart from the layout reset one, so it is there whether or not the dialog was ever moved
 function addTitlebarNewChat(): void {
   const titlebar = document
     .getElementById("helpAssistant")
@@ -104,12 +104,12 @@ function addTitlebarNewChat(): void {
   const button = document.createElement("button");
   button.type = "button";
   button.id = "helpAssistantNewChat";
-  button.className = "helpAssistantNewChat icon-ccw";
-  button.title = "Start a new chat";
+  button.className = "helpAssistantNewChat icon-plus";
+  button.dataset.tip = "Start a new chat";
   button.setAttribute("aria-label", "Start a new chat");
   // one control, whichever transcript is on screen
   button.addEventListener("click", () => (currentMode === "map" ? newMapConversation() : resetConversationLog()));
-  titlebar.insertBefore(button, titlebar.querySelector(".ui-dialog-titlebar-collapse"));
+  titlebar.insertBefore(button, titlebar.querySelector(".ui-dialog-titlebar-reset, .ui-dialog-titlebar-collapse"));
 }
 
 let currentMode: AssistantMode = "help";

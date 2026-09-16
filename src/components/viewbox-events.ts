@@ -44,7 +44,6 @@ const EDITORS: Record<string, Opener> = {
   ruler: () => Controllers.MeasurersEditor.open(),
   goodsIcons: () => Controllers.GoodsEditor.open(),
   goodsBurgs: (_target, parent) => Controllers.ProductionOverview.open(Number(parent.dataset.id)),
-  coastline: target => Controllers.CoastlineVertexEditor.open(target),
   lakes: target => Controllers.LakesEditor.open(target),
   markets: (target, parent) => {
     if (target.tagName !== "path") Controllers.MarketOverview.open(Number(parent.dataset.id));

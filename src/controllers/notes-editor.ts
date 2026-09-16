@@ -1,12 +1,13 @@
 import type Quill from "quill";
 import { confirmationDialog, destroyDialog } from "@/components/dialog/dialog-helpers";
+import { ENTITY_TYPES, type EntityRef, MapEntities } from "@/components/map-entities";
+import { type NoteEntry, Notes } from "@/components/notes";
 import { tip } from "@/components/tooltips";
 import { viewport } from "@/components/viewport";
 import { Controllers } from "@/controllers";
-import { NOTE_ENTITY_TYPES, type NoteEntry, type NoteRef, Notes } from "@/generators/notes";
 import { highlightElement } from "@/renderers/overlays/highlight";
 import { downloadFile, getFileName, speak, uploadFile } from "@/utils";
-import { ensureEl, findEl } from "../utils";
+import { createFileInput, ensureEl, findEl } from "../utils";
 import {
   canEditAsRichText,
   createRichTextEditor,
@@ -25,10 +26,10 @@ export interface Note {
 
 let quill: Quill | null = null;
 let windowed: { width: number; height: number; top: string; left: string } | null = null;
-let uploadBound = false;
+let legendsInput: HTMLInputElement | null = null;
 
 /** Open the editor on the given entity (a ref, a note key or a legacy element id), or on the first note */
-function open(target?: NoteRef | string): void {
+function open(target?: EntityRef | string): void {
   const ref = typeof target === "string" ? resolveId(target) : target;
   renderDialog();
 
@@ -50,7 +51,7 @@ function open(target?: NoteRef | string): void {
 
   const selected = ref || entries[0]?.ref;
   if (selected) {
-    notesSelect.value = Notes.key(selected);
+    notesSelect.value = MapEntities.key(selected);
     showNote(selected);
   } else {
     ensureEl("notesName").textContent = "";
@@ -69,20 +70,20 @@ function open(target?: NoteRef | string): void {
 }
 
 /** Notes grouped by entity type, plus the requested entity when it has no note yet */
-function fillSelect(select: HTMLSelectElement, entries: NoteEntry[], ref?: NoteRef): void {
+function fillSelect(select: HTMLSelectElement, entries: NoteEntry[], ref?: EntityRef): void {
   select.innerHTML = "";
 
-  const requestedKey = ref && Notes.key(ref);
+  const requestedKey = ref && MapEntities.key(ref);
   const listed = new Set(entries.map(entry => entry.key));
 
-  for (const type of NOTE_ENTITY_TYPES) {
+  for (const type of ENTITY_TYPES) {
     const typeEntries = entries.filter(entry => entry.ref.type === type);
     if (ref?.type === type && requestedKey && !listed.has(requestedKey))
-      typeEntries.unshift({ ref, key: requestedKey, label: Notes.getEntityName(ref) || requestedKey, note: "" });
+      typeEntries.unshift({ ref, key: requestedKey, label: MapEntities.getName(ref) || requestedKey, note: "" });
     if (!typeEntries.length) continue;
 
     const group = document.createElement("optgroup");
-    group.label = Notes.getTypeLabel(type);
+    group.label = MapEntities.getTypeLabel(type);
     for (const entry of typeEntries) group.append(new Option(entry.label, entry.key));
     select.append(group);
   }
@@ -195,16 +196,8 @@ function renderDialog(): void {
   ensureEl("notesFocus").addEventListener("click", validateHighlightElement);
   ensureEl("notesGenerateWithAi").addEventListener("click", () => void Controllers.HelpAssistant.open({ mode: "map" }));
   ensureEl("notesDownload").addEventListener("click", downloadLegends);
-  ensureEl("notesUpload").addEventListener("click", () => ensureEl("legendsToLoad").click());
+  ensureEl("notesUpload").addEventListener("click", pickLegendsFile);
   ensureEl("notesRemove").addEventListener("click", triggerNotesRemove);
-
-  // the file input lives in the page, not in the dialog, so it outlives every render and is bound once
-  if (!uploadBound) {
-    uploadBound = true;
-    ensureEl<HTMLInputElement>("legendsToLoad").addEventListener("change", function (this: HTMLInputElement) {
-      uploadFile(this, uploadLegends);
-    });
-  }
 }
 
 function closeNotesEditor(): void {
@@ -213,14 +206,14 @@ function closeNotesEditor(): void {
   ensureEl("notesEditor").remove();
 }
 
-function selectedRef(): NoteRef | undefined {
-  const ref = Notes.parseKey(ensureEl<HTMLSelectElement>("notesSelect").value);
+function selectedRef(): EntityRef | undefined {
+  const ref = MapEntities.parseKey(ensureEl<HTMLSelectElement>("notesSelect").value);
   if (!ref) tip("Note element is not found", true, "error", 4000);
   return ref;
 }
 
-function showNote(ref: NoteRef): void {
-  ensureEl("notesName").textContent = Notes.getEntityName(ref);
+function showNote(ref: EntityRef): void {
+  ensureEl("notesName").textContent = MapEntities.getName(ref);
   loadNote(Notes.get(ref) || "");
   updateNotesBox(ref);
 }
@@ -301,8 +294,8 @@ function updateLegend(): void {
   updateNotesBox(ref);
 }
 
-function updateNotesBox(ref: NoteRef): void {
-  ensureEl("notesHeader").textContent = Notes.getEntityName(ref); // plain text: an & in a name is not an entity
+function updateNotesBox(ref: EntityRef): void {
+  ensureEl("notesHeader").textContent = MapEntities.getName(ref); // plain text: an & in a name is not an entity
   ensureEl("notesBody").innerHTML = Notes.get(ref) || "";
 }
 
@@ -315,7 +308,7 @@ function validateHighlightElement(): void {
   const ref = selectedRef();
   if (!ref) return;
 
-  if (!Notes.exists(ref)) {
+  if (!MapEntities.get(ref)) {
     confirmationDialog({
       title: "Element not found",
       message: "Note element is not found. Would you like to remove the note?",
@@ -326,11 +319,11 @@ function validateHighlightElement(): void {
   }
 
   // the viewport renderers hold only what is on screen, so an off-screen element is not in the dom
-  const elementId = Notes.getElementId(ref);
+  const elementId = MapEntities.getElementId(ref);
   const element = elementId ? findEl(elementId) : null;
   if (element) return void highlightElement(element, 3);
 
-  const position = Notes.getPosition(ref);
+  const position = MapEntities.getPosition(ref);
   if (position) return void zoomTo(position[0], position[1], 8, 1600);
 
   tip("This element is not drawn on the map on its own", false, "warn", 4000);
@@ -338,7 +331,7 @@ function validateHighlightElement(): void {
 
 function removeSelectedNote(): void {
   const ref = selectedRef();
-  if (ref) remove(Notes.key(ref));
+  if (ref) remove(MapEntities.key(ref));
 }
 
 const CSV_HEADER = "type,id,note";
@@ -357,6 +350,13 @@ function downloadLegends(): void {
   downloadFile([CSV_HEADER, ...rows].join("\n"), `${getFileName("Notes")}.csv`);
 }
 
+/** Own the legends file input here so repeat opens cannot stack listeners on a shared element */
+function pickLegendsFile(): void {
+  legendsInput ??= createFileInput(".txt");
+  legendsInput.onchange = () => uploadFile(legendsInput!, uploadLegends);
+  legendsInput.click();
+}
+
 function uploadLegends(dataLoaded: string): void {
   const rows = parseCsv(dataLoaded);
   if (!rows) {
@@ -367,7 +367,7 @@ function uploadLegends(dataLoaded: string): void {
   let applied = 0;
   let rejected = 0;
   for (const [type, id, note] of rows) {
-    const ref = Notes.parseKey(`${type}:${id}`);
+    const ref = MapEntities.parseKey(`${type}:${id}`);
     if (ref && Notes.set(ref, note)) applied++;
     else rejected++;
   }
@@ -447,17 +447,17 @@ function toggleNotesPin(this: HTMLElement): void {
 
 const isOpen = (): boolean => document.getElementById("notesEditor") !== null;
 
-const resolveId = (id: string): NoteRef | undefined => Notes.parseKey(id) ?? Notes.resolveElement(id);
+const resolveId = (id: string): EntityRef | undefined => MapEntities.parseKey(id) ?? MapEntities.resolveElement(id);
 
-const toNote = (ref: NoteRef): Note => ({
-  id: Notes.key(ref),
-  name: Notes.getEntityName(ref),
+const toNote = (ref: EntityRef): Note => ({
+  id: MapEntities.key(ref),
+  name: MapEntities.getName(ref),
   legend: Notes.get(ref) || ""
 });
 
 function current(): Note | null {
   if (!isOpen()) return null;
-  const ref = Notes.parseKey(ensureEl<HTMLSelectElement>("notesSelect").value);
+  const ref = MapEntities.parseKey(ensureEl<HTMLSelectElement>("notesSelect").value);
   return ref ? toNote(ref) : null;
 }
 
@@ -470,9 +470,9 @@ function write(id: string, legend: string, _name?: string): Note | null {
   if (isOpen()) {
     const select = ensureEl<HTMLSelectElement>("notesSelect");
     const selected = select.value;
-    fillSelect(select, Notes.list(), Notes.parseKey(selected));
+    fillSelect(select, Notes.list(), MapEntities.parseKey(selected));
     select.value = selected;
-    if (selected === Notes.key(ref)) {
+    if (selected === MapEntities.key(ref)) {
       loadNote(legend); // silent Quill load or the raw textarea, by representability — the AI-apply path
       updateNotesBox(ref);
     }
@@ -484,7 +484,7 @@ function remove(id: string): void {
   const ref = resolveId(id);
   if (!ref) return;
 
-  const wasCurrent = current()?.id === Notes.key(ref);
+  const wasCurrent = current()?.id === MapEntities.key(ref);
   Notes.remove(ref);
   if (!wasCurrent) return;
 
@@ -505,4 +505,4 @@ function getSelectionHtml(): string | null {
   return quill.getSemanticHTML(range.index, range.length).replaceAll("&nbsp;", " ");
 }
 
-export const NotesEditor = { open, current, write, remove, getSelectionHtml };
+export const NotesEditor = { open, current, write, remove, getSelectionHtml, exportCsv: downloadLegends };

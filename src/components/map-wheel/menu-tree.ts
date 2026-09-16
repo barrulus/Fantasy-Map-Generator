@@ -131,14 +131,7 @@ export const OPTION_GROUPS = [
   {
     label: "Behaviour",
     icon: "icon-cog-alt",
-    rows: [
-      "autosaveIntervalInput",
-      "onloadBehavior",
-      "viewportFit",
-      "zoomExtentMin",
-      "shapeRendering",
-      "viewportRedraw"
-    ]
+    rows: ["autosaveIntervalInput", "onloadBehavior", "viewportFit", "zoomExtentMin", "performancePreset"]
   }
 ] as const;
 

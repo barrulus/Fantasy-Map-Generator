@@ -85,8 +85,8 @@ class OptionsModel {
         notesPinned: false,
         emblems: { showAll: false, shape: "culture" },
         labels: { showAll: false },
-        rendering: "optimizeSpeed",
-        viewportRedraw: "settled",
+        heightmapEditor: { renderOcean: false, showDrainage: false, allowErosion: true },
+        performance: { shapeRendering: "optimizeSpeed", stateHalos: false, viewportRedraw: "settled" }, // "speed"
         onLoad: "random",
         zoomExtent: { min: 1, max: 20 },
         viewport: null,

@@ -1,4 +1,5 @@
 // The simplest precipitation model: winds enter the map from each side and drop humidity as they pass the cells
+import Alea from "alea";
 import { mean, range } from "d3";
 import { minmax, rand, SEA_LEVEL } from "@/utils";
 
@@ -25,8 +26,14 @@ const MAX_PASSABLE_ELEVATION = 85;
 class PrecipitationModule {
   /** pass every wind over the cells it reaches, filling `grid.cells.prec` on the way */
   generate(): void {
+    grid.cells.prec = this.compute(grid.cells.h, grid.cells.temp);
+  }
+
+  /** precipitation of every grid cell for the given heights and temperatures, the grid itself stays untouched */
+  compute(h: ArrayLike<number>, temp: ArrayLike<number>): Uint8Array {
+    Math.random = Alea(options.map.seed); // the same winds for the same map, whoever rolled before
     const { cells, cellsX, cellsY } = grid;
-    cells.prec = new Uint8Array(cells.i.length);
+    const prec = new Uint8Array(cells.i.length);
 
     // Wind crosses sqrt(N) cells and loses at least 1 unit per land cell, so both the humidity it
     // carries and the loss divisor scale with sqrt(N); the fourth root left interiors dry past ~500K
@@ -35,8 +42,8 @@ class PrecipitationModule {
 
     const getPrecipitation = (humidity: number, i: number, n: number) => {
       const normalLoss = Math.max(humidity / (10 * modifier), 1); // precipitation in normal conditions
-      const diff = Math.max(cells.h[i + n] - cells.h[i], 0); // difference in height
-      const mod = (cells.h[i + n] / 70) ** 2; // 50 stands for hills, 70 for mountains
+      const diff = Math.max(h[i + n] - h[i], 0); // difference in height
+      const mod = (h[i + n] / 70) ** 2; // 50 stands for hills, 70 for mountains
       return minmax(normalLoss + diff * mod, 1, humidity);
     };
 
@@ -51,26 +58,26 @@ class PrecipitationModule {
           first = source[0];
         } else first = source;
 
-        let humidity = maxPrec - cells.h[first]; // initial water amount
+        let humidity = maxPrec - h[first]; // initial water amount
         if (humidity <= 0) continue; // if first cell in row is too elevated consider wind dry
 
         for (let s = 0, current = first; s < steps; s++, current += next) {
-          if (cells.temp[current] < -5) continue; // no flux in permafrost
+          if (temp[current] < -5) continue; // no flux in permafrost
 
-          if (cells.h[current] < SEA_LEVEL) {
-            if (cells.h[current + next] >= SEA_LEVEL) {
-              cells.prec[current + next] += Math.max(humidity / rand(10, 20), 1); // coastal precipitation
+          if (h[current] < SEA_LEVEL) {
+            if (h[current + next] >= SEA_LEVEL) {
+              prec[current + next] += Math.max(humidity / rand(10, 20), 1); // coastal precipitation
             } else {
               humidity = Math.min(humidity + 5 * modifier, maxPrec); // wind gets more humidity passing water cell
-              cells.prec[current] += 5 * modifier; // water cells precipitation (need to correctly pour water through lakes)
+              prec[current] += 5 * modifier; // water cells precipitation (need to correctly pour water through lakes)
             }
             continue;
           }
 
           // land cell
-          const isPassable = cells.h[current + next] <= MAX_PASSABLE_ELEVATION;
+          const isPassable = h[current + next] <= MAX_PASSABLE_ELEVATION;
           const precipitation = isPassable ? getPrecipitation(humidity, current, next) : humidity;
-          cells.prec[current] += precipitation;
+          prec[current] += precipitation;
           const evaporation = precipitation > 1.5 ? 1 : 0; // some humidity evaporates back to the atmosphere
           humidity = isPassable ? minmax(humidity - precipitation + evaporation, 0, maxPrec) : 0;
         }
@@ -98,6 +105,8 @@ class PrecipitationModule {
       const maxPrecS = (southerly / vertT) * 60 * modifier * latModS;
       passWind(range(cells.i.length - cellsX, cells.i.length, 1), maxPrecS, -cellsX, cellsY);
     }
+
+    return prec;
   }
 
   /**

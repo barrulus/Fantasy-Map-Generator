@@ -14,12 +14,12 @@ import {
   type TableView
 } from "@/components/dialog/table";
 import { Layers } from "@/components/layers";
+import { Notes } from "@/components/notes";
 import type { FillBoxElement } from "@/components/shared/fill-box";
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
 import { Emblems } from "@/generators/emblems-generator";
-import { Notes } from "@/generators/notes";
 import type { Province } from "@/generators/provinces-generator";
 import { redrawEmblem, redrawEmblems, removeEmblem } from "@/renderers/draw-emblems";
 import { EmblemRenderer } from "@/renderers/emblems/renderer";
@@ -894,6 +894,8 @@ function togglePercentageMode(): void {
 type TreeNode = any;
 
 function showChart(): void {
+  collectStatistics(); // the chart can open from search before the editor ever did
+
   // build hierarchy tree
   const getColor = (s: TreeNode): string =>
     !s.i || s.removed || s.color[0] !== "#" ? "#666" : String(d3Color(s.color)!.darker());
@@ -1232,7 +1234,8 @@ function recolorProvinces(): void {
     p.color = stateColor[0] === "#" ? d3Color(interpolate(stateColor, rndColor)(0.2))!.hex() : rndColor;
   });
 
-  Layers.show("provinces");
+  Layers.draw("provinces");
+  provincesTable.refresh();
 }
 
 function downloadProvincesData(): void {
@@ -1288,6 +1291,10 @@ function removeAllProvinces(): void {
 function closeProvincesEditor(): void {
   if (customization === 12) exitAddProvinceMode();
   provincesAnnex.exit();
+  Controllers.ColorPicker.close();
+  const view = provincesTable.view();
+  view.rows = [];
+  view.all = [];
   $("#provincesEditor").dialog("destroy");
   ensureEl("provincesEditor").remove();
 }
@@ -1497,4 +1504,4 @@ function updateLockStatus(provinceId: number, classList: DOMTokenList): void {
   classList.toggle("icon-lock");
 }
 
-export const ProvincesEditor = { open };
+export const ProvincesEditor = { open, showChart };

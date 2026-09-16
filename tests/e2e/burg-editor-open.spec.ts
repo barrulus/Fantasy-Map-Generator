@@ -16,12 +16,15 @@ test.describe("burg editor opens", () => {
       (window as any).setMapZoom(3);
       await new Promise(resolve => setTimeout(resolve, 600));
     });
-    // the first materialized icon can sit in the culling margin off screen; click one that is on screen
+    // the first materialized icon can sit in the culling margin off screen, or under a label that
+    // takes the click; pick one that is on screen and is itself the topmost element at its centre
     const target = await page.evaluate(() => {
       for (const use of document.querySelectorAll<SVGUseElement>("#burgIcons use")) {
         const box = use.getBoundingClientRect();
-        if (box.left > 0 && box.top > 0 && box.right < innerWidth && box.bottom < innerHeight)
-          return { id: use.dataset.id, x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        if (box.left <= 0 || box.top <= 0 || box.right >= innerWidth || box.bottom >= innerHeight) continue;
+        const x = box.left + box.width / 2;
+        const y = box.top + box.height / 2;
+        if (document.elementFromPoint(x, y) === use) return { id: use.dataset.id, x, y };
       }
       return null;
     });
