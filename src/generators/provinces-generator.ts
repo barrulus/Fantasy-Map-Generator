@@ -123,6 +123,7 @@ class ProvinceModule {
       const stateBurgs = burgs
         .filter(b => {
           if (b.state !== s.i || b.removed || provinceIds[b.cell]) return false;
+          if (b.flying) return false; // a sky burg owns no ground, so a province seeded on it would have no cells
           // Include capitals always, and major settlements or burgs with pop > 1
           return b.capital || majorSettlementTypes.has(b.settlementType || "") || (b.population || 0) > 1;
         })

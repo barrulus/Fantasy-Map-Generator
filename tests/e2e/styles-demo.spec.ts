@@ -10,12 +10,13 @@ const DEFAULT_STYLES = stylesSchema.parse(defaultStyles);
 // Run alone with two screenshots: npx playwright test styles-demo
 
 // [layer] and [layer, subgroup] addresses from the default styles; dynamic
-// `groups` records are checked separately (their names are per-map)
+// `groups` records are checked separately (their names are per-map), and route
+// `types` are data-type sub-groups inside each route group, not an address of their own
 const ADDRESSES: string[][] = [];
 for (const [layer, node] of Object.entries(DEFAULT_STYLES)) {
   ADDRESSES.push([layer]);
   for (const key of Object.keys(node as Record<string, unknown>)) {
-    if (key === "attrs" || key === "options" || key === "groups") continue;
+    if (key === "attrs" || key === "options" || key === "groups" || key === "types") continue;
     ADDRESSES.push([layer, key]);
   }
 }
