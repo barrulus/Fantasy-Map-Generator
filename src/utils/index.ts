@@ -1,4 +1,4 @@
-import { last, TYPED_ARRAY_MAX, unique } from "./arrayUtils";
+import { groupByValue, last, TYPED_ARRAY_MAX, unique } from "./arrayUtils";
 import { abbreviate, getAdjective, isVowel, list, nth, trimVowels } from "./languageUtils";
 import { lerp, lim, minmax, normalize, rn } from "./numberUtils";
 import "./polyfills";
@@ -27,13 +27,15 @@ import {
   downloadFile,
   getFileName,
   isImageIcon,
+  loadScript,
   sanitizeSvgIcon,
+  scopeSvgIcon,
   svgToDataUri,
   uploadFile
 } from "./fileUtils";
 import { distanceSquared, rollups } from "./functionUtils";
 import { isLand, isWater, SEA_LEVEL } from "./heightUtils";
-import { applyOption, ensureEl, findEl, getComposedPath, getNextId, getPointer } from "./nodeUtils";
+import { applyOption, ensureEl, findEl, getComposedPath, getNextId, getPointer, htmlEl } from "./nodeUtils";
 import {
   connectVertices,
   findPath,
@@ -64,6 +66,7 @@ import {
   getArea,
   getAreaUnit,
   getCellPopulation,
+  getDistance,
   getDistanceUnit,
   getDistanceUnitRatio,
   getFriendlyHeight,
@@ -200,6 +203,7 @@ export {
   getColors,
   getComposedPath,
   getCoordinates,
+  getDistance,
   getDistanceUnit,
   getDistanceUnitRatio,
   getFileName,
@@ -221,6 +225,8 @@ export {
   getSegmentId,
   getTemperatureLikeness,
   getVertexPath,
+  groupByValue,
+  htmlEl,
   initializePrompt,
   isCtrlClick,
   isImageIcon,
@@ -233,6 +239,7 @@ export {
   lim,
   link,
   list,
+  loadScript,
   minmax,
   normalize,
   nth,
@@ -252,6 +259,7 @@ export {
   safeParseJSON,
   sanitizeId,
   sanitizeSvgIcon,
+  scopeSvgIcon,
   setInlineStyleProperty,
   si,
   speak,

@@ -1,9 +1,8 @@
 import { curveNatural, type D3DragEvent, drag, line, select } from "d3";
-import { closeDialogs, confirmationDialog, destroyDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog, noteButton } from "@/components/dialog/dialog-helpers";
 import { fitContent } from "@/components/dialog/fit-content";
 import { Layers } from "@/components/layers";
 import { MapEntities } from "@/components/map-entities";
-import { Notes } from "@/components/notes";
 import { showMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { viewport } from "@/components/viewport";
@@ -132,7 +131,7 @@ function renderDialog(): void {
         ></slider-input>
       </div>
       <button id="labelVisibility"></button>
-      ${Notes.getButton("labelLegend", "this label")}
+      ${noteButton("labelLegend", "this label")}
       <button id="labelReset" data-tip="Restore the default label" class="icon-arrows-cw"></button>
       <button
         id="labelRemoveSingle"
@@ -435,7 +434,7 @@ function generateRandomName(): void {
 }
 
 function editGroupStyle(): void {
-  editStyle("labels", label.group);
+  void Controllers.StyleEditor.open("labels", label.group);
 }
 
 function showSizeSection(): void {
@@ -557,7 +556,7 @@ function makeLabelDraggable(id: string): void {
 
 function resetSelectedLabel(): void {
   const { type, entityId } = label;
-  Labels.resetOverride(type, entityId);
+  Labels.reset(type, entityId);
 
   Layers.draw("labels");
   label = { ...(getSceneLabel(type, entityId) ?? label) };

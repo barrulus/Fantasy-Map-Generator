@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath, URL as NodeURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Layers } from "@/components/layers";
+import { SYSTEM_PRESETS } from "@/services/style-presets";
 import { ITEM_CAPS, MAX_DEPTH } from "./geometry";
 import {
   BOUND_BUTTON_IDS,
@@ -180,19 +181,7 @@ describe("style branch", () => {
   const style = () => menuRoot().find(n => n.label === "Style")!;
 
   it("lists the style presets that actually ship", () => {
-    expect(STYLE_PRESETS).toEqual([
-      "ancient",
-      "atlas",
-      "clean",
-      "cyberpunk",
-      "darkSeas",
-      "gloom",
-      "light",
-      "monochrome",
-      "night",
-      "pale",
-      "watercolor"
-    ]);
+    expect(STYLE_PRESETS).toEqual(SYSTEM_PRESETS);
   });
 
   it("opens the real style form in the drawer", () => {

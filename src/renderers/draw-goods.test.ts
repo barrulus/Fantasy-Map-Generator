@@ -1,60 +1,181 @@
-import { describe, expect, test } from "vitest";
-import { capVisible, cellFillColor, encodeCellFill, strideVisible } from "./draw-goods";
+// @vitest-environment jsdom
+import { beforeEach, expect, test, vi } from "vitest";
+import { setViewportSize, setViewportTransform } from "@/components/viewport";
+import { ViewportLayers } from "@/renderers/viewport/viewport-renderer";
 
-describe("cell fill encoding", () => {
-  test("keys are truthy and unique per good and intensity bucket", () => {
-    const keys = [encodeCellFill(0, 0), encodeCellFill(0, 1), encodeCellFill(1, 0), encodeCellFill(1, 1)];
-    expect(Math.min(...keys)).toBeGreaterThan(0);
-    expect(new Set(keys).size).toBe(keys.length);
-  });
+const mocks = vi.hoisted(() => ({ layerOn: true }));
+vi.mock("@/components/layers", () => ({ Layers: { isOn: () => mocks.layerOn } }));
+vi.mock("@/components/icons", () => ({
+  Icons: { load: vi.fn().mockResolvedValue(undefined), href: (id: string) => `#${id}` }
+}));
 
-  test("full intensity renders the good color fully opaque", () => {
-    const key = encodeCellFill(3, 1);
-    expect(cellFillColor(key, goodId => (goodId === 3 ? "#966f33" : "#000000"))).toBe("#966f33ff");
-  });
+import "@/generators/styles";
+import { drawGoods } from "./draw-goods";
 
-  test("zero intensity renders the faintest bucket, not invisible", () => {
-    const key = encodeCellFill(3, 0);
-    expect(cellFillColor(key, () => "#966f33")).toBe("#966f3347");
-  });
+// two cells, one at the origin and one far to the right, each producing one good
+const CELLS = [
+  [50, 50],
+  [550, 50]
+];
+
+type Production = Record<number, number>;
+const getCellProduction = vi.fn<(cellId: number) => Production>();
+const getBurgProduction = vi.fn<(burg: { i: number }) => Production>();
+
+beforeEach(() => {
+  mocks.layerOn = true;
+  document.body.innerHTML = /* html */ `<svg id="map">
+      <g id="goods"><g id="goodsCells"></g><g id="goodsIcons"></g><g id="goodsBurgs"></g></g>
+    </svg>`;
+  globalThis.pack = {
+    cells: {
+      i: [0, 1],
+      p: CELLS,
+      good: [1, 2],
+      v: [
+        [0, 1, 2],
+        [3, 4, 5]
+      ]
+    },
+    vertices: {
+      p: [
+        [40, 40],
+        [60, 40],
+        [50, 60],
+        [540, 40],
+        [560, 40],
+        [550, 60]
+      ]
+    },
+    goods: [
+      { i: 1, name: "Grain", color: "#ff0000", icon: "goods-grain", visible: true },
+      { i: 2, name: "Iron", color: "#00ff00", icon: "goods-iron", visible: true }
+    ],
+    burgs: [{}, { i: 1, x: 50, y: 60, production: {} }, { i: 2, x: 550, y: 60, production: {} }]
+  } as never;
+  globalThis.Goods = {
+    get: (id: number) => pack.goods.find(good => good.i === id),
+    getBiomesProduction: () => ({}),
+    getStroke: () => "#333"
+  } as never;
+  globalThis.Production = { getCellProduction, getBurgProduction } as never;
+  globalThis.Pack = { getPolygon: (cellId: number) => pack.cells.v[cellId].map(v => pack.vertices.p[v]) } as never;
+  getCellProduction.mockReset().mockImplementation(cellId => (cellId === 0 ? { 1: 4 } : { 2: 8 }) as Production);
+  getBurgProduction.mockReset().mockImplementation(burg => (burg.i === 1 ? { 1: 5, 2: 2 } : { 2: 9 }) as Production);
+  styles.goods.groups.goodsIcons.options = { size: 4, circle: true };
+  styles.goods.groups.goodsBurgs.options = { size: 3 };
+  setViewportSize(100, 100);
+  setViewportTransform(1, 0, 0);
 });
 
-describe("capVisible", () => {
-  const bounds = { x0: 0, y0: 0, x1: 100, y1: 100 };
-  const items = [
-    { x: 10, y: 10 },
-    { x: 500, y: 10 },
-    { x: 20, y: 20 },
-    { x: 30, y: 30 }
-  ];
+test("panning culls each sublayer without recomputing production", async () => {
+  await drawGoods();
+  expect(document.querySelectorAll("#goodsCells polygon")).toHaveLength(1);
+  expect(document.querySelectorAll("#goodsIcons > g")).toHaveLength(1);
+  expect(document.querySelectorAll("#goodsBurgs > g")).toHaveLength(1);
+  expect(document.querySelector("#goodsIcons > g")?.getAttribute("data-i")).toBe("1");
+  expect(document.querySelector("#goodsBurgs > g")?.getAttribute("data-id")).toBe("1");
 
-  test("keeps input order and drops out-of-bounds items", () => {
-    expect(capVisible(items, bounds, 10)).toEqual([items[0], items[2], items[3]]);
-  });
+  const markup = document.getElementById("goods")!.innerHTML;
+  ViewportLayers.renderNow();
+  expect(document.getElementById("goods")!.innerHTML).toBe(markup);
 
-  test("stops at the cap", () => {
-    expect(capVisible(items, bounds, 2)).toEqual([items[0], items[2]]);
-  });
-
-  test("pad extends the bounds", () => {
-    expect(capVisible([{ x: -5, y: 50 }], bounds, 10, 10)).toHaveLength(1);
-  });
+  setViewportTransform(1, -500, 0);
+  ViewportLayers.renderNow();
+  expect(document.querySelector("#goodsIcons > g")?.getAttribute("data-i")).toBe("2");
+  expect(document.querySelector("#goodsBurgs > g")?.getAttribute("data-id")).toBe("2");
+  expect(document.querySelector("#goodsCells polygon")?.getAttribute("fill")).toBe("#00ff00");
+  expect(getCellProduction).toHaveBeenCalledTimes(2); // once per cell, at build time only
+  expect(getBurgProduction).toHaveBeenCalledTimes(2);
 });
 
-describe("strideVisible", () => {
-  const bounds = { x0: 0, y0: 0, x1: 100, y1: 100 };
-  const items = Array.from({ length: 10 }, (_, i) => ({ x: i * 10, y: 50 }));
+test("cell opacity is normalized against the map-wide maximum, not the visible one", async () => {
+  await drawGoods();
+  const first = document.querySelector("#goodsCells polygon");
+  expect(first?.getAttribute("fill-opacity")).toBe("0.55"); // 4 of a 8 maximum that is off-screen
+  expect(first?.getAttribute("points")).toBe("40,40 60,40 50,60");
 
-  test("returns all visible items when under the cap", () => {
-    expect(strideVisible(items, bounds, 20)).toHaveLength(10);
-  });
+  setViewportTransform(1, -500, 0);
+  ViewportLayers.renderNow();
+  expect(document.querySelector("#goodsCells polygon")?.getAttribute("fill-opacity")).toBe("1");
+});
 
-  test("samples uniformly down to the cap", () => {
-    expect(strideVisible(items, bounds, 3)).toEqual([items[0], items[4], items[8]]);
-  });
+test("style options are applied on the next frame, without rebuilding the scene", async () => {
+  await drawGoods();
+  expect(document.querySelector("#goodsIcons circle")?.getAttribute("r")).toBe("2");
+  expect(document.querySelector("#goodsIcons use")?.getAttribute("width")).toBe("4");
 
-  test("drops out-of-bounds items before sampling", () => {
-    const mixed = [...items, ...Array.from({ length: 10 }, (_, i) => ({ x: 1000 + i, y: 50 }))];
-    expect(strideVisible(mixed, bounds, 3)).toEqual([items[0], items[4], items[8]]);
-  });
+  styles.goods.groups.goodsIcons.options.size = 10;
+  styles.goods.groups.goodsIcons.options.circle = false;
+  styles.goods.groups.goodsBurgs.options.size = 6;
+  ViewportLayers.renderNow();
+  expect(document.querySelector("#goodsIcons circle")).toBeNull();
+  expect(document.querySelector("#goodsIcons use")?.getAttribute("width")).toBe("10");
+  expect(document.querySelector("#goodsBurgs rect")?.getAttribute("height")).toBe("8.4");
+  expect(getCellProduction).toHaveBeenCalledTimes(2);
+});
+
+test("icon lines follow the style at the marker's proportions, on markers and plates alike", async () => {
+  getBurgProduction.mockImplementation(() => ({ 1: 1 }));
+  styles.goods.groups.goodsIcons.attrs.stroke = "#123456";
+  styles.goods.groups.goodsIcons.attrs["stroke-width"] = 0.3;
+  styles.goods.groups.goodsIcons.options.size = 6;
+  await drawGoods();
+  for (const use of document.querySelectorAll("#goodsIcons use, #goodsBurgs use")) {
+    expect(use.getAttribute("stroke")).toBe("#123456");
+    expect(use.getAttribute("stroke-width")).toBe("2"); // 40% of 0.3 map units, in a 100-unit frame 6 units wide
+  }
+  expect(document.querySelectorAll("#goodsBurgs use")).not.toHaveLength(0);
+});
+
+test("burg plates keep the three biggest producers, biggest first", async () => {
+  getBurgProduction.mockImplementation(() => ({ 1: 1, 2: 9 }));
+  await drawGoods();
+  const circles = [...document.querySelectorAll("#goodsBurgs circle")].map(c => c.getAttribute("fill"));
+  const values = [...document.querySelectorAll("#goodsBurgs text")].map(t => t.textContent);
+  expect(circles).toEqual(["#00ff00", "#ff0000"]);
+  expect(values).toEqual(["9", "1"]);
+});
+
+test("hidden goods drop out of every sublayer", async () => {
+  pack.goods[0].visible = false;
+  await drawGoods();
+  expect(document.querySelectorAll("#goodsIcons > g")).toHaveLength(0); // cell 0's good is hidden
+  expect(document.querySelectorAll("#goodsCells polygon")).toHaveLength(0);
+  expect(document.querySelectorAll("#goodsBurgs text")).toHaveLength(1);
+  expect(document.querySelector("#goodsBurgs text")?.textContent).toBe("2");
+
+  pack.goods[1].visible = false;
+  await drawGoods();
+  expect(document.getElementById("goods")!.textContent).toBe("");
+});
+
+test("full-map export renders every good at once, leaving the live map culled", async () => {
+  await drawGoods();
+  const clone = document.getElementById("map")!.cloneNode(true) as SVGSVGElement;
+  ViewportLayers.renderTo(clone);
+  expect(clone.querySelectorAll("#goodsCells polygon")).toHaveLength(2);
+  expect(clone.querySelectorAll("#goodsIcons > g")).toHaveLength(2);
+  expect(clone.querySelectorAll("#goodsBurgs > g")).toHaveLength(2);
+  expect(document.querySelectorAll("#goodsIcons > g")).toHaveLength(1);
+});
+
+test("a replacement map invalidates the cached production", async () => {
+  await drawGoods();
+  globalThis.pack = { ...pack, goods: [{ ...pack.goods[0], color: "#0000ff" }] } as never;
+  ViewportLayers.renderNow();
+  expect(document.querySelector("#goodsCells polygon")?.getAttribute("fill")).toBe("#0000ff");
+  expect(getCellProduction).toHaveBeenCalledTimes(4);
+});
+
+test("viewport rendering leaves a disabled layer empty", async () => {
+  await drawGoods();
+  mocks.layerOn = false;
+  document.getElementById("goodsCells")!.replaceChildren(); // the layer registry erases the content when hidden
+  ViewportLayers.renderNow();
+  expect(document.querySelectorAll("#goodsCells polygon")).toHaveLength(0);
+
+  mocks.layerOn = true;
+  ViewportLayers.renderNow();
+  expect(document.querySelectorAll("#goodsCells polygon")).toHaveLength(1);
 });

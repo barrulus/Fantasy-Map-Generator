@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { toggleAssistant } from "@/components/assistant-bubble";
 import { AUTO_BURG_LIMIT } from "@/components/options-schema";
 import { Pins } from "@/components/pins";
 import { setMapZoom, setZoomExtent } from "@/components/zoom";
 import { Emblems } from "@/generators/emblems-generator";
-import { toggleAssistant } from "@/services/assistant";
 
 vi.mock("@/components/layers", () => ({ Layers: { draw: vi.fn() } }));
 vi.mock("@/components/zoom", () => ({
+  applyZoomFontSize: vi.fn(),
   constrainZoom: vi.fn(),
   setMapZoom: vi.fn(),
   setTranslateExtent: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock("@/components/options/io-panes", () => ({
 }));
 vi.mock("@/components/options/view-mode", () => ({ changeViewMode: vi.fn() }));
 vi.mock("@/services/url-params", () => ({ copyMapURL: vi.fn() }));
-vi.mock("@/services/assistant", () => ({ toggleAssistant: vi.fn() }));
+vi.mock("@/components/assistant-bubble", () => ({ toggleAssistant: vi.fn() }));
 
 let tab: typeof import("./options-tab");
 const control = (key: string): HTMLInputElement => document.querySelector(`[data-option="${key}"]`)!;

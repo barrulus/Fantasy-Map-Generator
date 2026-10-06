@@ -4,6 +4,7 @@
 // a click on the real top-bar button where there is not. The wheel is a second route in, never a
 // second implementation.
 import type { LayerId } from "@/components/layers";
+import { SYSTEM_PRESETS } from "@/services/style-presets";
 import { findEl } from "@/utils/nodeUtils";
 import type { WheelNode } from "./types";
 
@@ -164,25 +165,10 @@ const optionsBranch = (): WheelNode =>
 // The prototype's Fonts / Colours / Filters do not exist as menus here: the Style tab is a live
 // form over #styleElementSelect. So the form goes in the drawer and only the presets are sectors.
 
-export const STYLE_PRESETS = [
-  "ancient",
-  "atlas",
-  "clean",
-  "cyberpunk",
-  "darkSeas",
-  "gloom",
-  "light",
-  "monochrome",
-  "night",
-  "pale",
-  "watercolor"
-];
+export const STYLE_PRESETS = SYSTEM_PRESETS;
 
 const applyStylePreset = (value: string) => () => {
-  const select = findEl<HTMLSelectElement>("stylePreset");
-  if (!select) return;
-  select.value = value;
-  select.dispatchEvent(new Event("change", { bubbles: true }));
+  void Controllers.StylePresetsEditor.requestChange(value);
 };
 
 const title = (value: string): string => value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, c => c.toUpperCase());
@@ -195,7 +181,7 @@ const styleBranch = (): WheelNode =>
       }),
       node("Style editor", "icon-sliders", { panel: { host: "styleContent", title: "Style" } }),
       node("Save as preset", "icon-plus", { run: click("addStyleButton") }),
-      node("Remove preset", "icon-trash-empty", { danger: true, run: click("removeStyleButton") })
+      node("Preset gallery", "icon-paint-roller", { run: click("stylePreset") })
     ]
   });
 
@@ -336,7 +322,6 @@ export const BOUND_BUTTON_IDS: string[] = [
   "aboutTab",
   "optionsTrigger",
   "addStyleButton",
-  "removeStyleButton",
   "stylePreset",
   "editUnitsButton",
   "configureWorld",

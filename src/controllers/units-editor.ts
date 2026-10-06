@@ -2,6 +2,7 @@
 import { closeDialogs, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { Layers } from "@/components/layers";
 import { Pins } from "@/components/pins";
+import { updateGridSizeReadout } from "@/controllers/style-editor/controls";
 import { applyOption, ensureEl } from "../utils";
 import type { PromptOptions } from "../utils/commonUtils";
 
@@ -97,7 +98,7 @@ const TEMPLATE = /* html */ `
           <label>1 population point:</label>
         </slider-input>
       </div>
-      <div data-tip="Set urban population modifier. Change to increase or descrese burgs population">
+      <div data-tip="Set urban population modifier. Change to increase or decrease burgs population">
         <slider-input id="urbanizationInput" min=".01" max="5" step=".01" value="1">
           <label>Urbanization rate:</label>
         </slider-input>
@@ -282,7 +283,7 @@ function askForCustomUnit(select: HTMLInputElement, kind: "distance" | "height")
 /** Everything measured in distance units: the scale bar and the grid size the Style tab reports */
 function redrawDistances(): void {
   Layers.draw("scaleBar");
-  calculateFriendlyGridSize();
+  updateGridSizeReadout();
 }
 
 function restoreDefaultUnits(): void {

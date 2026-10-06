@@ -1,78 +1,167 @@
+// The style store: the record every layer reads, and the SVG projection written from it
 import { type LayerId, Layers } from "@/components/layers";
+import { NODE_KEYS, type StyleElement, type StylesData } from "@/types/styles";
+import { getPath } from "@/utils/objectUtils";
 import { parseSections, type TemplateLookup } from "@/utils/schemaUtils";
 import defaultStyles from "./default-styles.json";
-import { type StyleLayerId, type Styles as StylesData, stylesSchema } from "./styles-schema";
+import { stylesSchema } from "./styles-schema";
 
-const DEFAULT_STYLES: DeepReadonly<StylesData> = stylesSchema.parse(defaultStyles);
-globalThis.styles = structuredClone(DEFAULT_STYLES);
+class StylesStore {
+  /** the parsed default preset (src/generators/default-styles.json) */
+  private static readonly defaults: DeepReadonly<StylesData> = stylesSchema.parse(defaultStyles);
+  /** the live record; `styles` holds this same object */
+  private data: StylesData;
 
-function parse(json: unknown): StylesData {
-  return parseSections<StylesData>(stylesSchema, DEFAULT_STYLES, json, "Styles.parse", sourceValueFor);
-}
-
-// custom group names don't exist in the defaults, so any stock group of the same record stands in as template
-const sourceValueFor: TemplateLookup = (source, key, parentKey) => {
-  if (typeof source !== "object" || source === null) return undefined;
-  const record = source as Record<PropertyKey, unknown>;
-  const value = record[key];
-  if (value !== undefined || parentKey !== "groups") return value;
-  return Object.values(record)[0];
-};
-
-function set(data: StylesData): void {
-  globalThis.styles = data;
-}
-
-// attrs go onto the DOM by data-layer/data-group; options never do (renderers read the store)
-function write(...ids: StyleLayerId[]): void {
-  for (const id of ids) {
-    const root = document.querySelector(`[data-layer="${id}"]`);
-    if (!root) continue;
-    writeNode(root, styles[id]);
+  constructor() {
+    this.data = structuredClone(StylesStore.defaults);
+    globalThis.styles = this.data;
   }
-}
 
-function apply(...ids: StyleLayerId[]): void {
-  write(...ids);
-  Layers.draw(...ids.filter((id): id is StyleLayerId & LayerId => id !== "map"));
-}
+  /** The parsed default preset, the repair source of every parse */
+  get defaults(): DeepReadonly<StylesData> {
+    return StylesStore.defaults;
+  }
 
-function writeNode(el: Element, node: object): void {
-  for (const [key, value] of Object.entries(node)) {
-    if (key === "options") continue;
-    if (key === "attrs") {
-      for (const [name, v] of Object.entries(value as object)) {
-        if (v === null || v === undefined) el.removeAttribute(name);
-        else el.setAttribute(name, String(v));
+  /** Adopt an unknown record: per-section validation, repair from the defaults, one warning per section */
+  parse(json: unknown): StylesData {
+    return parseSections<StylesData>(
+      stylesSchema,
+      StylesStore.defaults,
+      json,
+      "Styles.parse",
+      StylesStore.sourceValueFor
+    );
+  }
+
+  /** Replace the record wholesale; the preset-apply and load path */
+  set(data: StylesData): void {
+    this.data = data;
+    globalThis.styles = data;
+  }
+
+  /** Set one value of `styles` by its path, such as "ocean.groups.base.attrs.fill"; null unsets an attr. Draws nothing */
+  setValue(path: string, value: unknown): void {
+    const keys = String(path).split(".");
+    const [element, name] = [keys[0] as StyleElement, keys.at(-1)!];
+    const schema = stylesSchema.shape[element];
+    if (!schema) throw new Error(`No style element "${element}". Elements: ${Object.keys(this.data).join(", ")}`);
+    if (!keys.includes("attrs") && !keys.includes("options"))
+      throw new Error(
+        'A style path names one value in an attrs or options bag, such as "ocean.groups.base.attrs.fill"'
+      );
+    if (value === undefined) throw new Error("Pass a value; null unsets an attr");
+    const parent = getPath(this.data, keys.slice(0, -1));
+    if (typeof parent !== "object" || parent === null || Array.isArray(parent))
+      throw new Error(`The style has no ${keys.slice(0, -1).join(".")}; read \`styles\` for its paths`);
+
+    const copy = structuredClone(this.data[element]);
+    (getPath(copy, keys.slice(1, -1)) as Record<string, unknown>)[name] = value;
+    const result = schema.safeParse(copy);
+    if (!result.success)
+      throw new Error(
+        result.error.issues.map(issue => `${[element, ...issue.path].join(".")}: ${issue.message}`).join("; ")
+      );
+    (parent as Record<string, unknown>)[name] = value;
+  }
+
+  /** Put the attrs of the named style elements onto their DOM elements */
+  write(...ids: StyleElement[]): void {
+    for (const id of ids) {
+      const root = document.querySelector(`[data-layer="${id}"]`);
+      if (!root) continue;
+      this.writeNode(root, this.data[id]);
+    }
+  }
+
+  /** Write every element, the preset-apply and load path */
+  writeAll(): void {
+    this.write(...(Object.keys(this.data) as StyleElement[]));
+  }
+
+  /** Write, then redraw the named layers */
+  apply(...ids: StyleElement[]): void {
+    this.write(...ids);
+    Layers.draw(...ids.filter((id): id is StyleElement & LayerId => id !== "map"));
+  }
+
+  /** Set or remove the one attribute at a store path (`[layer, ..., "attrs", name]`) on its element */
+  writeAttr(path: string[]): void {
+    const [id, ...rest] = path;
+    const name = rest.at(-1);
+    const keys = rest.slice(0, -1); // the attrs bag with the groups above it
+    if (id === "routes" && rest[0] === "types") {
+      const value = getPath(this.data, path);
+      for (const element of document.querySelectorAll(`#routes [data-type="${CSS.escape(rest[1])}"]`)) {
+        if (value === null || value === undefined) element.removeAttribute(name!);
+        else element.setAttribute(name!, String(value));
       }
-    } else {
-      // a named subgroup (roads, statesHalo, ...), a groups record of them, or the route type sub-groups
-      const isRecord = key === "groups" || key === "types";
-      const entries = isRecord ? Object.entries(value as object) : [[key, value] as const];
-      const dataAttr = key === "types" ? "data-type" : "data-group";
-      for (const [group, groupNode] of entries) {
-        const child = el.querySelector(`[${dataAttr}="${CSS.escape(group)}"]`);
-        if (child) writeNode(child, groupNode as object);
+      return;
+    }
+    let element = document.querySelector(`[data-layer="${id}"]`);
+    let node: unknown = this.data[id as StyleElement];
+
+    for (const [index, key] of keys.entries()) {
+      node = node == null ? undefined : (node as Record<string, unknown>)[key];
+      // the attrs bag and the structural `groups` key address no element of their own; a group name does
+      if (index === keys.length - 1 || key === "groups" || key === "types") continue;
+      element =
+        keys[index - 1] === "types"
+          ? (element?.querySelector(`[data-type="${CSS.escape(key)}"]`) ?? null)
+          : this.groupElement(element, key);
+    }
+
+    if (!element || !name) return;
+    const value = node == null ? undefined : (node as Record<string, unknown>)[name];
+    if (value === null || value === undefined) element.removeAttribute(name);
+    else element.setAttribute(name, String(value));
+  }
+
+  /** Write a node's attrs onto an element, and recurse into its groups */
+  private writeNode(el: Element, node: object): void {
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "options") continue;
+      if (key === "attrs") {
+        for (const [name, v] of Object.entries(value as object)) {
+          if (v === null || v === undefined) el.removeAttribute(name);
+          else el.setAttribute(name, String(v));
+        }
+        continue;
+      }
+      if (key !== "groups" && key !== "types") continue;
+      for (const [group, groupNode] of Object.entries(value as object)) {
+        if (NODE_KEYS.has(group)) continue; // reserved, never a group name
+        const children =
+          key === "types" ? el.querySelectorAll(`[data-type="${CSS.escape(group)}"]`) : [this.groupElement(el, group)];
+        for (const child of children) if (child) this.writeNode(child, groupNode as object);
       }
     }
   }
+
+  /** The element a `groups` entry addresses */
+  private groupElement(parent: Element | null, name: string): Element | null {
+    const child = parent?.querySelector(`:scope > [data-group="${CSS.escape(name)}"]`);
+    return child ?? parent?.querySelector(`[data-group="${CSS.escape(name)}"]`) ?? null;
+  }
+
+  /** custom group names don't exist in the defaults, so any stock group of the same record stands in */
+  private static readonly sourceValueFor: TemplateLookup = (source, key, parentKey) => {
+    if (typeof source !== "object" || source === null) return undefined;
+    const record = source as Record<PropertyKey, unknown>;
+    const value = record[key];
+    if (value !== undefined || (parentKey !== "groups" && parentKey !== "types")) return value;
+    return Object.values(record)[0];
+  };
 }
 
-type DeepReadonly<T> = T extends (...args: any[]) => any
+export const Styles = new StylesStore();
+
+type DeepReadonly<T> = T extends (...args: never[]) => unknown
   ? T
   : T extends object
     ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
     : T;
 
-export const Styles = { defaults: DEFAULT_STYLES, parse, set, write, apply };
-
-type StylesApi = typeof Styles;
-
 declare global {
   /** the live style record, read bare across every layer and replaced wholesale on load */
-  var styles: import("./styles-schema").Styles;
-  // biome-ignore lint/suspicious/noRedeclare: the bridge registered just below
-  var Styles: StylesApi;
+  var styles: StylesData;
 }
-
-globalThis.Styles = Styles;

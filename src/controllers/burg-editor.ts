@@ -1,17 +1,20 @@
 import { type Selection, select } from "d3";
-import { closeDialogs, confirmationDialog, destroyDialog } from "@/components/dialog/dialog-helpers";
+import { closeDialogs, confirmationDialog, destroyDialog, noteButton } from "@/components/dialog/dialog-helpers";
+import { Icons } from "@/components/icons";
 import { Layers } from "@/components/layers";
-import { Notes } from "@/components/notes";
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { Controllers } from "@/controllers";
 import { removeEmblem } from "@/renderers/draw-emblems";
+import { goodIconLines } from "@/renderers/draw-goods";
 import { EmblemRenderer } from "@/renderers/emblems/renderer";
 import { getHeight, openURL, speak } from "@/utils";
 import { MAX_ZOOM, PAN_ZOOM_IDENTITY, type PanZoom, panBy, zoomAt } from "@/utils/panZoomUtils";
-import { type Burg, cellSlotAfterRemoval, groundSlotOnPlacement } from "../generators/burgs-generator";
+import { errorText } from "@/utils/stringUtils";
+import type { Burg } from "../generators/burgs-generator";
+import type { Market } from "../generators/markets-generator";
 import { findMegalopolises, megalopolisName } from "../generators/megalopolis";
-import { convertTemperature, ensureEl, getPointer, getTemperatureLikeness, rand, rn } from "../utils";
+import { convertTemperature, ensureEl, escapeHtml, getPointer, getTemperatureLikeness, rand, rn } from "../utils";
 import type { PromptOptions } from "../utils/commonUtils";
 
 declare const prompt: (text: string, options: PromptOptions, callback: (value: string | number) => void) => void;
@@ -34,6 +37,7 @@ function open(id: number | string): void {
   if (!selected.size()) selected = select<any, unknown>("#burgIcons").select(`[data-id='${id}']`);
 
   renderDialog();
+  ensureEl("burgEditor").dataset.entity = `burg:${selectedId}`;
   updateGroupsList();
   updateBurgValues();
 
@@ -149,7 +153,7 @@ function renderDialog(): void {
               <span
                 id="burgCitadel"
                 data-tip="Shows whether the burg has a citadel (castle). Click to toggle"
-                data-feature="palace"
+                data-feature="citadel"
                 class="burgFeature icon-chess-rook"
                 style="font-size: 1.1em"
               ></span>
@@ -235,14 +239,9 @@ function renderDialog(): void {
             class="icon-font"
           ></button>
           <button
-            id="burgEditIconStyle"
-            data-tip="Edit icon style for burg group in Style Editor"
+            id="burgEditGroupStyle"
+            data-tip="Edit icon and anchor style for the burg group in Style Editor"
             class="icon-dot-circled"
-          ></button>
-          <button
-            id="burgEditAnchorStyle"
-            data-tip="Edit port icon (anchor) style for burg group in Style Editor"
-            class="icon-anchor"
           ></button>
         </div>
         <button id="burgEditLabel" data-tip="Edit this burg label" class="icon-font"></button>
@@ -259,7 +258,7 @@ function renderDialog(): void {
           data-tip="Relocate burg. Click on map to move the burg"
           class="icon-map-pin"
         ></button>
-        ${Notes.getButton("burglLegend", "this burg")}
+        ${noteButton("burglLegend", "this burg")}
         <button id="burgLock" class="icon-lock-open" onmouseover="showElementLockTip(event)"></button>
         <button
           id="burgRemove"
@@ -295,8 +294,7 @@ function renderDialog(): void {
   ensureEl("burgStyleShow").addEventListener("click", showStyleSection);
   ensureEl("burgStyleHide").addEventListener("click", hideStyleSection);
   ensureEl("burgEditLabelStyle").addEventListener("click", editGroupLabelStyle);
-  ensureEl("burgEditIconStyle").addEventListener("click", editGroupIconStyle);
-  ensureEl("burgEditAnchorStyle").addEventListener("click", editGroupAnchorStyle);
+  ensureEl("burgEditGroupStyle").addEventListener("click", editGroupStyle);
 
   ensureEl("burgEmblem").addEventListener("click", openEmblemEdit);
   ensureEl("burgSetPreviewLink").addEventListener("click", () => void setCustomPreview());
@@ -347,7 +345,6 @@ function updateBurgValues(): void {
   );
   ensureEl("burgWealth").innerHTML = `🟡 ${rn(b.population! > 0 ? (b.product || 0) / b.population! : 0, 2)}`;
   ensureEl<HTMLInputElement>("burgTreasury").value = String(rn(b.treasury || 0, 2));
-  ensureEl("burgEditAnchorStyle").style.display = +b.port! ? "inline-block" : "none";
 
   // update list and select culture
   const cultureSelect = ensureEl<HTMLSelectElement>("burgCulture");
@@ -389,12 +386,9 @@ function updateBurgValues(): void {
 }
 
 function changeName(): void {
-  const id = getSelectedId();
   const value = ensureEl<HTMLInputElement>("burgName").value;
-  pack.burgs[id].name = value;
-
-  if (!pack.burgs[id].label) pack.burgs[id].label = {};
-  Object.assign(pack.burgs[id].label, { text: value });
+  if (!value.trim()) return;
+  Burgs.rename(getSelectedId(), value);
   Layers.draw("labels");
 }
 
@@ -413,12 +407,11 @@ function changeGroup(this: HTMLSelectElement): void {
 
 function changeType(this: HTMLSelectElement): void {
   const id = getSelectedId();
-  pack.burgs[id].type = this.value as Burg["type"];
+  Burgs.setType(id, this.value);
 }
 
 function changeCulture(this: HTMLSelectElement): void {
-  const id = getSelectedId();
-  pack.burgs[id].culture = +this.value;
+  Burgs.setCulture(getSelectedId(), +this.value);
 }
 
 function generateNameCulture(): void {
@@ -432,20 +425,18 @@ function changePopulation(): void {
   const id = getSelectedId();
   const burg = pack.burgs[id];
 
-  pack.burgs[id].population = rn(
-    ensureEl<HTMLInputElement>("burgPopulation").valueAsNumber /
-      options.map.units.population.scale /
-      options.map.units.population.urbanization.rate,
-    4
-  );
-  void updateBurgPreview(burg);
+  const people = ensureEl<HTMLInputElement>("burgPopulation").valueAsNumber;
+  if (Number.isFinite(people) && people >= 0) Burgs.setPopulation(id, people);
+  updateBurgPreview(burg);
 }
 
 function changeTreasury(this: HTMLInputElement): void {
   const burg = pack.burgs[getSelectedId()];
-  const treasury = this.valueAsNumber;
-  if (Number.isFinite(treasury)) burg.treasury = rn(treasury, 2);
-  else tip("Enter a valid treasury amount", false, "error");
+  try {
+    Burgs.setTreasury(burg.i, this.valueAsNumber);
+  } catch {
+    tip("Enter a valid treasury amount", false, "error");
+  }
   this.value = String(rn(burg.treasury || 0, 2));
 }
 
@@ -456,11 +447,19 @@ function toggleFeature(this: HTMLElement): void {
   const feature = this.dataset.feature!;
   const value = Number(this.classList.contains("inactive"));
 
+  if (feature === "plaza" && !value) {
+    const market = pack.markets?.find(m => m.centerBurgId === burgId);
+    if (market) {
+      confirmRemoveMarket(market);
+      return;
+    }
+  }
+
   if (feature === "port") togglePort(burgId);
   else if (feature === "capital") toggleCapital(burgId);
   else if (feature === "flying") toggleFlying(burgId);
   else if (feature === "skyPort") toggleSkyPort(burgId);
-  else (burg as any)[feature] = value;
+  else Burgs.setBuilding(burgId, feature, Boolean(value));
 
   this.classList.toggle("inactive", !(burg as any)[feature]);
 
@@ -528,67 +527,45 @@ function changeAltitude(): void {
   burg.altitude = +ensureEl<HTMLInputElement>("burgAltitude").value || 0;
 }
 
-function togglePort(burgId: number): void {
-  const burg = pack.burgs[burgId];
-  if (burg.port) {
-    burg.port = 0;
-  } else {
-    const { cells, features } = pack;
-    const haven = cells.haven[burg.cell];
-    let portFeatureId: number | null;
-
-    if (haven) {
-      const featureId = cells.f[haven];
-      const feature = features[featureId];
-      portFeatureId =
-        feature?.type === "lake" && feature.outlet
-          ? (Rivers.resolveLakeDrainFeature(featureId) ?? featureId)
-          : featureId;
-    } else {
-      portFeatureId = Rivers.resolveDrainFeature(burg.cell);
-      if (!portFeatureId) {
-        tip("No navigable water body found downstream, cannot assign port", false, "warn");
-        return;
-      }
+function confirmRemoveMarket(market: Market): void {
+  confirmationDialog({
+    title: "Remove market",
+    message: `This burg is the center of the market "${escapeHtml(Markets.getName(market))}". Remove the market?<br>This action cannot be reverted`,
+    confirm: "Remove",
+    onConfirm: () => {
+      Markets.removeMarket(market.i);
+      Layers.draw("markets");
+      updateBurgValues();
     }
+  });
+}
 
-    burg.port = portFeatureId;
-  }
-  Layers.draw("burgIcons");
+function togglePort(burgId: number): void {
+  if (tryEdit(() => Burgs.setPort(burgId, !pack.burgs[burgId].port))) Layers.draw("burgIcons");
 }
 
 function toggleCapital(burgId: number): void {
-  const { burgs, states } = pack;
-
-  if (burgs[burgId].capital) {
+  if (pack.burgs[burgId].capital) {
     tip("To change capital please assign a capital status to another burg of this state", false, "error");
     return;
   }
+  if (tryEdit(() => Burgs.setCapital(burgId))) Layers.draw("burgIcons", "labels");
+}
 
-  const stateId = burgs[burgId].state;
-  if (!stateId) {
-    tip("Neutral lands cannot have a capital", false, "error");
-    return;
+/** Run a model edit, showing its validation error as a tip; returns whether it succeeded */
+function tryEdit(edit: () => void): boolean {
+  try {
+    edit();
+    return true;
+  } catch (error) {
+    tip(errorText(error), false, "error");
+    return false;
   }
-
-  const oldCapitalId = states[stateId].capital;
-  states[stateId].capital = burgId;
-  states[stateId].center = burgs[burgId].cell;
-
-  const capital = burgs[burgId];
-  capital.capital = 1;
-  Burgs.changeGroup(capital);
-
-  const oldCapital = burgs[oldCapitalId];
-  oldCapital.capital = 0;
-  Burgs.changeGroup(oldCapital);
-  Layers.draw("burgIcons", "labels");
 }
 
 function toggleBurgLockButton(): void {
   const id = getSelectedId();
-  const burg = pack.burgs[id];
-  burg.lock = !burg.lock;
+  Burgs.setLocked(id, !pack.burgs[id].lock);
 
   updateBurgLockIcon();
 }
@@ -623,7 +600,7 @@ function hideStyleSection(): void {
 function editGroupLabelStyle(): void {
   const burg = pack.burgs[getSelectedId()];
   closeDialogs(".stable");
-  editStyle("labels", burg.label?.group || burg.group);
+  void Controllers.StyleEditor.open("labels", burg.label?.group || burg.group);
 }
 
 function editBurgLabel(): void {
@@ -632,16 +609,11 @@ function editBurgLabel(): void {
   Controllers.LabelsEditor.open("burg", id);
 }
 
-function editGroupIconStyle(): void {
+// the group form carries both the icons and the anchors parts
+function editGroupStyle(): void {
   const burg = pack.burgs[getSelectedId()];
   closeDialogs(".stable");
-  editStyle("burgIcons", burg.group);
-}
-
-function editGroupAnchorStyle(): void {
-  const burg = pack.burgs[getSelectedId()];
-  closeDialogs(".stable");
-  editStyle("anchors", burg.group);
+  void Controllers.StyleEditor.open("burgIcons", burg.group);
 }
 
 function getPreviewViewport(): { width: number; height: number } {
@@ -805,9 +777,12 @@ async function setCustomPreview(): Promise<void> {
     "Provide custom URL to the burg map. It can be a link to a generator or just an image. Leave empty to use the default map preview",
     { default: current, required: false },
     link => {
-      if (link) burg.link = String(link);
-      else delete burg.link;
-      void updateBurgPreview(burg);
+      try {
+        Burgs.setLink(id, String(link ?? ""));
+      } catch (error) {
+        tip((error as Error).message, false, "error");
+      }
+      updateBurgPreview(burg);
     }
   );
 }
@@ -846,41 +821,9 @@ function toggleRelocateBurg(): void {
 }
 
 function relocateBurgOnClick(this: SVGGElement, event: any): void {
-  const cells = pack.cells;
-  const point = getPointer(event, this);
-  const cellId = Pack.findCell(point[0], point[1])!;
-  const id = getSelectedId();
-  const burg = pack.burgs[id];
-
-  if (cells.h[cellId] < 20 && !burg.flying) {
-    tip("Cannot place burg into the water! Select a land cell", false, "error");
-    return;
-  }
-
-  // Flying burgs keep their own state (sky states are not tied to ground cells)
-  const newState = burg.flying ? (burg.state ?? 0) : cells.state[cellId];
-  const oldState = burg.state;
-  if (newState !== oldState && burg.capital) {
-    tip("Capital cannot be relocated into another state!", false, "error");
-    return;
-  }
-
-  const x = rn(point[0], 2);
-  const y = rn(point[1], 2);
-
-  // change data
-  cells.burg[burg.cell] = cellSlotAfterRemoval(cells.burg[burg.cell], burg, pack.burgs);
-  cells.burg[cellId] = groundSlotOnPlacement(cells.burg[cellId], id, Boolean(burg.flying));
-  burg.cell = cellId;
-  burg.state = newState;
-  burg.x = x;
-  burg.y = y;
-  if (burg.capital) pack.states[newState].center = burg.cell;
-
-  // the label snaps back to the relocated burg, so its custom path is no longer valid
-  if (burg.label) Object.assign(burg.label, { dx: 0, dy: 0, pathPoints: undefined });
+  const [x, y] = getPointer(event, this);
+  if (!tryEdit(() => Burgs.move(getSelectedId(), x, y))) return;
   Layers.draw("burgIcons", "labels");
-
   if (event.shiftKey === false) toggleRelocateBurg();
 }
 
@@ -961,7 +904,7 @@ function getProduction(pool: Record<number, number>): string {
     const { name, unit, icon } = resource;
     const unitName = production === 1 ? unit : `${unit}s`;
     html += `<span data-tip="${name}: ${production} ${unitName} per day">
-      <svg class="resIcon" width="1em" height="1em"><use href="#${icon}"></use></svg>
+      <svg class="resIcon" width="1em" height="1em"><use href="${Icons.href(icon)}"${goodIconLines()}></use></svg>
       <span style="margin: 0 0.2em 0 -0.2em">${production}</span>
     </span>`;
   }

@@ -89,6 +89,69 @@ test.describe("States", () => {
     expect(militaryResult.statesWithMilitary).toBeGreaterThanOrEqual(0);
   });
 
+  test("merging as provinces keeps each merged state as a province of the ruling state", async ({page}) => {
+    await page.click("#optionsTrigger");
+    await page.click("#toolsTab");
+    await page.click("#editStatesButton");
+    await page.waitForSelector("#statesEditor", {state: "visible", timeout: 5000});
+
+    const [ruler, child] = await page.evaluate(() =>
+      pack.states
+        .filter(s => s.i && !s.removed)
+        .slice(0, 2)
+        .map(s => ({
+          i: s.i,
+          name: s.name,
+          formName: s.formName,
+          coa: JSON.stringify(s.coa),
+          provinces: pack.provinces.filter(p => p.i && !p.removed && p.state === s.i).map(p => p.i),
+          cells: pack.cells.state.filter(id => id === s.i).length
+        }))
+    );
+    expect(child.provinces.length).toBeGreaterThan(0);
+
+    await page.click("#statesMerge");
+    await page.check(`#mergeStatesForm input[name="rulingState"][value="${ruler.i}"]`);
+    await page.click(`label[for="selectState${child.i}"]`);
+    await page.click(".ui-dialog:has(#alert) .ui-dialog-buttonpane button:first-child");
+
+    await page.check("#mergeStatesAsProvinces");
+    await page.click(".ui-dialog:has(#alert) .ui-dialog-buttonpane button:first-child");
+    await page.waitForTimeout(300);
+
+    const result = await page.evaluate(
+      ([r, c, oldProvinces]) => {
+        const {states, provinces, cells} = pack;
+        const province = provinces.find(p => p.i && !p.removed && p.state === r && p.name === states[c].name)!;
+        let provinceCells = 0;
+        for (let i = 0; i < cells.province.length; i++) if (cells.province[i] === province.i) provinceCells++;
+        return {
+          stateRemoved: Boolean(states[c].removed),
+          formName: province.formName,
+          fullName: province.fullName,
+          coa: JSON.stringify(province.coa),
+          color: province.color,
+          provinceCells,
+          oldProvincesRemoved: oldProvinces.every((i: number) => provinces[i].removed),
+          listed: states[r].provinces!.includes(province.i),
+          layerOn: Layers.isOn("provinces")
+        };
+      },
+      [ruler.i, child.i, child.provinces] as const
+    );
+    expect(result).toEqual({
+      stateRemoved: true,
+      formName: child.formName,
+      fullName: `${child.name} ${child.formName}`,
+      coa: child.coa,
+      color: expect.stringMatching(/^#[0-9a-f]{6}$/),
+      provinceCells: child.cells,
+      oldProvincesRemoved: true,
+      listed: true,
+      layerOn: true
+    });
+  });
+
   test("painting states applies after the States Editor closes", async ({page}) => {
     const pageErrors: string[] = [];
     page.on("pageerror", error => pageErrors.push(error.message));
@@ -134,24 +197,31 @@ test.describe("States", () => {
   });
 });
 
-declare const Controllers: { DiplomacyEditor: { open: () => Promise<void> } };
+declare const Controllers: { DiplomacyOverview: { open: () => Promise<void> } };
 declare const Services: {
   Save: { prepareMapData: () => string };
   Load: { uploadMap: (file: File) => void };
 };
 declare const pack: {
   states: import("@/generators/states-generator").State[];
-  cells: { state: Uint16Array; p: [number, number][] };
+  provinces: import("@/generators/provinces-generator").Province[];
+  cells: { state: Uint16Array; province: Uint16Array; p: [number, number][] };
 };
+declare const Layers: { isOn: (id: string) => boolean };
 
 test.describe("Diplomacy", () => {
   let ids: number[];
   let errors: string[];
-  const formDialog = (page: Page) => page.locator(".ui-dialog:has(#relationsForm)");
+  const diplomacy = (page: Page) => page.evaluate(() => JSON.stringify(pack.states.map(state => state.diplomacy)));
+  const relation = (page: Page, subject: number, object: number) =>
+    page.evaluate(([a, b]) => pack.states[a].diplomacy![b], [subject, object]);
+  const chronicleLength = (page: Page) => page.evaluate(() => pack.states[0].diplomacy.length);
+  const selfId = (page: Page) => page.locator("#diplomacyBodySection .Self");
 
-  async function openRelation(page: Page): Promise<void> {
-    await page.locator(`#diplomacyBodySection [data-id="${ids[1]}"] .changeRelations`).click();
-    await expect(page.locator("#relationsForm")).toBeVisible();
+  async function openEditor(page: Page, relationName: string): Promise<void> {
+    await page.locator("#diplomacyEditRelations").click();
+    await expect(page.locator("#diplomacyEditor")).toBeVisible();
+    await page.locator(`input[name="diplomacyRelation"][value="${relationName}"]`).check();
   }
 
   async function mapClick(page: Page, stateId: number): Promise<void> {
@@ -185,56 +255,67 @@ test.describe("Diplomacy", () => {
       pack.states[0].diplomacy = [];
       return [a.i, b.i, c.i];
     });
-    await page.evaluate(() => Controllers.DiplomacyEditor.open());
-    await expect(page.locator("#diplomacyEditor")).toBeVisible();
+    await page.evaluate(() => Controllers.DiplomacyOverview.open());
+    await expect(page.locator("#diplomacyOverview")).toBeVisible();
+    await expect(selfId(page)).toHaveAttribute("data-id", String(ids[0]));
   });
 
   test.afterEach(() => expect(errors).toEqual([]));
 
-  test("bulk changes skip existing allies and preserve genuine history", async ({ page }) => {
-    await openRelation(page);
-    await page.locator('input[name="relationSelect"][value="Ally"]').check();
-    await page.locator(`label[for="selectState${ids[2]}"]`).click();
-    await formDialog(page).getByRole("button", { name: "Apply", exact: true }).click();
-    expect(await page.evaluate(() => pack.states[0].diplomacy.length)).toBe(1);
-    expect(await page.evaluate(([a, b]) => pack.states[a].diplomacy![b], ids)).toBe("Ally");
+  test("painting a state sets both sides and Apply records it once", async ({ page }) => {
+    await openEditor(page, "Ally");
+    await mapClick(page, ids[2]);
+    expect(await relation(page, ids[2], ids[0])).toBe("Ally");
+    expect(await relation(page, ids[0], ids[2])).toBe("Ally");
+    await expect(page.locator("#diplomacyEditorUndo")).toBeEnabled();
+
+    await page.locator("#diplomacyEditorApply").click();
+    await expect(page.locator("#diplomacyEditor")).toHaveCount(0);
+    expect(await chronicleLength(page)).toBe(1);
+    await expect(page.locator(`#diplomacyBodySection [data-id="${ids[2]}"] [data-col="relations"]`)).toContainText(
+      "Ally"
+    );
   });
 
-  test("unchanged row relation does not suppress changes to other targets", async ({ page }) => {
-    await openRelation(page);
-    await page.locator(`label[for="selectState${ids[2]}"]`).click();
-    await formDialog(page).getByRole("button", { name: "Apply", exact: true }).click();
-    expect(await page.evaluate(([, b, c]) => pack.states[b].diplomacy![c], ids)).toBe("Rival");
-    expect(await page.evaluate(() => pack.states[0].diplomacy.length)).toBe(1);
+  test("painting an unchanged relation records nothing", async ({ page }) => {
+    await mapClick(page, ids[1]);
+    await expect(selfId(page)).toHaveAttribute("data-id", String(ids[1]));
+    await openEditor(page, "Ally");
+    await expect(page.locator("#diplomacyEditorState")).toHaveValue(String(ids[1]));
+    const before = await diplomacy(page);
+    await mapClick(page, ids[2]); // already allies
+    await expect(page.locator("#diplomacyEditorUndo")).toBeDisabled();
+    await page.locator("#diplomacyEditorApply").click();
+    expect(await diplomacy(page)).toBe(before);
+    expect(await chronicleLength(page)).toBe(0);
   });
 
-  for (const exit of ["Cancel", "Escape", "titlebar", "parent"]) {
-    test(`map selection leaves data unchanged and cleans up after ${exit}`, async ({ page }) => {
-      const before = await page.evaluate(() => JSON.stringify(pack.states.map(state => state.diplomacy)));
-      await openRelation(page);
-      await page.evaluate(() => {
-        const dialogs = document.querySelectorAll<HTMLElement>(".ui-dialog");
-        for (const dialog of dialogs) {
-          dialog.style.left = "0px";
-          dialog.style.top = "0px";
-        }
-      });
+  for (const exit of ["Discard", "titlebar", "parent"]) {
+    test(`unapplied changes are reverted and map selection restored after ${exit}`, async ({ page }) => {
+      const before = await diplomacy(page);
+      await openEditor(page, "Enemy");
       await mapClick(page, ids[2]);
-      await expect(page.locator(`#selectState${ids[2]}`)).toBeChecked();
-      await expect(page.locator("#diplomacyBodySection .Self")).toHaveAttribute("data-id", String(ids[0]));
-      if (exit === "Cancel") await formDialog(page).getByRole("button", { name: "Cancel", exact: true }).click();
-      else if (exit === "Escape") await page.keyboard.press("Escape");
-      else if (exit === "titlebar") await formDialog(page).locator(".ui-dialog-titlebar-close").click();
-      else {
+      expect(await relation(page, ids[2], ids[0])).toBe("Enemy");
+
+      if (exit === "Discard") await page.locator("#diplomacyEditorDiscard").click();
+      else if (exit === "titlebar")
+        await page.locator(".ui-dialog:has(#diplomacyEditor) .ui-dialog-titlebar-close").click();
+      else
         await page
-          .locator(".ui-dialog:has(#diplomacyEditor) .ui-dialog-titlebar-close")
+          .locator(".ui-dialog:has(#diplomacyOverview) .ui-dialog-titlebar-close")
           .evaluate((button: HTMLButtonElement) => button.click());
+
+      expect(await diplomacy(page)).toBe(before);
+      expect(await chronicleLength(page)).toBe(0);
+      if (exit === "Discard") {
+        await expect(page.locator("#diplomacyEditorDiscard")).toBeDisabled();
+        return;
       }
-      await expect(page.locator("#relationsForm")).toBeHidden();
-      expect(await page.evaluate(() => JSON.stringify(pack.states.map(state => state.diplomacy)))).toBe(before);
-      if (exit === "parent" || exit === "Escape") await page.evaluate(() => Controllers.DiplomacyEditor.open());
-      await mapClick(page, ids[2]);
-      await expect(page.locator("#diplomacyBodySection .Self")).toHaveAttribute("data-id", String(ids[2]));
+      await expect(page.locator("#diplomacyEditor")).toHaveCount(0);
+      if (exit === "parent") await page.evaluate(() => Controllers.DiplomacyOverview.open());
+      await mapClick(page, ids[2]); // a click selects again instead of painting
+      await expect(selfId(page)).toHaveAttribute("data-id", String(ids[2]));
+      expect(await diplomacy(page)).toBe(before);
     });
   }
 
@@ -242,15 +323,15 @@ test.describe("Diplomacy", () => {
     await page.evaluate(([a, b]) => {
       pack.states[a].diplomacy![b] = pack.states[b].diplomacy![a] = "x";
     }, ids);
-    await page.locator("#diplomacyEditorRefresh").click();
-    await page.locator("#diplomacyShowMatrix").click();
-    const pair = page.locator(`#diplomacyMatrixBody tr[data-id="${ids[0]}"] td[data-id="${ids[1]}"]`);
-    await expect(pair).toHaveText("Invalid");
-    await pair.click();
-    await formDialog(page).getByRole("button", { name: "Apply", exact: true }).click();
-    await expect(page.locator("#relationsForm")).toBeVisible();
-    await page.locator('input[name="relationSelect"][value="Vassal"]').check();
-    await formDialog(page).getByRole("button", { name: "Apply", exact: true }).click();
+    await page.locator("#diplomacyOverviewRefresh").click();
+    const pair = page.locator(`#diplomacyBodySection [data-id="${ids[1]}"] [data-col="relations"]`);
+    await expect(pair).toContainText("Invalid");
+
+    await openEditor(page, "Vassal");
+    await mapClick(page, ids[1]);
+    await page.locator("#diplomacyEditorApply").click();
+    await expect(pair).toContainText("Vassal");
+
     const saved = await page.evaluate(() => Services.Save.prepareMapData());
     await page.goto("/?seed=diplomacy-reload&width=1600&height=1000");
     await waitForMap(page);
@@ -258,9 +339,9 @@ test.describe("Diplomacy", () => {
     await page.evaluate(data => Services.Load.uploadMap(new File([data], "diplomacy.map")), saved);
     await waitForNextMap(page, previous);
     expect(await page.evaluate(([a, b]) => [pack.states[a].diplomacy![b], pack.states[b].diplomacy![a]], ids)).toEqual([
-      "Vassal",
-      "Suzerain"
+      "Suzerain",
+      "Vassal"
     ]);
-    expect(await page.evaluate(() => pack.states[0].diplomacy.length)).toBe(1);
+    expect(await chronicleLength(page)).toBe(1);
   });
 });

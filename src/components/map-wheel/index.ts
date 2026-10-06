@@ -1,6 +1,8 @@
 // Map Wheel: a radial context controller on right-click. Additive — the top bar and left-click
 // editing are untouched; this is a second route in.
+
 import { Layers } from "@/components/layers";
+import { Controllers } from "@/controllers";
 import { findEl } from "@/utils/nodeUtils";
 import { resolveContext } from "./context";
 import { closeDrawer, DRAWER_ID, DRAWER_WIDTH, openDrawer, pickSide } from "./drawer";
@@ -248,6 +250,7 @@ export function openMapWheel(event: MouseEvent, roots: WheelRoots, onPickSubject
         draw();
       });
       openPanel = state.path;
+      if (spec.host === "styleContent") void Controllers.StyleEditor.open();
     },
     onLeaf: node => {
       closeMapWheel();

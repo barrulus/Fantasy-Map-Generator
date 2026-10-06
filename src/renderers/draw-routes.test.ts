@@ -7,7 +7,7 @@ import { ViewportLayers } from "@/renderers/viewport/viewport-renderer";
 const mocks = vi.hoisted(() => ({ layerOn: true }));
 vi.mock("@/components/layers", () => ({ Layers: { isOn: () => mocks.layerOn } }));
 
-import "@/generators/styles";
+import { Styles } from "@/generators/styles";
 import { drawRoutes, getRouteBox, redrawRoute, removeRoutes, setEditedRoute, setTempRoute } from "./draw-routes";
 
 function route(i: number, x: number, group = "roads"): Route {
@@ -172,4 +172,15 @@ test("a type the store does not know falls back to the built-in table, then the 
   const mystery = document.querySelector<SVGGElement>("#routes > #roads > g#mystery")!;
   expect(mystery.dataset.type).toBe("mystery");
   expect(mystery.hasAttribute("stroke-width")).toBe(false);
+});
+
+test("editing a shared route type writes every matching group", () => {
+  document.body.innerHTML = `<svg><g id="routes" data-layer="routes">
+    <g data-group="roads"><g data-type="royal"></g></g>
+    <g data-group="custom"><g data-type="royal"></g></g>
+  </g></svg>`;
+  Styles.setValue("routes.types.royal.attrs.stroke", "#123456");
+  Styles.writeAttr(["routes", "types", "royal", "attrs", "stroke"]);
+  for (const element of document.querySelectorAll('[data-type="royal"]'))
+    expect(element.getAttribute("stroke")).toBe("#123456");
 });

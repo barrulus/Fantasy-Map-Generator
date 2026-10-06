@@ -1,10 +1,10 @@
 import type Quill from "quill";
 import { confirmationDialog, destroyDialog } from "@/components/dialog/dialog-helpers";
 import { ENTITY_TYPES, type EntityRef, MapEntities } from "@/components/map-entities";
-import { type NoteEntry, Notes } from "@/components/notes";
 import { tip } from "@/components/tooltips";
 import { viewport } from "@/components/viewport";
 import { Controllers } from "@/controllers";
+import { type NoteEntry, Notes } from "@/generators/notes";
 import { highlightElement } from "@/renderers/overlays/highlight";
 import { downloadFile, getFileName, speak, uploadFile } from "@/utils";
 import { createFileInput, ensureEl, findEl } from "../utils";
@@ -17,20 +17,13 @@ import {
   TOOLBAR_HTML
 } from "./notes-rich-text";
 
-/** A note as the assistant bridge sees it: the note key, the entity name and the html */
-export interface Note {
-  id: string;
-  name: string;
-  legend: string;
-}
-
 let quill: Quill | null = null;
+let lastSelection: { index: number; length: number } | null = null;
 let windowed: { width: number; height: number; top: string; left: string } | null = null;
 let legendsInput: HTMLInputElement | null = null;
 
-/** Open the editor on the given entity (a ref, a note key or a legacy element id), or on the first note */
-function open(target?: EntityRef | string): void {
-  const ref = typeof target === "string" ? resolveId(target) : target;
+/** Open the editor on the given entity, or on the first note when called with no reference */
+function open(ref?: EntityRef): void {
   renderDialog();
 
   const notesSelect = ensureEl<HTMLSelectElement>("notesSelect");
@@ -49,6 +42,10 @@ function open(target?: EntityRef | string): void {
     fonts.map(font => font.family)
   );
 
+  quill.on("selection-change", range => {
+    if (range) lastSelection = { index: range.index, length: range.length };
+  });
+
   const selected = ref || entries[0]?.ref;
   if (selected) {
     notesSelect.value = MapEntities.key(selected);
@@ -58,6 +55,8 @@ function open(target?: EntityRef | string): void {
     quill.root.dataset.placeholder =
       "No notes yet. Click a burg, marker, state or other element on the map and add a note from its editor";
     quill.disable();
+    lastSelection = null;
+    window.dispatchEvent(new Event("notes:context-changed"));
   }
 
   $("#notesEditor").dialog({
@@ -79,12 +78,12 @@ function fillSelect(select: HTMLSelectElement, entries: NoteEntry[], ref?: Entit
   for (const type of ENTITY_TYPES) {
     const typeEntries = entries.filter(entry => entry.ref.type === type);
     if (ref?.type === type && requestedKey && !listed.has(requestedKey))
-      typeEntries.unshift({ ref, key: requestedKey, label: MapEntities.getName(ref) || requestedKey, note: "" });
+      typeEntries.unshift({ ref, key: requestedKey, note: "" });
     if (!typeEntries.length) continue;
 
     const group = document.createElement("optgroup");
     group.label = MapEntities.getTypeLabel(type);
-    for (const entry of typeEntries) group.append(new Option(entry.label, entry.key));
+    for (const entry of typeEntries) group.append(new Option(MapEntities.getName(entry.ref) || entry.key, entry.key));
     select.append(group);
   }
 }
@@ -173,7 +172,7 @@ function renderDialog(): void {
       <textarea id="notesSource" hidden spellcheck="false"></textarea>
       <div id="notesFooter">
         <button id="notesFocus" data-tip="Focus on selected object" class="icon-target"></button>
-        <button id="notesGenerateWithAi" data-tip="Ask the assistant to write or rewrite this note" class="icon-robot"></button>
+        <button id="notesGenerateWithAi" data-tip="Open Azgaar Assistant" class="icon-robot"></button>
         <button id="notesPin" data-tip="Toggle notes box display: hide or do not hide the box on mouse move" class="icon-pin"></button>
         <button id="notesSourceToggle" data-tip="Edit the note as HTML" class="icon-edit"></button>
         <button id="notesFullscreen" data-tip="Toggle fullscreen" class="icon-resize-full"></button>
@@ -194,7 +193,7 @@ function renderDialog(): void {
   ensureEl("notesFullscreen").addEventListener("click", toggleFullscreen);
   ensureEl("notesPin").addEventListener("click", toggleNotesPin);
   ensureEl("notesFocus").addEventListener("click", validateHighlightElement);
-  ensureEl("notesGenerateWithAi").addEventListener("click", () => void Controllers.HelpAssistant.open({ mode: "map" }));
+  ensureEl("notesGenerateWithAi").addEventListener("click", openAiGenerator);
   ensureEl("notesDownload").addEventListener("click", downloadLegends);
   ensureEl("notesUpload").addEventListener("click", pickLegendsFile);
   ensureEl("notesRemove").addEventListener("click", triggerNotesRemove);
@@ -202,8 +201,10 @@ function renderDialog(): void {
 
 function closeNotesEditor(): void {
   quill = null;
+  lastSelection = null;
   $("#notesEditor").dialog("destroy");
   ensureEl("notesEditor").remove();
+  window.dispatchEvent(new Event("notes:context-changed"));
 }
 
 function selectedRef(): EntityRef | undefined {
@@ -215,7 +216,9 @@ function selectedRef(): EntityRef | undefined {
 function showNote(ref: EntityRef): void {
   ensureEl("notesName").textContent = MapEntities.getName(ref);
   loadNote(Notes.get(ref) || "");
+  lastSelection = null;
   updateNotesBox(ref);
+  window.dispatchEvent(new Event("notes:context-changed"));
 }
 
 // A note whose markup Quill would rewrite (such as a dungeon iframe) is edited as HTML.
@@ -331,7 +334,21 @@ function validateHighlightElement(): void {
 
 function removeSelectedNote(): void {
   const ref = selectedRef();
-  if (ref) remove(MapEntities.key(ref));
+  if (!ref) return;
+
+  Notes.set(ref, "");
+
+  const [first] = Notes.list();
+  if (!first) {
+    $("#notesEditor").dialog("close");
+    return;
+  }
+
+  open(first.ref);
+}
+
+function openAiGenerator(): void {
+  Controllers.Assistant.open();
 }
 
 const CSV_HEADER = "type,id,note";
@@ -441,68 +458,37 @@ function toggleNotesPin(this: HTMLElement): void {
   this.classList.toggle("pressed");
 }
 
-// Bridge for the assistant (help-assistant-notes.ts): read the note on screen, write notes so an
-// open editor stays in sync, and remove what an undo has to take back. An id is a note key
-// ("burg:12") or the svg element id the assistant knows an entity by ("burg12", "marker3")
-
-const isOpen = (): boolean => document.getElementById("notesEditor") !== null;
-
-const resolveId = (id: string): EntityRef | undefined => MapEntities.parseKey(id) ?? MapEntities.resolveElement(id);
-
-const toNote = (ref: EntityRef): Note => ({
-  id: MapEntities.key(ref),
-  name: MapEntities.getName(ref),
-  legend: Notes.get(ref) || ""
-});
+// The assistant uses stable entity keys; note titles remain the entity's own name.
+export interface Note {
+  id: string;
+  name: string;
+  legend: string;
+}
 
 function current(): Note | null {
-  if (!isOpen()) return null;
-  const ref = MapEntities.parseKey(ensureEl<HTMLSelectElement>("notesSelect").value);
-  return ref ? toNote(ref) : null;
+  if (!document.getElementById("notesEditor")) return null;
+  const ref = selectedRef();
+  if (!ref || !MapEntities.get(ref)) return null;
+  return { id: MapEntities.key(ref), name: MapEntities.getName(ref), legend: Notes.get(ref) || "" };
 }
 
-// The entity owns its name, so the name argument of the old contract is accepted and ignored.
-// Null when the entity is not on the map: a note has nothing to live on then
-function write(id: string, legend: string, _name?: string): Note | null {
-  const ref = resolveId(id);
-  if (!ref || !Notes.set(ref, legend)) return null;
-
-  if (isOpen()) {
-    const select = ensureEl<HTMLSelectElement>("notesSelect");
-    const selected = select.value;
-    fillSelect(select, Notes.list(), MapEntities.parseKey(selected));
-    select.value = selected;
-    if (selected === MapEntities.key(ref)) {
-      loadNote(legend); // silent Quill load or the raw textarea, by representability — the AI-apply path
-      updateNotesBox(ref);
-    }
-  }
-  return toNote(ref);
+/** Show notes and names changed outside the editor, keeping the selected entity */
+function refresh(): void {
+  if (!document.getElementById("notesEditor")) return;
+  const select = ensureEl<HTMLSelectElement>("notesSelect");
+  const selected = MapEntities.parseKey(select.value);
+  fillSelect(select, Notes.list(), selected);
+  if (!selected || !MapEntities.get(selected)) return;
+  select.value = MapEntities.key(selected);
+  showNote(selected);
 }
 
-function remove(id: string): void {
-  const ref = resolveId(id);
-  if (!ref) return;
-
-  const wasCurrent = current()?.id === MapEntities.key(ref);
-  Notes.remove(ref);
-  if (!wasCurrent) return;
-
-  const [first] = Notes.list();
-  if (!first) {
-    $("#notesEditor").dialog("close");
-    return;
-  }
-  open(first.ref);
-}
-
-// The Quill selection as self-contained HTML; nothing in raw-HTML mode or when the editor is closed
 function getSelectionHtml(): string | null {
-  if (!isOpen() || !quill || !ensureEl("notesSource").hidden) return null;
-  const range = quill.getSelection();
-  if (!range?.length) return null;
-  // Quill 2.0.3 writes every space as &nbsp;; keep ordinary spaces, as getEditorHtml does for saves
-  return quill.getSemanticHTML(range.index, range.length).replaceAll("&nbsp;", " ");
+  if (!document.getElementById("notesEditor") || !quill) return null;
+  const source = ensureEl<HTMLTextAreaElement>("notesSource");
+  if (!source.hidden) return source.value.slice(source.selectionStart, source.selectionEnd) || null;
+  const range = quill.getSelection() ?? lastSelection;
+  return range?.length ? quill.getSemanticHTML(range.index, range.length) : null;
 }
 
-export const NotesEditor = { open, current, write, remove, getSelectionHtml, exportCsv: downloadLegends };
+export const NotesEditor = { open, exportCsv: downloadLegends, current, refresh, getSelectionHtml };

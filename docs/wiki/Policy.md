@@ -21,46 +21,50 @@ These are off by default. Using one means sending data to that third party under
 
 ## Azgaar Assistant
 
-The Assistant panel holds two separate chats, and they are worth telling apart because only one of them ever sees your map.
+The Assistant uses the Azgaar server for Guest and Member documentation questions. With your own AI key or local model, it answers questions about the Generator and the open map, and can edit the map through a small set of tools. Everything below up to _With your own AI key_ describes Guest and Member use.
 
-### Help
-
-**Help** answers questions about using the Generator. It talks to the project's help gateway at `ask.azgaarsfmg.com`, which is the only FMG server involved anywhere in the tool.
-
-**What is sent.** The question you type and a conversation id. Nothing from your map, your files or your browser is sent — Help cannot see the world you are working on and cannot describe it back to you.
+**What is sent.** The question you type and a conversation id. Nothing from your map, your files or your browser is sent — without a key the Assistant cannot see the world you are working on.
 
 **How long questions are kept.** Questions and the answers given to them are retained for **90 days**, then deleted. They are read only to fix wrong answers and to find gaps in the wiki. They are not published, shared or used to identify anyone.
 
-**Conversation memory.** The Assistant remembers the current thread so follow-up questions make sense. Only the server-issued conversation id is stored in your browser, in `sessionStorage`, which means one tab and one sitting. The gateway forgets the thread two hours after the last question, and the panel marks the boundary with a _new conversation_ line. The **New chat** button in the panel's title bar drops the id and clears the transcript immediately.
+**Chat memory.** The Azgaar server remembers a free chat so follow-up questions make sense. The client stores its server-issued chat id with that chat, and sends only the id on later questions. If server memory expires, the panel marks the boundary. Chats and their visible transcripts stay in this browser's IndexedDB until you delete them; they are never part of a `.map` file.
 
 **Feedback.** The 👍 / 👎 buttons post the rating and the id of that one answer. No text is attached.
 
 **Daily limits.** Questions are budgeted per day to keep a shared free service affordable. The count is tied to your sign-in when you are signed in, and otherwise to a coarse anonymous bucket.
 
-**Availability.** The gateway only accepts requests from the official site. On a self-hosted copy the panel says so and offers the wiki instead.
+**Availability.** The free tiers are available only on the official site. Self-hosted copies and the desktop app can use a connected key or local model.
 
-### This map
+**Turning it off.** _Options → Interface settings → Azgaar Assistant → Hide_ hides the call bubble. Nothing is sent when you do not ask a question.
 
-**This map** is the other tab, and it is the opposite arrangement: it uses **your** AI provider and **your** API key, and it does read the map you have open. The project runs no server for it and sees none of it.
+### With your own AI key
 
-**What is sent, and to whom.** Your messages go from your browser straight to the provider you choose in the panel's settings drawer — Anthropic, OpenAI, Mistral, Qwen, DeepSeek, or a local server such as Ollama that you run yourself. To answer a question the assistant writes small scripts that read the open map, and **what those scripts return travels back to that provider as part of the conversation**: burg names, state statistics, the text of a note, whatever the question needed. Treat it as you would pasting that material into any AI chat. Nothing goes to FMG, and a local server keeps everything on your own machine.
+When you connect your own key (Anthropic, OpenAI, Mistral, Qwen, DeepSeek) or a local model server, questions go **directly from your browser to that provider**, never through the project. The project never sees your questions, your map data or your key.
 
-**Your key.** It is stored in this browser's `localStorage`, one slot per provider, and is sent only to that provider. Clearing site data removes it.
+* **What is sent to the provider.** Your question and the earlier messages of the same chat; the Assistant's instructions, including a short summary of the open map (its name, seed and counts of states, burgs and so on); the note open in the notes editor and any text you have selected in it; and the results of scripts that read your map, which can include any data from the map. The provider handles all of it under its own terms and privacy policy.
+* **Your key** is kept in this browser's `localStorage` and sent only to its provider. It is shared with the AI text generator.
+* **Chats** are kept in this browser's IndexedDB with no automatic deletion, never in the `.map` file and never on an FMG server. Deleting a chat removes it; clearing site data removes them all.
+* **Costs.** Provider usage is billed by the provider to your account. The token count in the panel is an estimate; the provider's own dashboard is authoritative.
 
-**What it may change.** Notes, and only notes, through a single tool. It cannot edit anything else on the map. Every edit appears in the transcript with an **Undo** that puts the note back as it was, and the Generator's own save files are untouched until you save.
+## Risks
 
-**Chats.** Conversations are kept in this browser's `localStorage` so you can return to them, with the oldest dropped as the space fills. Each is tied to the map it was about. The drawer lists them and deletes them; the **New chat** button in the title bar starts a fresh one.
+Read this before connecting your own AI key.
 
-**Cost.** You pay your provider directly for what you send. The panel shows the tokens spent on the current chat, and a fresh chat costs less than a long one because every earlier turn is re-sent with each message.
+* **The Assistant runs code in this page.** To read your map, the model writes small JavaScript programs that run in the Generator with the same access as the app itself. They are meant to be read-only, but that is an instruction to the model, not a technical barrier.
+* **Maps from other people can carry hidden instructions.** Notes, names and legends in a `.map` file you downloaded are read by the model. Text written to manipulate it ("prompt injection") could make it run a script that sends data elsewhere — including the API keys stored in this browser. Only use the Assistant on maps from sources you trust, and use a key with a spending limit.
+* **Changes to your map.** The Assistant can propose rewriting notes, renaming entities, recoloring them and editing details such as burg population, full names and marker icons. Nothing changes until you press Apply on the proposal card, and an applied proposal has Undo while the map still holds what Apply wrote. Scripts that read the map could still change it despite the read-only instruction. Save your map before large edits: autosave and your own `.map` files are the safety net.
+* **Answers can be wrong.** Language models make mistakes, including confident ones about your map's numbers. Check anything that matters.
 
-**Turning it off.** _Options → Interface settings → Azgaar assistant → Hide_ removes the button and the panel. Nothing is sent from either tab when you do not ask a question, and This map sends nothing at all until you enter a key.
+## Disclaimer
+
+The Assistant, with or without a key, is an experimental convenience provided as is, without warranty of any kind. The project is not responsible for provider charges, for data you send to a provider you choose, for changes to your maps applied from the Assistant, or for the accuracy of its answers. Using your own key means you accept your provider's terms, and you are responsible for keeping the key secure and for any use made of it.
 
 ## Signing in with Discord
 
 Signing in raises your daily question allowance. It is optional; the Assistant works without it.
 
 * Sign-in is a redirect to Discord's own OAuth screen. FMG never sees your Discord password.
-* The gateway learns your Discord account id so it can count your questions against your own allowance.
+* The Azgaar server learns your Discord account id so it can count your questions against your own allowance.
 * A token is stored in this browser's `localStorage`. **Sign out** in the panel deletes it, on the server and here.
 
 ## Analytics

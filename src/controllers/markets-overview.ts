@@ -3,6 +3,7 @@ import {
   closeDialogs,
   confirmationDialog,
   destroyDialog,
+  noteIcon,
   refreshEditors,
   updateDialog
 } from "@/components/dialog/dialog-helpers";
@@ -16,7 +17,6 @@ import {
   type TableView
 } from "@/components/dialog/table";
 import { Layers } from "@/components/layers";
-import { Notes } from "@/components/notes";
 import type { FillBoxElement } from "@/components/shared/fill-box";
 import { clearMainTip, tip } from "@/components/tooltips";
 import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
@@ -26,7 +26,7 @@ import { downloadFile, getFileName } from "@/utils";
 import type { Burg } from "../generators/burgs-generator";
 import type { Deal, Market } from "../generators/markets-generator";
 import { highlightMarketOff, highlightMarketOn } from "../renderers/draw-markets";
-import { ensureEl, formatPrice, getPointer, rn } from "../utils";
+import { ensureEl, escapeHtml, formatPrice, getPointer, rn } from "../utils";
 
 const dialogId = "marketsOverview" as const;
 const position = { my: "right top", at: "right-10 top+10", of: "svg", collision: "fit" };
@@ -237,7 +237,7 @@ function renderMarketRow(
     <div data-col="sales" data-tip="Total gross sales revenue" class="marketSales">${format("sales", sales, true)}</div>
     <div data-col="buys" data-tip="Total purchase spending" class="marketBuysCol">${format("buys", buys, true)}</div>
     <div data-col="value" data-tip="Market value: net trading flow plus unsold inventory value minus tax" class="marketValue">${format("value", value, true)}</div>
-    ${Notes.getIcon("this market")}
+    ${noteIcon("this market")}
     <span data-col="remove" data-tip="Remove this market" class="icon-trash-empty hiddenIcon" style="visibility:hidden"></span>
   </div>`;
 }
@@ -335,7 +335,7 @@ function confirmRemoveMarket(marketId: number): void {
 
   confirmationDialog({
     title: "Remove Market",
-    message: `Are you sure you want to remove the market "${name}"?<br>This action cannot be reverted`,
+    message: `Are you sure you want to remove the market "${escapeHtml(name)}"?<br>This action cannot be reverted`,
     confirm: "Remove",
     onConfirm: () => {
       Markets.removeMarket(marketId);
@@ -351,7 +351,7 @@ function marketChangeFill(fillBox: FillBoxElement, marketId: number): void {
 
   const callback = (newFill: string) => {
     fillBox.fill = newFill;
-    market.color = newFill;
+    Markets.recolor(marketId, newFill);
     Layers.draw("markets");
   };
 

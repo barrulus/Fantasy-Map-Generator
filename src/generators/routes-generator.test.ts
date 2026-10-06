@@ -986,7 +986,7 @@ describe("RoutesModule.remove", () => {
     // asymmetric index: forward link 10->20 exists but cell 20 has no reverse entry
     globalThis.pack.cells.routes = { 10: { 20: 1 } } as any;
 
-    expect(() => Routes.remove(globalThis.pack.routes[0])).not.toThrow();
+    expect(() => Routes.remove(globalThis.pack.routes[0].i)).not.toThrow();
     expect(globalThis.pack.routes).toHaveLength(0);
     expect(globalThis.pack.cells.routes[10][20]).toBeUndefined();
   });
@@ -1019,7 +1019,7 @@ describe("RoutesModule.remove", () => {
     // asymmetric index: forward link 10->20 exists but cell 20 has no reverse entry
     globalThis.pack.cells.routes = { 10: { 20: 1 } } as any;
 
-    expect(() => Routes.remove(globalThis.pack.routes[0])).not.toThrow();
+    expect(() => Routes.remove(globalThis.pack.routes[0].i)).not.toThrow();
     expect(globalThis.pack.routes).toHaveLength(0);
     expect(globalThis.pack.cells.routes[10][20]).toBeUndefined();
   });
@@ -1067,4 +1067,25 @@ describe("ensureRouteGroupStyles before a map exists", () => {
     expect(() => Routes.ensureRouteGroupStyles()).not.toThrow();
     expect(Object.keys((globalThis as any).styles.routes.groups)).toEqual(["roads"]);
   });
+});
+
+it("creates an air route through the editing API without routing flying burgs over land", () => {
+  globalThis.pack = {
+    burgs: [0, { i: 1, cell: 1, x: 10, y: 20, flying: 1 }, { i: 2, cell: 2, x: 40, y: 50 }],
+    routes: [],
+    cells: { f: [0, 1, 1], routes: {} }
+  } as never;
+  const savedStyles = globalThis.styles;
+  globalThis.styles = { routes: { groups: { airroutes: {}, roads: {} } } } as never;
+  try {
+    const id = Routes.add(1, 2, "airroutes");
+    expect(pack.routes.find(route => route.i === id)?.points).toEqual([
+      [10, 20, 1],
+      [40, 50, 2]
+    ]);
+    expect(pack.cells.routes[1][2]).toBe(id);
+    expect(() => Routes.add(1, 2, "roads")).toThrow("Flying burgs require an air route");
+  } finally {
+    globalThis.styles = savedStyles;
+  }
 });

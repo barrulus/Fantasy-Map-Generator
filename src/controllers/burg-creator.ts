@@ -4,6 +4,7 @@ import { Layers } from "@/components/layers";
 import { stopMapPlacement, toggleMapPlacement } from "@/components/map-placement";
 import { tip } from "@/components/tooltips";
 import { redrawEmblem } from "@/renderers/draw-emblems";
+import { errorText } from "@/utils/stringUtils";
 
 function toggle(): void {
   if (isActive()) {
@@ -26,16 +27,13 @@ function toggle(): void {
 
 function addOnClick(event: MouseEvent): void {
   const point = pointer(event, event.currentTarget as SVGGElement);
-  const cell = Pack.findCell(point[0], point[1]);
-  if (cell === undefined) return;
-
-  if (pack.cells.h[cell] < 20) {
-    tip("You cannot place a burg in the water. Please click on a land cell", false, "error");
+  let burgId: number;
+  try {
+    burgId = Burgs.add(...point);
+  } catch (error) {
+    tip(errorText(error), false, "error");
     return;
   }
-  // Fork: multiple burgs may share a cell (megalopolis slots) — no occupied-cell rejection.
-
-  const burgId = Burgs.add(point);
   redrawEmblem("burg", burgId);
   refreshEditors();
   Layers.draw("burgIcons", "labels", "routes");
@@ -64,7 +62,9 @@ function toggleSky(): void {
 
 function addSkyOnClick(event: MouseEvent): void {
   const point = pointer(event, event.currentTarget as SVGGElement);
-  Burgs.add(point as [number, number], { flying: true } as any);
+  const burgId = Burgs.add(...point, { flying: true });
+  redrawEmblem("burg", burgId);
+  Layers.draw("burgIcons", "labels", "routes");
   refreshEditors();
 
   if (!event.shiftKey) stop();

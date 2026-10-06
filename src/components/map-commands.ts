@@ -36,20 +36,23 @@ export interface MapCommand {
   matches?: (query: string) => boolean; // queries the command answers beyond its name and aliases
 }
 
+/** Commands an Assistant answer may link: they only open a dialog, tab or chart */
+export const isLinkable = ({ id, name }: MapCommand): boolean => id !== "assistant" && /^(Open|Show|Edit) /.test(name);
+
 /** Ordered by priority: the omnibar breaks score ties by definition order */
 export const MAP_COMMANDS: MapCommand[] = [
   {
-    id: "helpAssistant",
-    name: "Ask AI: Azgaar Assistant",
+    id: "assistant",
+    name: "Open Azgaar Assistant",
     aliases: "help chat question ask faq support how why what ?",
     matches: isQuestion,
-    run: () => Controllers.HelpAssistant.open()
+    run: () => Controllers.Assistant.open()
   },
   {
     id: "openAiChatButton",
     name: "Ask AI: This Map",
     aliases: "assistant chat map notes ai",
-    run: () => Controllers.HelpAssistant.open({ mode: "map" })
+    run: () => Controllers.Assistant.open()
   },
   {
     id: "startTour",
@@ -63,6 +66,12 @@ export const MAP_COMMANDS: MapCommand[] = [
     name: "Save Map File",
     aliases: "save .map disk",
     run: () => Services.Save.toMachine()
+  },
+  {
+    id: "saveMapAs",
+    name: "Save Map As…",
+    aliases: "save as copy .map filename folder location backup",
+    run: () => Services.Save.toMachine(true)
   },
   {
     id: "loadFromFile",
@@ -81,7 +90,7 @@ export const MAP_COMMANDS: MapCommand[] = [
   { id: "loadFromURL", name: "Load Map from URL", aliases: "open link", run: () => loadURL() },
   { id: "saveButton", name: "Show Save Panel", aliases: "store dialog", run: () => showSavePane() },
   { id: "loadButton", name: "Load Map", aliases: "open dialog", run: () => showLoadPane() },
-  { id: "exportButton", name: "Export Map", aliases: "download image data dialog", run: () => showExportPane() },
+  { id: "exportButton", name: "Show Export Panel", aliases: "map download image data", run: () => showExportPane() },
   { id: "copyMapURL", name: "Copy Map URL", aliases: "seed link share clipboard", run: () => copyMapURL() },
   {
     id: "seedHistory",
@@ -132,10 +141,16 @@ export const MAP_COMMANDS: MapCommand[] = [
     run: () => Controllers.BiomesEditor.open()
   },
   {
+    id: "editReliefRules",
+    name: "Open Relief Rules Editor",
+    aliases: "terrain icons mountains hills trees biome rules",
+    run: () => Controllers.ReliefRulesEditor.open()
+  },
+  {
     id: "editDiplomacyButton",
-    name: "Open Diplomacy Editor",
+    name: "Open Diplomacy Overview",
     aliases: "relations allies wars",
-    run: () => Controllers.DiplomacyEditor.open()
+    run: () => Controllers.DiplomacyOverview.open()
   },
   {
     id: "overviewFeaturesButton",
@@ -366,7 +381,7 @@ export const MAP_COMMANDS: MapCommand[] = [
     id: "showRelationsHistory",
     name: "Show Relations History",
     aliases: "diplomacy chronicle wars",
-    run: () => Controllers.DiplomacyEditor.showHistory()
+    run: () => Controllers.DiplomacyOverview.showHistory()
   },
   {
     id: "regenerateStates",
@@ -576,7 +591,7 @@ export const MAP_COMMANDS: MapCommand[] = [
     id: "exportCsvRelations",
     name: "Export Relations as CSV",
     aliases: "download table diplomacy matrix",
-    run: () => Controllers.DiplomacyEditor.exportCsv()
+    run: () => Controllers.DiplomacyOverview.exportCsv()
   },
   {
     id: "exportCsvGoods",

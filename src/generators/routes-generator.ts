@@ -1,6 +1,7 @@
 import Alea from "alea";
 import { curveCatmullRom, line } from "d3";
 import Delaunator from "delaunator";
+import { requireName, requireOneOf } from "@/utils/validationUtils";
 import { distanceSquared, findPath, findPathTree, getAdjective, isLand, ra, rn, round, rw } from "../utils";
 import { buildAirRoutes } from "./air-routes-generator";
 import type { Burg } from "./burgs-generator";
@@ -313,6 +314,13 @@ type RouteBurgIndex = {
 };
 
 class RoutesModule {
+  /** Rename a route */
+  rename(routeId: number, name: string): void {
+    const route = pack.routes.find(({ i }) => i === routeId);
+    if (!route) throw new Error(`Route ${routeId} does not exist`);
+    route.name = requireName(name);
+  }
+
   buildLinks(routes: Route[]): Record<number, Record<number, number>> {
     const links: Record<number, Record<number, number>> = {};
 
@@ -1638,7 +1646,7 @@ class RoutesModule {
     TIME && console.time("rebuildAirroutes");
 
     for (const route of pack.routes.filter(r => r.group === "airroutes")) {
-      this.remove(route);
+      this.remove(route.i);
     }
 
     const skyPorts = pack.burgs.filter(b => b.i && !b.removed && b.skyPort);
@@ -1788,7 +1796,133 @@ class RoutesModule {
     return roadConnections.length > 2;
   }
 
-  remove(route: Route) {
+  /** Build a route between two burgs along the cheapest path: roads and trails by land, searoutes by water. Returns its id */
+  add(fromBurgId: number, toBurgId: number, group: string): number {
+    const groups = Object.keys(styles.routes.groups);
+    requireOneOf(group, groups, "The group");
+    const [from, to] = [fromBurgId, toBurgId].map(id => {
+      const burg = pack.burgs[id];
+      if (!id || !burg || burg.removed) throw new Error(`Burg ${id} does not exist`);
+      return burg;
+    });
+    if (from === to) throw new Error("A route connects two different burgs");
+
+    const isAir = group === "airroutes";
+    if (!isAir && (from.flying || to.flying)) throw new Error("Flying burgs require an air route");
+    const isWater = group === "searoutes";
+    const cells = isAir
+      ? [from.cell, to.cell]
+      : isWater
+        ? this.findWaterPath(from.cell, to.cell)
+        : findPath(
+            from.cell,
+            (next: number) => next === to.cell,
+            this.createCostEvaluator({ isWater: false, connections: new Set<number>() }),
+            pack
+          );
+    if (!cells) throw new Error(`There is no ${isWater ? "water" : "land"} path from burg ${from.i} to burg ${to.i}`);
+
+    const points = isAir
+      ? [
+          [from.x, from.y, from.cell],
+          [to.x, to.y, to.cell]
+        ]
+      : isWater
+        ? this.getWaterPoints(cells)
+        : this.getPoints(group, cells, this.preparePointsArray());
+    const i = this.getNextId();
+    const route: Route = { i, group, feature: pack.cells.f[from.cell], points };
+    route.name = this.generateName(route);
+    pack.routes.push(route);
+    const links = pack.cells.routes;
+    for (let index = 0; index < cells.length - 1; index++) {
+      const [a, b] = [cells[index], cells[index + 1]];
+      links[a] = { ...links[a], [b]: i };
+      links[b] = { ...links[b], [a]: i };
+    }
+    return i;
+  }
+
+  /** Move a route to another route group, such as roads, trails or searoutes */
+  setGroup(routeId: number, group: string): void {
+    this.living(routeId).group = requireOneOf(group, Object.keys(styles.routes.groups), "The group");
+  }
+
+  /** Lock a route so regeneration keeps it, or unlock it */
+  setLocked(routeId: number, locked: boolean): void {
+    const route = this.living(routeId);
+    if (locked) route.lock = true;
+    else delete route.lock;
+  }
+
+  /** Draw a route in a group through map points [x, y], each in the cell under it. Returns its id */
+  create(points: number[][], group: string): number {
+    requireOneOf(group, Object.keys(styles.routes.groups), "The group");
+    if (!Array.isArray(points) || points.length < 2) throw new Error("A route needs at least 2 points");
+    const routePoints = points.map(point => {
+      if (!Array.isArray(point)) throw new Error("A route point is [x, y]");
+      const [x, y] = point;
+      return [rn(x, 2), rn(y, 2), Pack.requireCell(x, y)];
+    });
+    const i = this.getNextId();
+    pack.routes.push({ i, group, feature: pack.cells.f[routePoints[0][2]], points: routePoints } as Route);
+    this.link(routePoints, i);
+    return i;
+  }
+
+  /** Split a route at one of its inner points: the route ends there and a new one of the same group goes on. Returns the new id */
+  split(routeId: number, pointIndex: number): number {
+    const route = this.living(routeId);
+    if (!Number.isInteger(pointIndex) || pointIndex < 1 || pointIndex > route.points.length - 2)
+      throw new Error(`Point ${pointIndex} is not an inner point of route ${routeId}; points are counted from 0`);
+    const tail = route.points.slice(pointIndex);
+    route.points = route.points.slice(0, pointIndex + 1);
+    const i = this.getNextId();
+    pack.routes.push({
+      i,
+      group: route.group,
+      type: route.type,
+      feature: route.feature,
+      name: route.name,
+      points: tail
+    } as Route);
+    this.link(tail, i);
+    return i;
+  }
+
+  /** Join a route of the same group that starts or ends where this one starts or ends; the other route is removed */
+  join(routeId: number, otherId: number): void {
+    const route = this.living(routeId);
+    const other = this.living(otherId);
+    if (route === other) throw new Error("A route cannot join itself");
+    if (route.group !== other.group) throw new Error(`Routes ${routeId} and ${otherId} are in different groups`);
+    const points = mergeRoutePoints(route.points, other.points);
+    if (!points) throw new Error(`Routes ${routeId} and ${otherId} share no endpoint`);
+    route.points = points;
+    this.link(points, route.i);
+    this.remove(otherId);
+  }
+
+  /** Connect consecutive points' cells in the cell links */
+  private link(points: number[][], routeId: number): void {
+    const links = pack.cells.routes;
+    for (let index = 0; index < points.length - 1; index++) {
+      const [a, b] = [points[index][2], points[index + 1][2]];
+      if (a === b) continue;
+      links[a] = { ...links[a], [b]: routeId };
+      links[b] = { ...links[b], [a]: routeId };
+    }
+  }
+
+  private living(routeId: number): Route {
+    const route = pack.routes.find(({ i }) => i === routeId);
+    if (!route) throw new Error(`Route ${routeId} does not exist`);
+    return route;
+  }
+
+  /** Remove a route and its cell connections */
+  remove(routeId: number) {
+    const route = this.living(routeId);
     const routes = pack.cells.routes;
 
     for (const point of route.points) {
@@ -1947,4 +2081,22 @@ declare global {
   var Routes: RoutesModule;
 }
 
-window.Routes = new RoutesModule();
+/** The points of two routes that share an endpoint, as one route; null when they share none */
+export function mergeRoutePoints(routePoints: number[][], joinedPoints: number[][]): number[][] | null {
+  if (!routePoints.length || !joinedPoints.length) return null;
+
+  const routeStart = routePoints.at(0)?.[2];
+  const routeEnd = routePoints.at(-1)?.[2];
+  const joinedStart = joinedPoints.at(0)?.[2];
+  const joinedEnd = joinedPoints.at(-1)?.[2];
+
+  if (routeEnd === joinedStart) return [...routePoints, ...joinedPoints.slice(1)];
+  if (routeStart === joinedEnd) return [...joinedPoints, ...routePoints.slice(1)];
+  if (routeStart === joinedStart) return [...[...routePoints].reverse(), ...joinedPoints.slice(1)];
+  if (routeEnd === joinedEnd) return [...routePoints, ...[...joinedPoints].reverse().slice(1)];
+  return null;
+}
+
+// biome-ignore lint/suspicious/noRedeclare: legacy seam
+export const Routes = new RoutesModule();
+window.Routes = Routes;

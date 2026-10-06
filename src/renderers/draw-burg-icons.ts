@@ -1,224 +1,163 @@
-import { select } from "d3";
+import { IconSets } from "@/components/icon-sets";
+import { Icons } from "@/components/icons";
 import { Layers } from "@/components/layers";
-import type { Burg } from "../generators/burgs-generator";
-import { COMPOSITE_ICON_SCALE, findMegalopolises, type Megalopolis, RING_ICON_SCALE } from "../generators/megalopolis";
+import { zoomFontSize } from "@/components/viewport";
+import type { Burg } from "@/generators/burgs-generator";
+import {
+  COMPOSITE_ICON_SCALE,
+  findMegalopolises,
+  MEGALOPOLIS_MIN_ZOOM,
+  MEGALOPOLIS_SPLIT_ZOOM,
+  type Megalopolis,
+  RING_ICON_SCALE
+} from "@/generators/megalopolis";
+import { ViewportLayers, type ViewportRenderContext } from "@/renderers/viewport/viewport-renderer";
+import type { StylesData } from "@/types/styles";
+import { rn } from "@/utils/numberUtils";
+import { escapeHtml } from "@/utils/stringUtils";
 import { groupMinZoom } from "./labeling/tier-table";
-import { ViewportLayers, type ViewportRenderContext } from "./viewport/viewport-renderer";
 
-declare global {
-  var drawBurgIcons: () => void;
-}
+const layer = ViewportLayers.register({ id: "burgIcons", render: reconcileBurgIcons });
 
-// Megalopolis membership is derived per full draw and reused by every viewport reconcile
-let megaMemberIds = new Set<number>();
-
-const burgIconsRenderer = (): void => {
+export async function drawBurgIcons(): Promise<void> {
   TIME && console.time("drawBurgIcons");
-  createIconGroups();
-
-  const megas = findMegalopolises(pack.burgs, pack.cells.burg);
-  megaMemberIds = new Set();
-  for (const m of megas.values()) for (const b of m.members) megaMemberIds.add(b.i);
-
-  // Composites are few and zoom-toggled by CSS display (zoom-extras), so they materialize once
-  // per draw; the per-burg member icons materialize per viewport in renderVisibleIcons.
-  for (const { name } of options.map.burgs.groups) {
-    const iconsGroup = document.querySelector<SVGGElement>(`#burgIcons > g#${name}`);
-    if (!iconsGroup) continue;
-
-    const composites = [...megas.values()].filter(m => m.anchor.group === name);
-    if (composites.length) iconsGroup.innerHTML = compositesMarkup(iconsGroup, composites);
-  }
-
-  ViewportLayers.renderNow();
+  const icons = Object.values(styles.burgIcons.groups).flatMap(({ groups }) => [
+    groups.icons.options.icon,
+    groups.anchors.options.icon
+  ]);
+  const referenced = icons.map(icon => icon && IconSets.setForId(icon)).filter(set => !!set);
+  await Icons.loadAll([...new Set([...Burgs.iconSets.map(set => set.id), ...referenced])]);
+  layer.render();
   TIME && console.timeEnd("drawBurgIcons");
-};
-
-function compositesMarkup(iconsGroup: SVGGElement, composites: Megalopolis[]): string {
-  const icon = iconsGroup.dataset.icon || "#icon-circle";
-  const size = parseFloat(getComputedStyle(iconsGroup).fontSize) || 2;
-  return composites
-    .map(m => {
-      const cSize = size * COMPOSITE_ICON_SCALE;
-      const half = cSize / 2;
-      return (
-        `<g class="megalopolis-composite" data-cell="${m.cell}" style="display:none">` +
-        `<use data-id="${m.anchor.i}" href="${icon}" x="${m.anchor.x}" y="${m.anchor.y}" width="${cSize}" height="${cSize}" transform="translate(${-half + size / 2},${-half + size / 2})"></use>` +
-        `<circle data-id="${m.anchor.i}" cx="${m.anchor.x}" cy="${m.anchor.y}" r="${(size * RING_ICON_SCALE) / 2}" fill="none" stroke="#fff" stroke-width="${size * 0.12}"></circle>` +
-        `</g>`
-      );
-    })
-    .join("");
 }
 
-/**
- * Materialize only the burg icons the viewport can show: anchor inside the (overscanned) bounds
- * and the group past its zoom gate. The gate is the label group's (per-map, user-editable in the
- * labels overview), so a burg's icon and label appear together; groups without a label group
- * (skyburgs, legacy shells) fall back to the tier table. Everything else stays out of the DOM
- * entirely, which is what keeps 100K-burg maps pannable; the removed WebGL layer achieved its
- * speed with exactly this culling, on the GPU.
- */
-function renderVisibleIcons(context: ViewportRenderContext): void {
+type BurgPart =
+  | StylesData["burgIcons"]["groups"][string]["groups"]["icons"]
+  | StylesData["burgIcons"]["groups"][string]["groups"]["anchors"];
+
+type Bounds = ViewportRenderContext["bounds"];
+
+function reconcileBurgIcons({ root, bounds }: ViewportRenderContext): void {
   if (!Layers.isOn("burgIcons")) return;
-  const { root, bounds } = context;
-  // ViewportLayers.renderTo (save/export clones) passes unbounded bounds: keep every icon there
+
+  const burgsByGroup = new Map<string, Burg[]>();
+  for (const burg of pack.burgs) {
+    if (!burg.i || burg.removed || !burg.group) continue;
+    const group = burgsByGroup.get(burg.group);
+    if (group) group.push(burg);
+    else burgsByGroup.set(burg.group, [burg]);
+  }
+
+  const container = root.querySelector<SVGGElement>("#burgIcons");
+  if (!container) return;
+
   const unbounded = bounds.x0 === -Infinity;
+  const composites = pack.cells?.burg ? [...findMegalopolises(pack.burgs, pack.cells.burg).values()] : [];
+  const memberIds = new Set(composites.flatMap(mega => mega.members.map(burg => burg.i)));
+  const compositeMode = !unbounded && bounds.scale < MEGALOPOLIS_SPLIT_ZOOM;
+  const stylesByGroup = styles.burgIcons.groups;
+  const fallback = stylesByGroup.town ?? Object.values(stylesByGroup)[0];
+  const markup: string[] = [];
 
-  for (const { name } of options.map.burgs.groups) {
-    const iconsGroup = root.querySelector<SVGGElement>(`#burgIcons > g#${CSS.escape(name)}`);
-    if (!iconsGroup) continue;
-
+  for (const { name } of [...options.map.burgs.groups].sort((a, b) => a.order - b.order)) {
+    const entry = stylesByGroup[name] ?? fallback;
+    if (!entry) continue;
+    const groupName = escapeHtml(name);
     const minZoom = options.map.labels.groups.find(group => group.name === name)?.zoom?.min ?? groupMinZoom(name);
-    const gatePassed = unbounded || options.app.labels.showAll || bounds.scale >= minZoom;
-    const visible = gatePassed
-      ? pack.burgs.filter(
-          b =>
-            b.group === name &&
-            !b.removed &&
-            (unbounded || (b.x >= bounds.x0 && b.x <= bounds.x1 && b.y >= bounds.y0 && b.y <= bounds.y1))
-        )
+    const visible = unbounded || options.app.labels.showAll || bounds.scale >= minZoom;
+    const burgs = visible
+      ? (burgsByGroup.get(name) ?? []).filter(burg => !compositeMode || !memberIds.has(burg.i))
       : [];
-
-    // Reconcile rather than rebuild: node identity must survive a no-op pass. The zoom-end
-    // render fires on a plain click's mouseup, and replacing the clicked node between
-    // mousedown and mouseup makes the browser swallow the click.
-    const icon = iconsGroup.dataset.icon || "#icon-circle";
-    const visibleIds = new Set(visible.map(b => `burg${b.i}`));
-    for (const use of iconsGroup.querySelectorAll(":scope > use")) {
-      if (!visibleIds.has(use.id)) use.remove();
+    markup.push(`<g id="${groupName}" data-group="${groupName}">`);
+    markup.push(part("icons", entry.groups.icons, burgs, bounds, false));
+    markup.push(part("anchors", entry.groups.anchors, burgs, bounds, true));
+    if (compositeMode && bounds.scale >= MEGALOPOLIS_MIN_ZOOM) {
+      for (const mega of composites.filter(mega => mega.anchor.group === name))
+        markup.push(composite(mega, entry.groups.icons, bounds));
     }
-    const missing = visible.filter(b => !iconsGroup.querySelector(`:scope > #burg${b.i}`));
-    if (missing.length) {
-      iconsGroup.insertAdjacentHTML(
-        "afterbegin",
-        missing
-          .map(
-            b =>
-              `<use id="burg${b.i}" data-id="${b.i}" href="${icon}" x="${b.x}" y="${b.y}"${megaMemberIds.has(b.i!) ? ' class="megalopolis-member"' : ""}></use>`
-          )
-          .join("")
-      );
-    }
-
-    const portGroup = root.querySelector<SVGGElement>(`#anchors > g#${CSS.escape(name)}`);
-    if (!portGroup) continue;
-    const anchor = anchorPlacement(name);
-    const ports = visible.filter(b => b.port);
-    const portIds = new Set(ports.map(b => `anchor${b.i}`));
-    for (const use of portGroup.querySelectorAll(":scope > use")) {
-      if (!portIds.has(use.id)) use.remove();
-    }
-    const missingPorts = ports.filter(b => !portGroup.querySelector(`:scope > #anchor${b.i}`));
-    if (missingPorts.length) {
-      portGroup.insertAdjacentHTML(
-        "afterbegin",
-        missingPorts
-          .map(
-            b =>
-              `<use id="anchor${b.i}" data-id="${b.i}" href="${anchor.icon}" x="${b.x + anchor.dx}" y="${b.y + anchor.dy}"></use>`
-          )
-          .join("")
-      );
-    }
+    markup.push("</g>");
   }
+
+  const next = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  next.innerHTML = markup.join("");
+  reconcileChildren(container, next);
 }
 
-ViewportLayers.register({ id: "fork-burg-icons", render: renderVisibleIcons });
+/** One part of a burg group — the icons or the anchors — as its own data-group element */
+function part(name: "icons" | "anchors", style: BurgPart, burgs: Burg[], bounds: Bounds, anchors: boolean): string {
+  const id = style.options.icon;
+  const icon = escapeHtml(Icons.href(id));
+  // anchored art stands on the burg by its own frame; any other icon is a 1em box centred on it
+  const [boxX, boxY, boxWidth, boxHeight] = Icons.anchoredBox(id) ?? [-0.5, -0.5, 1, 1];
+  const size = style.options.size ?? 1;
+  const shift = anchors ? (style.options as { dx?: number; dy?: number }) : undefined;
+  const shiftX = shift?.dx ?? 0;
+  const shiftY = shift?.dy ?? 0;
 
-const drawBurgIconRenderer = (burg: Burg): void => {
-  const iconGroup = select("#burgIcons").select<SVGGElement>(`#${burg.group}`);
-  if (iconGroup.empty()) {
-    drawBurgIcons();
-    return; // redraw all icons if group is missing
+  const attrs: string[] = [];
+  for (const [key, value] of Object.entries(style.attrs)) {
+    if (value !== null && value !== undefined) attrs.push(` ${key}="${escapeHtml(String(value))}"`);
+  }
+  // The box and the shift are in icon em, so they stay true to the icon as the zoom resizes it
+  const [translateX, translateY] = [rn(shiftX + boxX, 4), rn(shiftY + boxY, 4)];
+  if (translateX || translateY) attrs.push(` style="transform: translate(${translateX}em, ${translateY}em)"`);
+
+  // An icon is sized in % of the layer font, so it follows the zoom on the burg icons curve
+  const markup = [`<g data-group="${name}" data-icon="${escapeHtml(id)}"${attrs.join("")} font-size="${size}%">`];
+  const em = (size * zoomFontSize("burgIcons", bounds.scale)) / 100; // the icon em in map units at this zoom
+  // Symbols overflow their viewBox; the tallest burg artwork reaches two em above its anchor.
+  const padding = 2 * (Math.abs(em) + (style.attrs["stroke-width"] ?? 0));
+
+  for (const { i, x, y, port } of burgs) {
+    if (!id || (anchors && !port)) continue;
+    const cx = x + shiftX * em;
+    const cy = y + shiftY * em;
+    if (cx + padding < bounds.x0 || cx - padding > bounds.x1 || cy + padding < bounds.y0 || cy - padding > bounds.y1)
+      continue;
+    markup.push(
+      `<use id="${anchors ? "anchor" : "burg"}${i}" data-id="${i}" href="${icon}" x="${x}" y="${y}" width="${rn(boxWidth, 4)}em" height="${rn(boxHeight, 4)}em"/>`
+    );
   }
 
-  removeBurgIconRenderer(burg.i!);
-  const icon = iconGroup.attr("data-icon") || "#icon-circle";
-  select("#burgIcons")
-    .select(`#${burg.group}`)
-    .append("use")
-    .attr("href", icon)
-    .attr("id", `burg${burg.i}`)
-    .attr("data-id", burg.i!)
-    .attr("x", burg.x)
-    .attr("y", burg.y);
-
-  if (burg.port) {
-    const anchor = anchorPlacement(burg.group ?? "");
-    select("#anchors")
-      .select(`#${burg.group}`)
-      .append("use")
-      .attr("href", anchor.icon)
-      .attr("id", `anchor${burg.i}`)
-      .attr("data-id", burg.i!)
-      .attr("x", burg.x + anchor.dx)
-      .attr("y", burg.y + anchor.dy);
-  }
-};
-
-const removeBurgIconRenderer = (burgId: number): void => {
-  const existingIcon = document.getElementById(`burg${burgId}`);
-  if (existingIcon) existingIcon.remove();
-
-  const existingAnchor = document.getElementById(`anchor${burgId}`);
-  if (existingAnchor) existingAnchor.remove();
-};
-
-/** drop the icons, keeping the burg groups: they carry the styles edited in the Style editor */
-export const removeBurgIcons = (): void => {
-  for (const icon of Array.from(document.querySelectorAll("#icons use, #icons circle"))) icon.remove();
-};
-
-// anchors follow their group's style: icon, and an offset scaled by the icon size
-function anchorPlacement(group: string): { icon: string; dx: number; dy: number } {
-  const { groups } = styles.burgIcons.anchors;
-  const style = groups[group] || groups.town || Object.values(groups)[0];
-  const size = style?.options.size ?? 1;
-  return {
-    icon: style?.options.icon || "#icon-anchor",
-    dx: (style?.options.dx ?? 0) * size,
-    dy: (style?.options.dy ?? 0) * size
-  };
+  markup.push("</g>");
+  return markup.join("");
 }
 
-function createIconGroups(): void {
-  // the store is authoritative (the style editor writes it); groups fully recreate from it
-  const { burgIcons, anchors } = styles.burgIcons;
-  for (const group of document.querySelectorAll("g#burgIcons > g")) group.remove();
-  for (const group of document.querySelectorAll("g#anchors > g")) group.remove();
-
-  // create groups for each burg group and apply stored or default style
-  const defaultIconStyle = burgIcons.groups.town || Object.values(burgIcons.groups)[0];
-  const defaultAnchorStyle = anchors.groups.town || Object.values(anchors.groups)[0];
-  const sortedGroups = [...options.map.burgs.groups].sort((a, b) => a.order - b.order);
-  for (const { name } of sortedGroups) {
-    const burgGroup = select("#burgIcons").append("g");
-    const iconStyle = burgIcons.groups[name] || defaultIconStyle;
-    if (iconStyle) {
-      for (const [key, value] of Object.entries(iconStyle.attrs)) burgGroup.attr(key, value);
-      burgGroup.attr("font-size", iconStyle.options.size).attr("data-icon", iconStyle.options.icon);
-    }
-    burgGroup.attr("id", name).attr("data-group", name);
-
-    const anchorGroup = select("#anchors").append("g");
-    const anchorStyle = anchors.groups[name] || defaultAnchorStyle;
-    if (anchorStyle) {
-      for (const [key, value] of Object.entries(anchorStyle.attrs)) anchorGroup.attr(key, value);
-      anchorGroup
-        .attr("font-size", anchorStyle.options.size)
-        .attr("data-icon", anchorStyle.options.icon || "#icon-anchor");
-    }
-    anchorGroup.attr("id", name).attr("data-group", name);
-  }
+function composite(mega: Megalopolis, style: BurgPart, bounds: Bounds): string {
+  const { x, y, i } = mega.anchor;
+  const em = ((style.options.size ?? 1) * zoomFontSize("burgIcons", bounds.scale)) / 100;
+  const radius = (em * RING_ICON_SCALE) / 2;
+  if (x + radius < bounds.x0 || x - radius > bounds.x1 || y + radius < bounds.y0 || y - radius > bounds.y1) return "";
+  const [bx, by, width, height] = Icons.anchoredBox(style.options.icon) ?? [-0.5, -0.5, 1, 1];
+  const size = em * COMPOSITE_ICON_SCALE;
+  const attrs = Object.entries(style.attrs)
+    .filter(([, value]) => value !== null && value !== undefined)
+    .map(([key, value]) => ` ${key}="${escapeHtml(String(value))}"`)
+    .join("");
+  return `<g class="megalopolis-composite" data-cell="${mega.cell}"${attrs}>
+    <use data-id="${i}" href="${escapeHtml(Icons.href(style.options.icon))}" x="${x + bx * size}" y="${y + by * size}" width="${width * size}" height="${height * size}"/>
+    <circle data-id="${i}" cx="${x}" cy="${y}" r="${radius}" fill="none" stroke="#fff" stroke-width="${em * 0.12}"/>
+  </g>`;
 }
 
-window.drawBurgIcons = burgIconsRenderer;
-
-export { drawBurgIconRenderer as drawBurgIcon, removeBurgIconRenderer as removeBurgIcon };
-
-// burgs-generator still draws icons directly; it cannot import upwards, so the bridge stays
-window.drawBurgIcon = drawBurgIconRenderer;
-window.removeBurgIcon = removeBurgIconRenderer;
-
-export { burgIconsRenderer as drawBurgIcons };
+// Keep keyed icons alive through zoom reconciliation so a click's target does not disappear.
+function reconcileChildren(current: Element, next: Element): void {
+  const key = (element: Element, index: number): string =>
+    element.id || element.getAttribute("data-group") || element.getAttribute("data-cell") || `child-${index}`;
+  const existing = new Map(Array.from(current.children, (child, index) => [key(child, index), child]));
+  for (const [index, candidate] of Array.from(next.children).entries()) {
+    const id = key(candidate, index);
+    const previous = existing.get(id);
+    const child = previous?.tagName === candidate.tagName ? previous : candidate;
+    if (child === previous) {
+      for (const attr of Array.from(child.attributes))
+        if (!candidate.hasAttribute(attr.name)) child.removeAttribute(attr.name);
+      for (const attr of Array.from(candidate.attributes))
+        if (child.getAttribute(attr.name) !== attr.value) child.setAttribute(attr.name, attr.value);
+      reconcileChildren(child, candidate);
+      existing.delete(id);
+    }
+    if (current.children[index] !== child) current.insertBefore(child, current.children[index] ?? null);
+  }
+  for (const child of existing.values()) child.remove();
+}
