@@ -9,7 +9,7 @@ const box = (x: number, y: number, w: number, h: number) => [
   { x, y: y + h }
 ];
 describe("bounded water coordinate packing", () => {
-  it("shortens numeric tails within a nanometre-scale budget without mutating source", () => {
+  it("shortens numeric tails within a ten-micrometre budget without mutating source", () => {
     const source = [box(0.123456789123, 10.0123456789, 100, 100)],
       before = structuredClone(source),
       packed = packWaterCoordinates(source);
@@ -20,12 +20,12 @@ describe("bounded water coordinate packing", () => {
         WATER_COORDINATE_ERROR_M
       );
   });
-  it("retains exact geometry if rounding would close a narrow channel", () => {
-    const source = [box(0, 0, 10, 100), box(10 + 1e-10, 0, 10, 100)];
+  it.each([1e-10, 1e-6])("retains exact geometry if rounding would close a %sm channel", width => {
+    const source = [box(0, 0, 10, 100), box(10 + width, 0, 10, 100)];
     expect(packWaterCoordinates(source)).toBe(source);
   });
-  it("retains thin rings rather than collapsing them", () => {
-    const source = [box(0, 0, 1e-10, 100)];
+  it.each([1e-10, 1e-6])("retains %sm thin rings rather than collapsing them", width => {
+    const source = [box(0, 0, width, 100)];
     expect(packWaterCoordinates(source)).toBe(source);
   });
   it("keeps microscopic source edges while compacting unrelated vertices", () => {

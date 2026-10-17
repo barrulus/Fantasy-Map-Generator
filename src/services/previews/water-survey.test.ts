@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { closestPoint } from "@/utils/shoreline-geometry";
 import type { WaterPoint as Point } from "./water-context-types";
+import { WATER_COORDINATE_ERROR_M } from "./water-coordinate-pack";
 import type { SurveyBoundary } from "./water-survey";
 import { WaterSurveyIndex } from "./water-survey";
 
@@ -89,7 +90,9 @@ describe("measured water survey", () => {
         return Math.hypot(q.x, q.y);
       })
     );
-    expect(Math.min(...distances)).toBeCloseTo(result.waterContext.bodies[0].distanceM, 6);
+    expect(Math.abs(Math.min(...distances) - result.waterContext.bodies[0].distanceM)).toBeLessThanOrEqual(
+      WATER_COORDINATE_ERROR_M
+    );
   });
 
   it("does not invent a shoreline on the crop when the burg is inside a large lake", () => {

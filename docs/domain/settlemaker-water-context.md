@@ -52,7 +52,7 @@ budget; it never silently replaces measured geometry with a bearing.
 - Convert map coordinates once using the selected distance unit. Flatten curves
   adaptively within 0.2 m; report a conservative combined `geometryErrorM` of
   0.5 m. Pack adjacent fill pieces without filling islands or closing channels;
-  remove collinear arithmetic noise and shorten coordinate tails to eight decimal
+  remove collinear arithmetic noise and shorten coordinate tails to five decimal
   metres only when edge contacts, crossings and rings remain unchanged. Reserve
   the rounding error within the geometry budget and retain full precision when
   those checks fail. Reject ambiguous narrow or crossing curved shores instead

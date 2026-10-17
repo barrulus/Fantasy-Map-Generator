@@ -1,6 +1,6 @@
 import type { WaterPoint as Point } from "./water-context-types";
 
-export const WATER_COORDINATE_ERROR_M = 1e-8;
+export const WATER_COORDINATE_ERROR_M = 1e-5;
 const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
 const orient = (a: Point, b: Point, c: Point) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
 const on = (p: Point, a: Point, b: Point) =>
@@ -44,7 +44,7 @@ function containment(point: Point, ring: Point[]): number {
 
 /** Shorten arithmetic tails while retaining sensitive vertices at their original precision. */
 export function packWaterCoordinates(polygons: Point[][]): Point[][] {
-  const rounded = polygons.map(ring => ring.map(p => ({ x: Number(p.x.toFixed(8)), y: Number(p.y.toFixed(8)) })));
+  const rounded = polygons.map(ring => ring.map(p => ({ x: Number(p.x.toFixed(5)), y: Number(p.y.toFixed(5)) })));
   const edges = polygons.flatMap((ring, r) =>
     ring.map((a, i) => ({ r, i, j: (i + 1) % ring.length, a, b: ring[(i + 1) % ring.length] }))
   );
