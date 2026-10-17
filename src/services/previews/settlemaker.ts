@@ -1,6 +1,6 @@
 import type { BurgContext, Corridor } from "@/generators/burg-context";
 import { hashSeedToInt } from "@/generators/burg-context";
-import type { WaterContext, WaterSurvey } from "./water-context-types";
+import type { RiverSurvey, WaterContext, WaterSurvey } from "./water-context-types";
 
 type LandRouteClass = "royal" | "main" | "market" | "town" | "local" | "trail" | "footpath";
 
@@ -31,9 +31,12 @@ export interface AzgaarBurgInput {
   roadBearings?: SettlemakerRoadBearing[];
   oceanBearing?: number;
   harbourSize?: "large" | "small";
+  harbourWaterKind?: "ocean" | "lake" | "river";
+  harbourRiverId?: string;
   urbanDensity?: number;
   coreCapacity?: number;
   coastlineGeometry?: Array<Array<{ x: number; y: number }>>;
+  rivers?: RiverSurvey[];
   waterContext?: WaterContext;
   biome?: string;
   trade?: boolean;
@@ -60,7 +63,12 @@ export const LAND_ROUTE_KINDS: Record<string, "main" | "trail"> = { roads: "main
  */
 export function toSettlemakerInput(
   ctx: BurgContext,
-  opts: { urbanDensity?: number; trade?: boolean }
+  opts: {
+    urbanDensity?: number;
+    trade?: boolean;
+    harbourWaterKind?: AzgaarBurgInput["harbourWaterKind"];
+    harbourRiverId?: string;
+  }
 ): AzgaarBurgInput {
   const { burg, hydrology, terrain, climate } = ctx;
 
@@ -95,6 +103,8 @@ export function toSettlemakerInput(
 
   if (hydrology.oceanBearingDeg !== undefined) input.oceanBearing = hydrology.oceanBearingDeg;
   if (burg.port && hydrology.harbourSize) input.harbourSize = hydrology.harbourSize;
+  if (burg.port && opts.harbourWaterKind) input.harbourWaterKind = opts.harbourWaterKind;
+  if (burg.port && opts.harbourWaterKind === "river" && opts.harbourRiverId) input.harbourRiverId = opts.harbourRiverId;
   if (climate.biome) input.biome = climate.biome;
   if (burg.culture) input.culture = burg.culture;
   input.elevation = terrain.elevationM;
@@ -122,12 +132,19 @@ export async function encodeJsonParam(value: unknown): Promise<string> {
 
 export async function buildSettlemakerUrl(
   ctx: BurgContext,
-  opts: { urbanDensity?: number; trade?: boolean; waterSurvey?: WaterSurvey; baseUrl?: string }
+  opts: {
+    urbanDensity?: number;
+    trade?: boolean;
+    harbourWaterKind?: AzgaarBurgInput["harbourWaterKind"];
+    harbourRiverId?: string;
+    waterSurvey?: WaterSurvey;
+    baseUrl?: string;
+  }
 ): Promise<{ link: string; preview: string }> {
   const input = toSettlemakerInput(ctx, opts);
   if (opts.waterSurvey) {
-    if (ctx.burg.population < 1 || ctx.burg.population > 1000)
-      throw new Error("Measured water is supported only for villages");
+    if (!Number.isFinite(ctx.burg.population) || ctx.burg.population < 1)
+      throw new Error("Measured water requires a positive settlement population");
     Object.assign(input, opts.waterSurvey);
   }
   const seed = hashSeedToInt(ctx.burg.seedKey);
