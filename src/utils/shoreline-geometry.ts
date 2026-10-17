@@ -93,10 +93,10 @@ export function parseShorePath(path: string, feature: number): ShoreCurve[] {
 export function flattenCurve(
   points: Point[],
   tolerance: number,
-  onPoint?: (point: Point, parameter: number) => void
+  onPoint?: (point: Point, parameter: number, controls: Point[]) => void
 ): Point[] {
   const result: Point[] = [points[0]];
-  onPoint?.(points[0], 0);
+  onPoint?.(points[0], 0, [points[0]]);
   function split(p: Point[], depth: number, from: number, to: number) {
     const a = p[0],
       b = p.at(-1)!;
@@ -118,7 +118,7 @@ export function flattenCurve(
       });
     if (flat) {
       result.push(b);
-      onPoint?.(b, to);
+      onPoint?.(b, to, p);
       return;
     }
     if (depth === 24) throw new Error("Shoreline exceeds the measured preview precision limit");

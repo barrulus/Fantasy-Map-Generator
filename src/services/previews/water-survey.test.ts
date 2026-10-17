@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { closestPoint } from "@/utils/shoreline-geometry";
 import type { WaterPoint as Point } from "./water-context-types";
+import { WATER_COORDINATE_ERROR_M } from "./water-coordinate-pack";
 import type { SurveyBoundary } from "./water-survey";
 import { WaterSurveyIndex } from "./water-survey";
 
@@ -89,7 +90,9 @@ describe("measured water survey", () => {
         return Math.hypot(q.x, q.y);
       })
     );
-    expect(Math.min(...distances)).toBeCloseTo(result.waterContext.bodies[0].distanceM, 6);
+    expect(Math.abs(Math.min(...distances) - result.waterContext.bodies[0].distanceM)).toBeLessThanOrEqual(
+      WATER_COORDINATE_ERROR_M
+    );
   });
 
   it("does not invent a shoreline on the crop when the burg is inside a large lake", () => {
@@ -122,11 +125,62 @@ describe("measured water survey", () => {
     expect(neck.coastlineGeometry.some(poly => inside({ x: 40 + width / 2, y: 0 }, poly))).toBe(false);
   });
 
+  it("preserves a curved acute coastal tip whose adjoining edges do not overlap", () => {
+    const result = survey([
+      {
+        id: 1,
+        kind: "island",
+        path: "M-2462.29632,289.68192L-48.28032,-193.12128L3000,-3000H-3000V-3000C-2000,0 -2000,100 -2462.29632,289.68192Z"
+      }
+    ]);
+    expect(result.waterContext.status).toBe("measured");
+    expect(result.coastlineGeometry.length).toBeGreaterThan(0);
+    const wet = (p: Point) => result.coastlineGeometry.some(poly => inside(p, poly));
+    expect(wet({ x: -2400, y: 274 })).toBe(false);
+    expect(wet({ x: -2400, y: 280 })).toBe(true);
+  });
+
+  it("preserves a transverse curved self-intersection using the saved path fill", () => {
+    const result = survey([
+      { id: 1, kind: "island", path: "M-100,-100C-50,-50 50,50 100,100H-100C-50,50 50,-50 100,-100Z" }
+    ]);
+    const wet = (p: Point) => result.coastlineGeometry.some(poly => inside(p, poly));
+    expect(wet({ x: 0, y: 80 })).toBe(false);
+    expect(wet({ x: 0, y: -80 })).toBe(false);
+    expect(wet({ x: 80, y: 0 })).toBe(true);
+    expect(result.waterContext.geometryErrorM).toBe(0.5);
+  });
+
+  it("preserves a certified curved endpoint contact on a straight boundary", () => {
+    const result = survey([{ id: 1, kind: "island", path: "M-100,0H100V100Q0,0 0,0Q0,100 -100,100Z" }]);
+    expect(result.waterContext.status).toBe("measured");
+    const wet = (p: Point) => result.coastlineGeometry.some(poly => inside(p, poly));
+    expect(wet({ x: -80, y: 20 })).toBe(false);
+    expect(wet({ x: 80, y: 20 })).toBe(false);
+    expect(wet({ x: 0, y: 20 })).toBe(true);
+  });
+
+  it("does not collapse a curved sliver onto a straight boundary with the same endpoints", () => {
+    expect(() => survey([{ id: 1, kind: "island", path: "M0,0H10Q5,.1 0,0Z" }])).toThrow("cannot preserve");
+  });
+
+  it("rejects hidden crossings at an acute shared endpoint even when the chords separate", () => {
+    expect(() => survey([{ id: 1, kind: "island", path: "M0,0Q0,.2 10,0L10,1Q.1,-.15 0,0Z" }])).toThrow(
+      "cannot preserve"
+    );
+  });
+
+  it("rejects a curved crossing whose shallow angle exceeds the intersection error budget", () => {
+    expect(() =>
+      survey([{ id: 1, kind: "island", path: "M-100,-1C-50,-.6 50,.6 100,1H-100C-50,.6 50,-.6 100,-1Z" }])
+    ).toThrow("cannot preserve");
+  });
+
   it("rejects ambiguous curved channels instead of changing their topology", () => {
     expect(() =>
       survey([
         { id: 1, kind: "island", path: "M-50000,-50000H40V-100Q40.1,0 40,100V50000H-50000Z" },
-        { id: 2, kind: "island", path: rectangle(40.15, -50000, 50000, 50000) }
+        { id: 2, kind: "island", path: rectangle(40.05, -50000, 50000, 50000) }
       ])
     ).toThrow("cannot preserve");
     expect(() => survey([land(50000), { id: 2, kind: "lake", path: "M40,0C40.1,.1 39.9,.1 40,0Z" }])).toThrow(

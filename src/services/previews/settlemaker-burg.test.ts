@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/generators/burg-context", () => ({ buildBurgContext: mocks.context }));
 vi.mock("./burg-water-survey", () => ({ surveyBurgWater: mocks.survey }));
-vi.mock("./settlemaker", () => ({ buildSettlemakerUrl: mocks.url }));
+vi.mock("./settlemaker", () => ({
+  buildSettlemakerUrl: mocks.url,
+  SETTLEMAKER_BASE_URL: "https://settlemaker.com/fmg"
+}));
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -30,10 +33,26 @@ async function preview(population: number, endpoint?: string, surveyRadiusM?: nu
 }
 
 describe("measured-water rollout", () => {
-  it("keeps current production payloads unchanged until a supporting endpoint is configured", async () => {
-    await preview(10);
-    expect(mocks.survey).not.toHaveBeenCalled();
-    expect(mocks.url.mock.calls[0][1]).toEqual({ urbanDensity: 8, trade: true });
+  it.each([
+    [10, 3000],
+    [1000, 3000],
+    [16973, 4000],
+    [173976, 8000]
+  ])("exports measured water by default for population %s", async (population, radius) => {
+    await preview(population);
+    expect(mocks.survey).toHaveBeenCalledWith(expect.anything(), [], radius);
+    expect(mocks.url.mock.calls[0][1]).toMatchObject({
+      urbanDensity: 8,
+      trade: true,
+      baseUrl: "https://settlemaker.com/fmg",
+      waterSurvey: { waterContext: { version: 1 } }
+    });
+  });
+
+  it("uses measured production water when the endpoint override is empty", async () => {
+    await preview(173976, "");
+    expect(mocks.survey).toHaveBeenCalledOnce();
+    expect(mocks.url.mock.calls[0][1]).toHaveProperty("baseUrl", "https://settlemaker.com/fmg");
   });
 
   it("enables the versioned survey through the configured renderer for population 1000", async () => {
@@ -45,15 +64,17 @@ describe("measured-water rollout", () => {
     });
   });
 
-  it.each([1001, 16973, 100000])(
-    "surveys cities of population %s through the configured renderer",
-    async population => {
-      const result = await preview(population, "https://water.example/fmg");
-      expect(mocks.survey).toHaveBeenCalledWith(expect.objectContaining({ x: 10, y: 20 }), [], 4000);
-      expect(mocks.url.mock.calls[0][1]).toHaveProperty("baseUrl", "https://water.example/fmg");
-      expect(result.link).toBe(result.preview);
-    }
-  );
+  it.each([
+    [1001, 4000],
+    [16973, 4000],
+    [100000, 7000],
+    [500000, 13000]
+  ])("surveys cities of population %s through the configured renderer", async (population, radius) => {
+    const result = await preview(population, "https://water.example/fmg");
+    expect(mocks.survey).toHaveBeenCalledWith(expect.objectContaining({ x: 10, y: 20 }), [], radius);
+    expect(mocks.url.mock.calls[0][1]).toHaveProperty("baseUrl", "https://water.example/fmg");
+    expect(result.link).toBe(result.preview);
+  });
 
   it("accepts an explicit survey radius when the renderer requests more coverage", async () => {
     await preview(16973, "https://water.example/fmg", 7000);
@@ -88,7 +109,7 @@ describe("measured-water rollout", () => {
 
 describe("harbour water body", () => {
   it.each(["river", "lake", "ocean"] as const)("exports the intended river ID only for a %s port", async kind => {
-    await preview(9987, "http://127.0.0.1:5228/fmg");
+    await preview(9987);
     vi.stubGlobal("pack", {
       cells: { haven: [1], harbor: [kind === "river" ? 0 : 1], f: [0, 2], r: [653] },
       features: [{}, { type: "ocean" }, { type: kind }]
