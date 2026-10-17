@@ -1,15 +1,15 @@
 # Settlemaker measured settlement water
 
 FMG implements the sender side of Settlemaker's `water-context-v1` contract
-(`settlemaker/docs/water-context-v1.md`, revision `8ebc23a`). The renderer must
-implement that contract before this mode is enabled.
+(`settlemaker/docs/water-context-v1.md`). The production renderer supports this
+contract for both villages and cities.
 
 ## Rollout
 
-`VITE_SETTLEMAKER_WATER_CONTEXT_URL` is a build-time opt-in. Leave it unset for
-normal production builds until a deployed Settlemaker release explicitly supports
-water-context v1 for both villages and cities. An old decoder ignores the new field and can still
-invent a nearby shore from the legacy bearing.
+Normal builds export measured water to `https://settlemaker.com/fmg` by default.
+`VITE_SETTLEMAKER_WATER_CONTEXT_URL` is an optional build-time endpoint override,
+not an enable switch. An unset or empty override uses the production endpoint.
+This prevents river ports from being exported as ocean-bearing-only previews.
 
 To exercise a supporting local renderer:
 
@@ -18,14 +18,16 @@ VITE_SETTLEMAKER_WATER_CONTEXT_URL=http://127.0.0.1:5173/fmg npm run dev
 ```
 
 Production endpoints must use HTTPS and the `/fmg` path, without a query or
-fragment. Pin the supporting renderer release in the deployment and configure
-its endpoint when building FMG. This option routes both embedded and external
-settlement previews to the same URL. Every positive population uses the measured
-contract when enabled, including cities. Leaving the endpoint unset retains the
-existing production integration.
+fragment. Any custom endpoint must support water-context v1 for both villages
+and cities. Both embedded and external settlement previews use the same URL,
+and every positive population uses the measured contract. Previously saved
+bearing-only URLs cannot recover river geometry; reopen the burg preview from
+the source map to create a new URL.
 
-Villages initially survey 3 km; cities initially survey 4 km. These are starting
-coverage envelopes, not guarantees of sufficient land for every settlement.
+Villages initially survey 3 km. Cities start at 4 km and scale with population
+to cover their cultivated envelope and navigation margin (8 km for Erdemeli's
+173,976 residents, 13 km for 500,000). These are starting coverage estimates,
+not guarantees of sufficient land for every settlement.
 Set `VITE_SETTLEMAKER_WATER_SURVEY_RADIUS_M=6000` to request a larger envelope for
 a deployment, or pass `{surveyRadiusM: 6000}` as the second argument to
 `createSettlemakerPreview` for an individual request. The explicit request takes
@@ -49,8 +51,12 @@ budget; it never silently replaces measured geometry with a bearing.
   coastline edits and coastline settings invalidate the geometry cache/index.
 - Convert map coordinates once using the selected distance unit. Flatten curves
   adaptively within 0.2 m; report a conservative combined `geometryErrorM` of
-  0.5 m. Do not round or simplify exported coordinates. Reject ambiguous narrow
-  or crossing curved shores instead of silently changing local topology.
+  0.5 m. Pack adjacent fill pieces without filling islands or closing channels;
+  remove collinear arithmetic noise and shorten coordinate tails to eight decimal
+  metres only when edge contacts, crossings and rings remain unchanged. Reserve
+  the rounding error within the geometry budget and retain full precision when
+  those checks fail. Reject ambiguous narrow or crossing curved shores instead
+  of silently changing local topology.
 - Measure exposed real shores from the same flattened boundary that supplies
   the polygons. Shared piece edges and survey-square closures are not banks.
   If real shores lie beyond coverage, search the canonical full boundary.
@@ -106,8 +112,8 @@ automatic simplification or resurvey in this implementation.
 Settlemaker owns water-union bank queries, metric layout, bounded planning,
 frame/coverage validation, input precedence and visible iframe diagnostics.
 The FMG sender does not implement those renderer behaviors or an iframe message
-protocol. Before enabling production, verify those behaviors against the
-supporting release in both embedded and external-open flows.
+protocol. Verify those behaviors against the supporting release in both
+embedded and external-open flows when changing the integration.
 
 Focused tests cover distance/units, finite lakes and islands, peninsula geometry,
 curve inclusion and precision, narrow channels, union shore measurement, crop

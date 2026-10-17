@@ -1,14 +1,17 @@
 import { buildBurgContext } from "@/generators/burg-context";
 import type { Burg } from "@/generators/burgs-generator";
 import { surveyBurgWater } from "./burg-water-survey";
-import { type AzgaarBurgInput, buildSettlemakerUrl } from "./settlemaker";
+import { type AzgaarBurgInput, buildSettlemakerUrl, SETTLEMAKER_BASE_URL } from "./settlemaker";
 
-/** Set only for a deployed renderer supporting measured water on both city and village layouts. */
-export const MEASURED_WATER_RENDERER = import.meta.env.VITE_SETTLEMAKER_WATER_CONTEXT_URL as string | undefined;
+/** Override the supporting production renderer for local testing or another deployment. */
+export const MEASURED_WATER_RENDERER =
+  (import.meta.env.VITE_SETTLEMAKER_WATER_CONTEXT_URL as string | undefined) || SETTLEMAKER_BASE_URL;
 
 export function waterSurveyRadius(population: number, override?: number): number {
   const configured = import.meta.env.VITE_SETTLEMAKER_WATER_SURVEY_RADIUS_M as string | undefined;
-  const radius = override ?? (configured ? Number(configured) : population > 1000 ? 4000 : 3000);
+  // Allow for the city's cultivated envelope, its diagonal and a navigation margin.
+  const cityRadius = Math.max(4000, Math.ceil((Math.sqrt(population * 240) + 1500) / 1000) * 1000);
+  const radius = override ?? (configured ? Number(configured) : population > 1000 ? cityRadius : 3000);
   if (!Number.isFinite(radius) || radius < 3000)
     throw new Error("The measured water survey radius must be at least 3000 metres");
   return radius;
@@ -28,13 +31,12 @@ export async function createSettlemakerPreview(
   surveyOptions: { surveyRadiusM?: number } = {}
 ): Promise<{ link: string; preview: string }> {
   const ctx = buildBurgContext(burg);
-  const measured = MEASURED_WATER_RENDERER && ctx.burg.population >= 1;
   const opts = {
     urbanDensity: options.map.units.population.urbanization.density,
     trade: burg.tradeRole === "hub"
   };
-  if (!measured) return buildSettlemakerUrl(ctx, opts);
-  const endpoint = new URL(MEASURED_WATER_RENDERER!);
+  if (ctx.burg.population < 1) return buildSettlemakerUrl(ctx, opts);
+  const endpoint = new URL(MEASURED_WATER_RENDERER);
   if (
     endpoint.search ||
     endpoint.hash ||

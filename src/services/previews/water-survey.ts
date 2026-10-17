@@ -1,9 +1,12 @@
 import type { Bounds } from "@/utils/shoreline-geometry";
 import { boundsOf, closestPoint, flattenCurve, parseShorePath, ShoreIndex } from "@/utils/shoreline-geometry";
 import type { MeasuredWaterContext, WaterPoint as Point, WaterSurvey } from "./water-context-types";
+import { packWaterCoordinates, WATER_COORDINATE_ERROR_M } from "./water-coordinate-pack";
+import { packWaterPolygons } from "./water-polygon-pack";
 
 export const WATER_SURVEY_RADIUS_M = 3000;
 const FLATTENING_ERROR_M = 0.2;
+const GEOMETRY_ERROR_M = 0.5;
 const EPSILON = 1e-7;
 
 export interface SurveyBoundary {
@@ -17,6 +20,7 @@ interface Edge {
   b: Point;
   feature: number;
   error: number;
+  controls: Point[];
 }
 
 interface WaterBody {
@@ -88,15 +92,21 @@ export class WaterSurveyIndex {
           maxY: burg.y + r / scale
         })
         .flatMap(curve => {
-          const points = flattenCurve(curve.points.map(toLocal), FLATTENING_ERROR_M);
-          return points
-            .slice(1)
-            .map((b, i) => ({
-              a: points[i],
-              b,
-              feature: curve.feature,
-              error: curve.points.length > 2 ? FLATTENING_ERROR_M : 0
-            }))
+          const flattened: Edge[] = [];
+          let previous = toLocal(curve.points[0]);
+          flattenCurve(curve.points.map(toLocal), FLATTENING_ERROR_M, (point, parameter, controls) => {
+            if (parameter) {
+              const error = Math.max(
+                ...controls.map(control => {
+                  const nearest = closestPoint(control, previous, point);
+                  return Math.hypot(control.x - nearest.x, control.y - nearest.y);
+                })
+              );
+              flattened.push({ a: previous, b: point, feature: curve.feature, error, controls });
+            }
+            previous = point;
+          });
+          return flattened
             .filter(e => e.a.x !== e.b.x || e.a.y !== e.b.y)
             .filter(e => Math.min(e.a.y, e.b.y) <= r && Math.max(e.a.y, e.b.y) >= -r)
             .map(e => ({
@@ -179,9 +189,52 @@ export class WaterSurveyIndex {
           const near = Math.min(distance(a.a, b), distance(a.b, b), distance(b.a, a), distance(b.b, a));
           const otherA = shared === a.a ? a.b : a.a;
           const otherB = shared && shared.x === b.a.x && shared.y === b.a.y ? b.b : b.a;
+          const vectors = (edge: Edge) =>
+            edge.controls
+              .map(p => ({ x: p.x - shared!.x, y: p.y - shared!.y }))
+              .filter(p => Math.hypot(p.x, p.y) > EPSILON);
+          const hullsSeparate = () => {
+            const va = vectors(a),
+              vb = vectors(b);
+            return va.some(p =>
+              vb.some(q => {
+                const nx = p.x / Math.hypot(p.x, p.y) + q.x / Math.hypot(q.x, q.y);
+                const ny = p.y / Math.hypot(p.x, p.y) + q.y / Math.hypot(q.x, q.y);
+                const side = (v: Point) => nx * v.y - ny * v.x;
+                return (
+                  (va.every(v => side(v) > EPSILON) && vb.every(v => side(v) < -EPSILON)) ||
+                  (va.every(v => side(v) < -EPSILON) && vb.every(v => side(v) > EPSILON))
+                );
+              })
+            );
+          };
+          // A separating line through the tip certifies that the Bezier hulls cannot cross there.
           const foldsBack =
-            shared && (otherA.x - shared.x) * (otherB.x - shared.x) + (otherA.y - shared.y) * (otherB.y - shared.y) > 0;
-          if (crossing || foldsBack || (!shared && near <= uncertainty))
+            shared &&
+            (otherA.x - shared.x) * (otherB.x - shared.x) + (otherA.y - shared.y) * (otherB.y - shared.y) > 0 &&
+            !hullsSeparate();
+          const oneSidedCurve = (curve: Edge, straight: Edge) => {
+            if (straight.error) return false;
+            const dx = straight.b.x - straight.a.x,
+              dy = straight.b.y - straight.a.y;
+            const side = (p: Point) => (dx * (p.y - straight.a.y) - dy * (p.x - straight.a.x)) / Math.hypot(dx, dy);
+            if (Math.max(Math.abs(side(curve.a)), Math.abs(side(curve.b))) <= EPSILON) return false;
+            const distances = curve.controls.map(side);
+            return Math.min(...distances) >= -EPSILON || Math.max(...distances) <= EPSILON;
+          };
+          const certifiedContact = !crossing && (oneSidedCurve(a, b) || oneSidedCurve(b, a));
+          const lengthA = Math.hypot(ax, ay),
+            lengthB = Math.hypot(bx, by);
+          const intersectionError = (uncertainty * lengthA * lengthB) / Math.abs(cross);
+          const stableCrossing =
+            crossing &&
+            intersectionError <= GEOMETRY_ERROR_M - WATER_COORDINATE_ERROR_M &&
+            Math.min(t * lengthA, (1 - t) * lengthA, u * lengthB, (1 - u) * lengthB) > intersectionError;
+          if (
+            (crossing && !stableCrossing) ||
+            foldsBack ||
+            (!shared && !stableCrossing && !certifiedContact && near <= uncertainty)
+          )
             throw new Error(
               "Measured water cannot preserve this narrow or crossing shoreline within its precision budget"
             );
@@ -279,12 +332,21 @@ export class WaterSurveyIndex {
       measure(edgesFor(search), search);
       if (search >= fullRadius) break;
     }
+    const packedPolygons: Point[][] = [];
+    for (const body of bodies.values()) {
+      const pieces = packWaterPolygons(body.polygonIndices.map(index => polygons[index]));
+      body.polygonIndices = pieces.map(piece => {
+        const index = packedPolygons.length;
+        packedPolygons.push(piece);
+        return index;
+      });
+    }
     const waterContext: MeasuredWaterContext = {
       version: 1,
       status: "measured",
       coordinateSpace: "burg-local-metres",
       surveyRadiusM: radius,
-      geometryErrorM: 0.5,
+      geometryErrorM: GEOMETRY_ERROR_M,
       bodies: [...bodies.values()]
         .sort((a, b) => a.id - b.id)
         .map(body => {
@@ -302,6 +364,6 @@ export class WaterSurveyIndex {
       waterContext.omittedRivers = [...new Set(input.omittedRiverIds)]
         .sort((a, b) => a - b)
         .map(id => ({ riverId: String(id), reason: "local-width-unavailable" }));
-    return { waterContext, coastlineGeometry: polygons };
+    return { waterContext, coastlineGeometry: packWaterCoordinates(packedPolygons) };
   }
 }
