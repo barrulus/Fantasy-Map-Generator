@@ -90,9 +90,14 @@ export function parseShorePath(path: string, feature: number): ShoreCurve[] {
 }
 
 /** A Bezier lies in its control hull: chord distance bounds the flattening error. */
-export function flattenCurve(points: Point[], tolerance: number): Point[] {
+export function flattenCurve(
+  points: Point[],
+  tolerance: number,
+  onPoint?: (point: Point, parameter: number) => void
+): Point[] {
   const result: Point[] = [points[0]];
-  function split(p: Point[], depth: number) {
+  onPoint?.(points[0], 0);
+  function split(p: Point[], depth: number, from: number, to: number) {
     const a = p[0],
       b = p.at(-1)!;
     const dx = b.x - a.x,
@@ -113,6 +118,7 @@ export function flattenCurve(points: Point[], tolerance: number): Point[] {
       });
     if (flat) {
       result.push(b);
+      onPoint?.(b, to);
       return;
     }
     if (depth === 24) throw new Error("Shoreline exceeds the measured preview precision limit");
@@ -124,10 +130,11 @@ export function flattenCurve(points: Point[], tolerance: number): Point[] {
       left.push(row[0]);
       right.push(row.at(-1)!);
     }
-    split(left, depth + 1);
-    split(right.reverse(), depth + 1);
+    const middle = (from + to) / 2;
+    split(left, depth + 1, from, middle);
+    split(right.reverse(), depth + 1, middle, to);
   }
-  split(points, 0);
+  split(points, 0, 0, 1);
   return result;
 }
 

@@ -7,6 +7,7 @@ import {
   SETTLEMAKER_BASE_URL,
   toSettlemakerInput
 } from "./settlemaker";
+import { WaterSurveyIndex } from "./water-survey";
 
 // Stub WARN global to suppress console output in tests
 globalThis.WARN = false;
@@ -59,6 +60,23 @@ const ctx = (over: Partial<BurgContext> = {}): BurgContext =>
   }) as BurgContext;
 
 describe("toSettlemakerInput", () => {
+  it("associates a river port with its intended river and excludes the ID from other water kinds", () => {
+    expect(toSettlemakerInput(ctx(), { harbourWaterKind: "river", harbourRiverId: "653" })).toMatchObject({
+      harbourWaterKind: "river",
+      harbourRiverId: "653"
+    });
+    for (const harbourWaterKind of ["lake", "ocean", undefined] as const)
+      expect(toSettlemakerInput(ctx(), { harbourWaterKind, harbourRiverId: "653" })).not.toHaveProperty(
+        "harbourRiverId"
+      );
+    expect(
+      toSettlemakerInput(ctx({ burg: { ...ctx().burg, port: false } }), {
+        harbourWaterKind: "river",
+        harbourRiverId: "653"
+      })
+    ).not.toHaveProperty("harbourRiverId");
+  });
+
   it("always emits all seven booleans, including the false ones", () => {
     const input = toSettlemakerInput(ctx(), {});
     for (const key of ["port", "citadel", "walls", "plaza", "temple", "shanty", "capital"] as const) {
@@ -232,6 +250,66 @@ async function decodeIParam(url: string) {
 }
 
 describe("buildSettlemakerUrl", () => {
+  it("preserves a modelled local river profile and the measured mouth coast in both links", async () => {
+    const survey = new WaterSurveyIndex([{ id: 1, kind: "island", path: "M-10000,-10000H200V10000H-10000Z" }], {
+      minX: -10000,
+      minY: -10000,
+      maxX: 10000,
+      maxY: 10000
+    }).survey({ burg: { x: 0, y: 0 }, metresPerMapUnit: 1, radiusM: 4000, oceanAt: () => 9 });
+    const rivers = [
+      {
+        id: "7",
+        centreline: [
+          { x: -4100, y: 100 },
+          { x: 0, y: 120 },
+          { x: 4100, y: 100 }
+        ],
+        widthM: 30,
+        widthsM: [20, 30, 40],
+        widthSource: "fmg-local-width-model" as const,
+        courseSource: "fmg-catmull-rom-0.1" as const,
+        meander: false as const
+      }
+    ];
+    const { link, preview } = await buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population: 16973 } }), {
+      waterSurvey: { ...survey, rivers }
+    });
+    expect(preview).toBe(link);
+    const { burg } = await decodeIParam(link);
+    expect(burg.rivers).toEqual(rivers);
+    expect(burg.coastlineGeometry).toEqual(survey.coastlineGeometry);
+    expect(burg.waterContext.omittedRivers).toBeUndefined();
+  });
+
+  it("rejects an oversized river course without silently deleting the river", async () => {
+    const centreline = Array.from({ length: 8000 }, (_, i) => ({ x: Math.sin(i) * 4000, y: Math.cos(i) * 4000 }));
+    await expect(
+      buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population: 16973 } }), {
+        waterSurvey: {
+          waterContext: {
+            version: 1,
+            status: "measured",
+            coordinateSpace: "burg-local-metres",
+            surveyRadiusM: 4000,
+            geometryErrorM: 0.5,
+            bodies: []
+          },
+          coastlineGeometry: [],
+          rivers: [
+            {
+              centreline,
+              widthM: 20,
+              widthsM: centreline.map(() => 20),
+              widthSource: "fmg-local-width-model",
+              meander: false
+            }
+          ]
+        }
+      })
+    ).rejects.toThrow("too detailed");
+  });
+
   it("round-trips an authoritative empty water survey alongside the legacy bearing", async () => {
     const { link, preview } = await buildSettlemakerUrl(ctx(), {
       baseUrl: "https://renderer.example/fmg",
@@ -256,47 +334,77 @@ describe("buildSettlemakerUrl", () => {
     });
   });
 
-  it("preserves unknown custom units without making an empty geographic survey", async () => {
-    const { link } = await buildSettlemakerUrl(ctx(), {
-      waterSurvey: {
-        waterContext: { version: 1, status: "unknown-units", sourceUnit: "hexes" }
-      }
-    });
-    const { burg } = await decodeIParam(link);
-    expect(burg.waterContext).toEqual({ version: 1, status: "unknown-units", sourceUnit: "hexes" });
-    expect(burg).not.toHaveProperty("coastlineGeometry");
-  });
-
-  it("rejects measured payloads for cities", async () => {
-    await expect(
-      buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population: 1001 } }), {
+  it.each([13, 16973])(
+    "preserves unknown custom units for population %s without asserting empty water",
+    async population => {
+      const { link } = await buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population } }), {
         waterSurvey: {
           waterContext: { version: 1, status: "unknown-units", sourceUnit: "hexes" }
         }
-      })
-    ).rejects.toThrow("only for villages");
-  });
+      });
+      const { burg } = await decodeIParam(link);
+      expect(burg.waterContext).toEqual({ version: 1, status: "unknown-units", sourceUnit: "hexes" });
+      expect(burg).not.toHaveProperty("coastlineGeometry");
+    }
+  );
 
-  it("rejects oversized measured geometry without dropping authoritative water state", async () => {
-    const coastlineGeometry = [
-      Array.from({ length: 8000 }, (_, i) => ({ x: Math.sin(i) * 3000, y: Math.cos(i) * 3000 }))
-    ];
-    await expect(
-      buildSettlemakerUrl(ctx(), {
-        waterSurvey: {
-          waterContext: {
-            version: 1,
-            status: "measured",
-            coordinateSpace: "burg-local-metres",
-            surveyRadiusM: 3000,
-            geometryErrorM: 0.5,
-            bodies: []
-          },
-          coastlineGeometry
+  it.each([1000, 1001, 16973, 100000])(
+    "round-trips actual surveyed water for population %s in both preview links",
+    async population => {
+      const radiusM = population > 1000 ? 4000 : 3000;
+      const waterSurvey = new WaterSurveyIndex([{ id: 1, kind: "island", path: "M-10000,-10000H140V10000H-10000Z" }], {
+        minX: -10000,
+        minY: -10000,
+        maxX: 10000,
+        maxY: 10000
+      }).survey({ burg: { x: 100, y: 20 }, metresPerMapUnit: 1, radiusM, oceanAt: () => 9 });
+      const { link, preview } = await buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population } }), {
+        baseUrl: "https://renderer.example/fmg",
+        waterSurvey,
+        harbourWaterKind: "ocean"
+      });
+      expect(preview).toBe(link);
+      const external = await decodeIParam(link),
+        embedded = await decodeIParam(preview);
+      expect(embedded).toEqual(external);
+      expect(external.burg).toMatchObject({
+        population,
+        port: true,
+        harbourWaterKind: "ocean",
+        waterContext: {
+          status: "measured",
+          surveyRadiusM: radiusM,
+          bodies: [{ kind: "ocean", distanceM: 40, bearingDeg: 90 }]
         }
-      })
-    ).rejects.toThrow("too detailed");
-  });
+      });
+      expect(external.burg.coastlineGeometry).toEqual(waterSurvey.coastlineGeometry);
+      expect(new URL(link).searchParams.get("i")!.length).toBeLessThan(MAX_ENCODED_PAYLOAD_BYTES);
+    }
+  );
+
+  it.each([13, 16973])(
+    "rejects oversized measured geometry for population %s without dropping water state",
+    async population => {
+      const coastlineGeometry = [
+        Array.from({ length: 8000 }, (_, i) => ({ x: Math.sin(i) * 3000, y: Math.cos(i) * 3000 }))
+      ];
+      await expect(
+        buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population } }), {
+          waterSurvey: {
+            waterContext: {
+              version: 1,
+              status: "measured",
+              coordinateSpace: "burg-local-metres",
+              surveyRadiusM: 3000,
+              geometryErrorM: 0.5,
+              bodies: []
+            },
+            coastlineGeometry
+          }
+        })
+      ).rejects.toThrow("too detailed");
+    }
+  );
 
   it("round-trips through the documented codec into a v1 envelope", async () => {
     const { link } = await buildSettlemakerUrl(ctx(), {});

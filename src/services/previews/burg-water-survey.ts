@@ -2,8 +2,9 @@ import { quadtree } from "d3";
 import type { Burg } from "@/generators/burgs-generator";
 import { Coastline } from "@/generators/coastline-generator";
 import { getKmInDistanceUnit } from "@/utils/unitUtils";
+import { surveyBurgRivers } from "./river-water-survey";
 import type { WaterSurvey } from "./water-context-types";
-import { WaterSurveyIndex } from "./water-survey";
+import { WATER_SURVEY_RADIUS_M, WaterSurveyIndex } from "./water-survey";
 
 let cached:
   | {
@@ -14,7 +15,7 @@ let cached:
     }
   | undefined;
 
-export function surveyBurgWater(burg: Burg, omittedRiverIds: number[] = []): WaterSurvey {
+export function surveyBurgWater(burg: Burg, omittedRiverIds: number[] = [], radiusM?: number): WaterSurvey {
   const kmPerUnit = getKmInDistanceUnit();
   if (!kmPerUnit)
     return {
@@ -52,14 +53,18 @@ export function surveyBurgWater(burg: Burg, omittedRiverIds: number[] = []): Wat
     };
   }
   const oceanIndex = cached.oceans;
-  return cached.index.survey({
+  const metresPerMapUnit = options.map.units.distance.scale * kmPerUnit * 1000;
+  const riverSurvey = surveyBurgRivers(burg, metresPerMapUnit, radiusM ?? WATER_SURVEY_RADIUS_M, omittedRiverIds);
+  const water = cached.index.survey({
     burg,
-    metresPerMapUnit: options.map.units.distance.scale * kmPerUnit * 1000,
+    radiusM,
+    metresPerMapUnit,
     oceanAt: point => {
       const ocean = oceanIndex.find(point.x, point.y);
       if (!ocean) throw new Error("The map has no ocean feature for this measured water area");
       return ocean[2];
     },
-    omittedRiverIds
+    omittedRiverIds: riverSurvey.omittedRiverIds
   });
+  return { ...water, ...(riverSurvey.rivers.length ? { rivers: riverSurvey.rivers } : {}) };
 }
