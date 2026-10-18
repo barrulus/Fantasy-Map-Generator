@@ -226,6 +226,24 @@ describe("local model river surveys", () => {
     expect(result.omittedRiverIds).toEqual([99]);
   });
 
+  it("retains an associated river beyond the burg survey without moving its measured coordinates", () => {
+    vi.stubGlobal("pack", { rivers: [river] });
+    vi.spyOn(Rivers, "addMeandering").mockReturnValue([
+      [-10000, 20000, 100],
+      [0, 20000, 200],
+      [10000, 20000, 300]
+    ]);
+    expect(surveyBurgRivers(burg, 1, 3000, [7]).rivers).toEqual([]);
+    const result = surveyBurgRivers(burg, 1, 3000, [7], "7");
+    expect(result.omittedRiverIds).toEqual([]);
+    expect(result.rivers).toHaveLength(1);
+    const reach = result.rivers[0];
+    expect(reach.id).toBe("7");
+    expect(reach.centreline.every(point => point.y === 20000)).toBe(true);
+    expect(reach.centreline[0].x).toBeLessThan(-3000);
+    expect(reach.centreline.at(-1)!.x).toBeGreaterThan(3000);
+  });
+
   it("does not report unrelated malformed rivers as missing beside this burg", () => {
     vi.stubGlobal("pack", {
       rivers: [

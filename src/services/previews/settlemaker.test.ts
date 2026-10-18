@@ -241,12 +241,22 @@ describe("toSettlemakerInput", () => {
 });
 
 async function decodeIParam(url: string) {
-  const encoded = new URL(url).searchParams.get("i") as string;
+  const parsed = new URL(url);
+  const encoded = new URLSearchParams(parsed.hash.slice(1)).get("i") ?? (parsed.searchParams.get("i") as string);
   const b64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
   const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
   const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  return JSON.parse(await new Response(stream).text());
+  const envelope = JSON.parse(await new Response(stream).text());
+  if (envelope.geometryEncoding === "xy-tuples") {
+    const point = ([x, y]: [number, number]) => ({ x, y });
+    if (envelope.burg.coastlineGeometry)
+      envelope.burg.coastlineGeometry = envelope.burg.coastlineGeometry.map((polygon: [number, number][]) =>
+        polygon.map(point)
+      );
+    for (const river of envelope.burg.rivers ?? []) river.centreline = river.centreline.map(point);
+  }
+  return envelope;
 }
 
 describe("buildSettlemakerUrl", () => {
@@ -282,32 +292,34 @@ describe("buildSettlemakerUrl", () => {
     expect(burg.waterContext.omittedRivers).toBeUndefined();
   });
 
-  it("rejects an oversized river course without silently deleting the river", async () => {
+  it("carries an oversized river course in the fragment without deleting geometry", async () => {
     const centreline = Array.from({ length: 8000 }, (_, i) => ({ x: Math.sin(i) * 4000, y: Math.cos(i) * 4000 }));
-    await expect(
-      buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population: 16973 } }), {
-        waterSurvey: {
-          waterContext: {
-            version: 1,
-            status: "measured",
-            coordinateSpace: "burg-local-metres",
-            surveyRadiusM: 4000,
-            geometryErrorM: 0.5,
-            bodies: []
-          },
-          coastlineGeometry: [],
-          rivers: [
-            {
-              centreline,
-              widthM: 20,
-              widthsM: centreline.map(() => 20),
-              widthSource: "fmg-local-width-model",
-              meander: false
-            }
-          ]
-        }
-      })
-    ).rejects.toThrow("too detailed");
+    const { link, preview } = await buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population: 16973 } }), {
+      waterSurvey: {
+        waterContext: {
+          version: 1,
+          status: "measured",
+          coordinateSpace: "burg-local-metres",
+          surveyRadiusM: 4000,
+          geometryErrorM: 0.5,
+          bodies: []
+        },
+        coastlineGeometry: [],
+        rivers: [
+          {
+            centreline,
+            widthM: 20,
+            widthsM: centreline.map(() => 20),
+            widthSource: "fmg-local-width-model",
+            meander: false
+          }
+        ]
+      }
+    });
+    expect(link).toBe(preview);
+    expect(new URL(link).search).toBe("");
+    expect(new URL(link).hash.startsWith("#i=")).toBe(true);
+    expect((await decodeIParam(link)).burg.rivers[0].centreline).toEqual(centreline);
   });
 
   it("round-trips an authoritative empty water survey alongside the legacy bearing", async () => {
@@ -383,26 +395,27 @@ describe("buildSettlemakerUrl", () => {
   );
 
   it.each([13, 16973])(
-    "rejects oversized measured geometry for population %s without dropping water state",
+    "carries oversized measured geometry for population %s in a fragment without dropping water state",
     async population => {
       const coastlineGeometry = [
         Array.from({ length: 8000 }, (_, i) => ({ x: Math.sin(i) * 3000, y: Math.cos(i) * 3000 }))
       ];
-      await expect(
-        buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population } }), {
-          waterSurvey: {
-            waterContext: {
-              version: 1,
-              status: "measured",
-              coordinateSpace: "burg-local-metres",
-              surveyRadiusM: 3000,
-              geometryErrorM: 0.5,
-              bodies: []
-            },
-            coastlineGeometry
-          }
-        })
-      ).rejects.toThrow("too detailed");
+      const { link } = await buildSettlemakerUrl(ctx({ burg: { ...ctx().burg, population } }), {
+        waterSurvey: {
+          waterContext: {
+            version: 1,
+            status: "measured",
+            coordinateSpace: "burg-local-metres",
+            surveyRadiusM: 3000,
+            geometryErrorM: 0.5,
+            bodies: []
+          },
+          coastlineGeometry
+        }
+      });
+      expect(new URL(link).search).toBe("");
+      expect(new URL(link).hash.startsWith("#i=")).toBe(true);
+      expect((await decodeIParam(link)).burg.coastlineGeometry).toEqual(coastlineGeometry);
     }
   );
 
@@ -481,7 +494,9 @@ describe("buildSettlemakerUrl", () => {
       }),
       { urbanDensity: 8, trade: true }
     );
-    expect(new URL(link).searchParams.get("i")!.length).toBeGreaterThan(MAX_ENCODED_PAYLOAD_BYTES);
+    expect(new URLSearchParams(new URL(link).hash.slice(1)).get("i")!.length).toBeGreaterThan(
+      MAX_ENCODED_PAYLOAD_BYTES
+    );
     const { burg } = await decodeIParam(link);
     expect(burg.culture).toBe(culture);
     expect(burg.roadBearings).toHaveLength(approaches.filter(a => a.group !== "traderoutes").length);

@@ -24,10 +24,12 @@ and every positive population uses the measured contract. Previously saved
 bearing-only URLs cannot recover river geometry; reopen the burg preview from
 the source map to create a new URL.
 
-Villages initially survey 3 km. Cities start at 4 km and scale with population
-to cover their cultivated envelope and navigation margin (8 km for Erdemeli's
-173,976 residents, 13 km for 500,000). These are starting coverage estimates,
-not guarantees of sufficient land for every settlement.
+Villages initially reserve 6 km. Cities start at 8 km and scale with population
+(16 km for 173,976 residents, 26 km for 500,000). The reserve allows waterfront
+alignment and development on both river banks. If an associated shore is farther
+away, FMG searches within the map and surveys at least its measured distance plus
+the reserve, rounded up to a kilometre. These remain coverage estimates, not
+guarantees of sufficient land for every settlement.
 Set `VITE_SETTLEMAKER_WATER_SURVEY_RADIUS_M=6000` to request a larger envelope for
 a deployment, or pass `{surveyRadiusM: 6000}` as the second argument to
 `createSettlemakerPreview` for an individual request. The explicit request takes
@@ -36,9 +38,9 @@ precedence. Radius values must be finite and at least 3000 metres.
 The renderer checks its actual planning extent and reports `water-coverage-exceeded`
 with `requiredSurveyRadiusM` when it needs more geography. Use that value for a
 new request; FMG does not automatically receive or retry cross-origin renderer
-errors. Export, compression and URL-budget failures remain visible in the burg
-editor and on external-open attempts. Increasing coverage can exceed the URL
-budget; it never silently replaces measured geometry with a bearing.
+errors. Export and compression failures remain visible in the burg editor and on
+external-open attempts. Large encoded payloads use a URL fragment, keeping
+geometry out of the HTTP request without dropping any water data.
 
 ## Sender behavior
 
@@ -90,22 +92,33 @@ budget; it never silently replaces measured geometry with a bearing.
   consumer's capped bank miters at sharp bends, so artificial
   endpoints cannot become local banks. Interpolate widths at crop points and
   keep disconnected reentries as separate runs with the original river ID.
-  Detailed river courses share the existing URL budget and fail explicitly
-  when too large; no course is silently removed or simplified.
+  Associated rivers are surveyed around their nearest source reach even when
+  marker displacement puts them outside the ordinary burg survey. Coordinates
+  remain in the original burg-local frame. Available positive-width reaches are
+  retained when an associated river has an unavailable source tip; omitted tips
+  still produce a width warning.
+- Send `waterfront` independently of port status. Prefer the river in the burg's
+  cell, otherwise the nearest immediate neighbouring river cell. Include
+  `riverId`, plus `shoreKind` and `shoreFeatureId` for an adjacent ocean or lake.
+  These semantic relationships let Settlemaker align water with the settlement
+  while retaining its measured source geometry and recording the approximation.
+  A cartographic marker offset is not a physical river-bank clearance.
 - For ports, send `harbourWaterKind` from the adjacent haven feature, or `river`
-  for an inland river port, with `harbourRiverId` from the burg cell's river ID.
+  for an inland river port, with `harbourRiverId` from that associated river.
   This association prevents selecting an unrelated nearby river. A downstream
   ocean ID does not turn a river port
   into an ocean harbour. This identifies the local water type, not bathymetry
   or a military role; FMG's `Naval` burg type only means it is a port.
-- Keep the compressed `i` envelope. If the encoded payload exceeds 8192 bytes,
-  compression fails, or geometry cannot be surveyed safely, show the failure
-  in the burg editor and on an external-open attempt. Do not discard measured
-  state by falling back to a flat URL.
+- Keep the compressed version-1 `i` envelope. Geometry uses
+  `geometryEncoding: "xy-tuples"`: coast vertices and river centreline points are
+  lossless `[x, y]` pairs. Encoded values up to 8192 characters use `?i=`, larger
+  values use `#i=` for both embedded and external previews. Compression or survey
+  failures remain visible; there is no geometry-dropping flat-URL fallback.
 
 Surveys extending beyond the map rectangle fail explicitly; wrapped geography
-is not inferred. Very detailed coasts can exceed the URL budget. There is no
-automatic simplification or resurvey in this implementation.
+is not inferred. The associated-shore search is bounded by the available map
+rectangle and fails explicitly if the named feature cannot be found. Detailed
+geometry is preserved through fragment transport without automatic simplification.
 
 ## Renderer handoff and validation
 
@@ -118,16 +131,22 @@ embedded and external-open flows when changing the integration.
 Focused tests cover distance/units, finite lakes and islands, peninsula geometry,
 curve inclusion and precision, narrow channels, union shore measurement, crop
 closures, unknown units, missing local river widths, saved geometry invalidation,
-URL-budget failures, population 1000/1001, Tetlapan-sized and large city payloads,
+query/fragment transport, compact geometry, population 1000/1001, Tetlapan-sized and large city payloads,
 larger survey radii, local harbour-water classification, river source/mouth width
 differences, width-unit invariance, edited courses and coastal river payloads. The 11,115 m
 Tarrimas-Ha case is synthetic geography reproducing the measured distance; it
 does not replay the original Borteland save.
 
-Browser validation with the sender enabled covered 394 generated villages:
-391 encoded successfully, including 34 with water, and three correctly failed
-the URL budget. Saving/reloading with hidden water layers retained the exact
+Earlier browser validation, before fragment transport, covered 394 generated
+villages: 391 encoded successfully, including 34 with water, and three exceeded
+the former URL budget. Saving/reloading with hidden water layers retained the exact
 saved boundary and surveying left displayed paths untouched. These checks used
 a local URL target to inspect payloads, not a running measured-water renderer.
 The older 1.112.1 map fixture also retained its saved boundary through loading
 and a subsequent measured survey.
+
+The Lougy regressions preserve Hasingsbury's non-port river, Newcester's original
+river despite a 20 km marker displacement, Kinglewes's river/coast association,
+and Helster's river port. Shore-search tests cover a coast 19 km beyond the marker
+and a missing named feature. Complete emitted URLs are also checked against the
+Settlemaker decoder and renderer during integration validation.

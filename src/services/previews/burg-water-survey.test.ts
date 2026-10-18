@@ -73,3 +73,40 @@ describe("city survey coverage", () => {
     expect("coastlineGeometry" in result && result.coastlineGeometry[0].some(p => p.x === 6000)).toBe(true);
   });
 });
+
+describe("associated shoreline coverage", () => {
+  function setup() {
+    vi.stubGlobal("options", {
+      map: { graph: { width: 100, height: 100 }, units: { distance: { unit: "km", scale: 1 } } }
+    });
+    vi.stubGlobal("pack", {
+      cells: { i: [0], p: [[90, 50]], f: [2] },
+      features: [undefined, { i: 1, type: "island" }, { i: 2, type: "ocean" }],
+      rivers: []
+    });
+    vi.spyOn(Coastline, "boundaryRevision", "get").mockReturnValue(1);
+    vi.spyOn(Coastline, "getFeaturePath").mockReturnValue("M0,0H69V100H0Z");
+  }
+
+  it("finds the associated coast beyond the initial survey and keeps a planning reserve after alignment", () => {
+    setup();
+    const result = surveyBurgWater({ x: 50, y: 50 } as Burg, [], 8000, undefined, {
+      kind: "ocean",
+      featureId: "2"
+    });
+    expect(result.waterContext).toMatchObject({
+      surveyRadiusM: 27000,
+      bodies: [{ featureId: "2", kind: "ocean", distanceM: 19000 }]
+    });
+  });
+
+  it("rejects an absent associated feature after searching the available map", () => {
+    setup();
+    expect(() =>
+      surveyBurgWater({ x: 50, y: 50 } as Burg, [], 8000, undefined, {
+        kind: "lake",
+        featureId: "99"
+      })
+    ).toThrow("associated shoreline");
+  });
+});
