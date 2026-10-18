@@ -34,13 +34,13 @@ async function preview(population: number, endpoint?: string, surveyRadiusM?: nu
 
 describe("measured-water rollout", () => {
   it.each([
-    [10, 3000],
-    [1000, 3000],
-    [16973, 4000],
-    [173976, 8000]
+    [10, 6000],
+    [1000, 6000],
+    [16973, 8000],
+    [173976, 16000]
   ])("exports measured water by default for population %s", async (population, radius) => {
     await preview(population);
-    expect(mocks.survey).toHaveBeenCalledWith(expect.anything(), [], radius);
+    expect(mocks.survey).toHaveBeenCalledWith(expect.anything(), [], radius, undefined, undefined);
     expect(mocks.url.mock.calls[0][1]).toMatchObject({
       urbanDensity: 8,
       trade: true,
@@ -65,26 +65,32 @@ describe("measured-water rollout", () => {
   });
 
   it.each([
-    [1001, 4000],
-    [16973, 4000],
-    [100000, 7000],
-    [500000, 13000]
+    [1001, 8000],
+    [16973, 8000],
+    [100000, 14000],
+    [500000, 26000]
   ])("surveys cities of population %s through the configured renderer", async (population, radius) => {
     const result = await preview(population, "https://water.example/fmg");
-    expect(mocks.survey).toHaveBeenCalledWith(expect.objectContaining({ x: 10, y: 20 }), [], radius);
+    expect(mocks.survey).toHaveBeenCalledWith(
+      expect.objectContaining({ x: 10, y: 20 }),
+      [],
+      radius,
+      undefined,
+      undefined
+    );
     expect(mocks.url.mock.calls[0][1]).toHaveProperty("baseUrl", "https://water.example/fmg");
     expect(result.link).toBe(result.preview);
   });
 
   it("accepts an explicit survey radius when the renderer requests more coverage", async () => {
     await preview(16973, "https://water.example/fmg", 7000);
-    expect(mocks.survey).toHaveBeenCalledWith(expect.anything(), [], 7000);
+    expect(mocks.survey).toHaveBeenCalledWith(expect.anything(), [], 7000, undefined, undefined);
   });
 
   it("accepts a deployment survey radius without changing the endpoint", async () => {
     vi.stubEnv("VITE_SETTLEMAKER_WATER_SURVEY_RADIUS_M", "6000");
     await preview(16973, "https://water.example/fmg");
-    expect(mocks.survey).toHaveBeenCalledWith(expect.anything(), [], 6000);
+    expect(mocks.survey).toHaveBeenCalledWith(expect.anything(), [], 6000, undefined, undefined);
   });
 
   it.each([0, 2999, NaN, Infinity])("rejects invalid radius %s without falling back", async radius => {
@@ -136,5 +142,68 @@ describe("harbour water body", () => {
     const { harbourWaterKind } = await import("./settlemaker-burg");
     expect(harbourWaterKind({ cell: 0, port: 1 } as Burg)).toBe("river");
     expect(harbourWaterKind({ cell: 0, port: 0 } as Burg)).toBeUndefined();
+  });
+});
+
+describe("settlement water relations", () => {
+  it("keeps a non-port's own river and its shore independently", async () => {
+    vi.stubGlobal("pack", {
+      cells: {
+        haven: [1],
+        harbor: [1],
+        f: [0, 2],
+        r: [7, 0],
+        c: [[1]],
+        p: [
+          [0, 0],
+          [1, 0]
+        ]
+      },
+      features: [{}, {}, { type: "ocean" }]
+    });
+    const { burgWaterfront } = await import("./settlemaker-burg");
+    expect(burgWaterfront({ cell: 0, port: 0, x: 0, y: 0 } as Burg)).toEqual({
+      riverId: "7",
+      shoreKind: "ocean",
+      shoreFeatureId: "2"
+    });
+  });
+
+  it("chooses the nearest neighbouring river without requiring a port", async () => {
+    vi.stubGlobal("pack", {
+      cells: {
+        haven: [0],
+        harbor: [0],
+        f: [0],
+        r: [0, 8, 9],
+        c: [[1, 2]],
+        p: [
+          [0, 0],
+          [10, 0],
+          [2, 0]
+        ]
+      },
+      features: []
+    });
+    const { burgWaterfront } = await import("./settlemaker-burg");
+    expect(burgWaterfront({ cell: 0, port: 0, x: 0, y: 0 } as Burg)).toEqual({ riverId: "9" });
+    expect(burgWaterfront({ cell: 1, port: 0, x: 10, y: 0 } as Burg)).toEqual({ riverId: "8" });
+  });
+
+  it("passes a coastal port's original river to the survey even beyond ordinary coverage", async () => {
+    await preview(237946);
+    vi.stubGlobal("pack", {
+      cells: { haven: [1], harbor: [1], f: [0, 2], r: [49], c: [[]] },
+      features: [{}, {}, { type: "ocean" }]
+    });
+    const { createSettlemakerPreview } = await import("./settlemaker-burg");
+    await createSettlemakerPreview({ i: 1, cell: 0, port: 1, x: 481.83, y: 230.61 } as Burg);
+    expect(mocks.survey).toHaveBeenLastCalledWith(expect.anything(), [], 20000, "49", {
+      kind: "ocean",
+      featureId: "2"
+    });
+    expect(mocks.url.mock.calls.at(-1)![1]).toMatchObject({
+      waterfront: { riverId: "49", shoreKind: "ocean", shoreFeatureId: "2" }
+    });
   });
 });

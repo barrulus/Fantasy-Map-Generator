@@ -33,6 +33,7 @@ export interface AzgaarBurgInput {
   harbourSize?: "large" | "small";
   harbourWaterKind?: "ocean" | "lake" | "river";
   harbourRiverId?: string;
+  waterfront?: { riverId?: string; shoreKind?: "ocean" | "lake"; shoreFeatureId?: string };
   urbanDensity?: number;
   coreCapacity?: number;
   coastlineGeometry?: Array<Array<{ x: number; y: number }>>;
@@ -68,6 +69,7 @@ export function toSettlemakerInput(
     trade?: boolean;
     harbourWaterKind?: AzgaarBurgInput["harbourWaterKind"];
     harbourRiverId?: string;
+    waterfront?: AzgaarBurgInput["waterfront"];
   }
 ): AzgaarBurgInput {
   const { burg, hydrology, terrain, climate } = ctx;
@@ -105,6 +107,7 @@ export function toSettlemakerInput(
   if (burg.port && hydrology.harbourSize) input.harbourSize = hydrology.harbourSize;
   if (burg.port && opts.harbourWaterKind) input.harbourWaterKind = opts.harbourWaterKind;
   if (burg.port && opts.harbourWaterKind === "river" && opts.harbourRiverId) input.harbourRiverId = opts.harbourRiverId;
+  if (opts.waterfront) input.waterfront = opts.waterfront;
   if (climate.biome) input.biome = climate.biome;
   if (burg.culture) input.culture = burg.culture;
   input.elevation = terrain.elevationM;
@@ -117,7 +120,7 @@ export function toSettlemakerInput(
 
 export const SETTLEMAKER_BASE_URL = "https://settlemaker.com/fmg";
 export const URL_PAYLOAD_VERSION = 1;
-/** url-api.md §3: keep the encoded i= value under ~8KB for margin against proxy limits. */
+/** Larger payloads use a fragment, which is not sent through HTTP proxies. */
 export const MAX_ENCODED_PAYLOAD_BYTES = 8192;
 
 /** JSON → UTF-8 → deflate-raw → base64url, per url-api.md §3. */
@@ -137,6 +140,7 @@ export async function buildSettlemakerUrl(
     trade?: boolean;
     harbourWaterKind?: AzgaarBurgInput["harbourWaterKind"];
     harbourRiverId?: string;
+    waterfront?: AzgaarBurgInput["waterfront"];
     waterSurvey?: WaterSurvey;
     baseUrl?: string;
   }
@@ -149,14 +153,28 @@ export async function buildSettlemakerUrl(
   }
   const seed = hashSeedToInt(ctx.burg.seedKey);
 
-  const encoded = await encodeJsonParam({ v: URL_PAYLOAD_VERSION, burg: input, seed });
-  if (encoded.length > MAX_ENCODED_PAYLOAD_BYTES) {
-    if (input.waterContext) throw new Error("This measured water preview is too detailed to fit in a preview link.");
-    // The bound is advisory, not a renderer limit. Flat URLs lose route IDs and hints.
-    WARN && console.warn(`settlemaker payload ${encoded.length}B exceeds the recommended URL budget`);
-  }
-
-  // /fmg is already chrome-free, so there is no separate preview variant.
-  const link = `${opts.baseUrl ?? SETTLEMAKER_BASE_URL}?i=${encoded}`;
+  const compact = Boolean(input.coastlineGeometry || input.rivers);
+  const burg = compact
+    ? {
+        ...input,
+        ...(input.coastlineGeometry && {
+          coastlineGeometry: input.coastlineGeometry.map(polygon => polygon.map(({ x, y }) => [x, y]))
+        }),
+        ...(input.rivers && {
+          rivers: input.rivers.map(river => ({
+            ...river,
+            centreline: river.centreline.map(({ x, y }) => [x, y])
+          }))
+        })
+      }
+    : input;
+  const encoded = await encodeJsonParam({
+    v: URL_PAYLOAD_VERSION,
+    ...(compact && { geometryEncoding: "xy-tuples" }),
+    burg,
+    seed
+  });
+  const separator = encoded.length > MAX_ENCODED_PAYLOAD_BYTES ? "#" : "?";
+  const link = `${opts.baseUrl ?? SETTLEMAKER_BASE_URL}${separator}i=${encoded}`;
   return { link, preview: link };
 }
