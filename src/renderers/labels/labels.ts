@@ -1,6 +1,5 @@
-import type { LabelType } from "@/generators/labels-generator";
+import type { LabelType } from "@/model/annotations/labels-generator";
 import type { Point } from "@/types/global";
-
 // A label ready to be rendered. It is drawn as plain text placed at the anchor,
 // unless pathPoints are set: then the text is curved along them
 export interface LabelData {

@@ -1,6 +1,6 @@
-import type { BurgContext, Corridor } from "@/generators/burg-context";
-import { hashSeedToInt } from "@/generators/burg-context";
-import type { RiverSurvey, WaterContext, WaterSurvey } from "./water-context-types";
+import type { BurgContext, Corridor } from "@/model/physical/burg-context";
+import { hashSeedToInt } from "@/model/physical/burg-context";
+import type { RiverSurvey, WaterContext, WaterSurvey } from "@/services/previews/water-context-types";
 
 type LandRouteClass = "royal" | "main" | "market" | "town" | "local" | "trail" | "footpath";
 

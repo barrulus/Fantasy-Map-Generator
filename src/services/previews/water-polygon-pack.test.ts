@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { WaterPoint as Point } from "./water-context-types";
-import { packWaterPolygons } from "./water-polygon-pack";
+import type { WaterPoint as Point } from "@/services/previews/water-context-types";
+import { packWaterPolygons } from "@/services/previews/water-polygon-pack";
 
 const rectangle = (left: number, bottom: number, right: number, top: number): Point[] => [
   { x: left, y: bottom },

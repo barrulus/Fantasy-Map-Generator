@@ -26,9 +26,11 @@ export function serializeHeightmapDraft(draft: HeightmapDraft): string {
 }
 
 export function parseHeightmapDraft(text: string): HeightmapDraft {
-  let data: any;
+  let data: Record<string, unknown>;
   try {
-    data = JSON.parse(text);
+    const parsed: unknown = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid draft");
+    data = parsed as Record<string, unknown>;
   } catch {
     throw new Error("File is not a valid heightmap draft");
   }

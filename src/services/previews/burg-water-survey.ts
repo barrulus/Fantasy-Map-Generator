@@ -1,10 +1,10 @@
 import { quadtree } from "d3";
-import type { Burg } from "@/generators/burgs-generator";
-import { Coastline } from "@/generators/coastline-generator";
-import { getKmInDistanceUnit } from "@/utils/unitUtils";
-import { surveyBurgRivers } from "./river-water-survey";
-import type { WaterSurvey } from "./water-context-types";
-import { WATER_SURVEY_RADIUS_M, WaterSurveyIndex } from "./water-survey";
+import { Coastline } from "@/model/physical/coastline-generator";
+import type { Burg } from "@/model/political/burgs-generator";
+import { getKmInDistanceUnit } from "@/model/units";
+import { surveyBurgRivers } from "@/services/previews/river-water-survey";
+import type { WaterSurvey } from "@/services/previews/water-context-types";
+import { WATER_SURVEY_RADIUS_M, WaterSurveyIndex } from "@/services/previews/water-survey";
 
 let cached:
   | {

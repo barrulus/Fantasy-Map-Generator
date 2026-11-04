@@ -1,7 +1,6 @@
 import { curveCatmullRom, path } from "d3";
+import type { WaterPoint } from "@/services/previews/water-context-types";
 import { flattenCurve } from "@/utils/shoreline-geometry";
-import type { WaterPoint } from "./water-context-types";
-
 export interface RiverCurvePoint extends WaterPoint {
   width: number;
 }

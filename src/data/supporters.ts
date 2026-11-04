@@ -645,10 +645,8 @@ Gabe Hurd
 Benjamin Sardinsky
 Task_Failer
 Sable Crow
-HaginZuria`;
-
-window.Supporters = supporters;
-
-declare global {
-  var Supporters: typeof supporters;
-}
+HaginZuria
+Conor Pewterbaugh
+Warren
+f
+YeOldeRaven`;

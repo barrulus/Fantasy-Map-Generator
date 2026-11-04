@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterAgainstObstacles, selectNonOverlapping } from "./label-collision";
+import { filterAgainstObstacles, selectNonOverlapping } from "@/renderers/labeling/label-collision";
 
 describe("selectNonOverlapping", () => {
   it("returns an empty set for empty input", () => {

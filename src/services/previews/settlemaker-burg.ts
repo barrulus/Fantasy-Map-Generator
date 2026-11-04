@@ -1,8 +1,8 @@
-import { buildBurgContext } from "@/generators/burg-context";
-import type { Burg } from "@/generators/burgs-generator";
-import { surveyBurgWater } from "./burg-water-survey";
-import { type AzgaarBurgInput, buildSettlemakerUrl, SETTLEMAKER_BASE_URL } from "./settlemaker";
-
+import { buildBurgContext } from "@/model/physical/burg-context";
+import type { Burg } from "@/model/political/burgs-generator";
+import { surveyBurgWater } from "@/services/previews/burg-water-survey";
+import type { AzgaarBurgInput } from "@/services/previews/settlemaker";
+import { buildSettlemakerUrl, SETTLEMAKER_BASE_URL } from "@/services/previews/settlemaker";
 /** Override the supporting production renderer for local testing or another deployment. */
 export const MEASURED_WATER_RENDERER =
   (import.meta.env.VITE_SETTLEMAKER_WATER_CONTEXT_URL as string | undefined) || SETTLEMAKER_BASE_URL;

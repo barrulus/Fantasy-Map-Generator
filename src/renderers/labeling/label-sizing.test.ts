@@ -5,8 +5,8 @@ import {
   labelIconOffsetPx,
   labelPxForGroup,
   svgLabelFontSize
-} from "./label-sizing";
-import { groupRestPx, groupStartPx } from "./tier-table";
+} from "@/renderers/labeling/label-sizing";
+import { groupRestPx, groupStartPx } from "@/renderers/labeling/tier-table";
 
 describe("effectiveLabelPx", () => {
   it("equals startPx at scale 1", () => {

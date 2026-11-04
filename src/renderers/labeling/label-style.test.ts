@@ -1,6 +1,7 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { readBurgLabelStyles } from "./label-style";
-import { REST_PX, START_PX } from "./tier-table";
+import { readBurgLabelStyles } from "@/renderers/labeling/label-style";
+import { REST_PX, START_PX } from "@/renderers/labeling/tier-table";
 
 // Group style is data, not DOM, so most of these mount no DOM at all.
 

@@ -1,4 +1,4 @@
-/// <reference types="node" />
+// @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL as NodeURL } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -9,13 +9,15 @@ import {
   readPresetAttrs,
   routeGroupStyle,
   routeTypeStyle
-} from "./route-styles";
+} from "@/renderers/route-styles";
+
+/// <reference types="node" />
 
 // The shipped defaults live in the style store's bundled JSON (src/generators/default-styles.json).
 // Read via fs with node:url's URL (not the jsdom-patched global URL, which resolves file:// bases
 // against window.location instead of the given base) to resolve the path.
 const defaultStyles = JSON.parse(
-  readFileSync(fileURLToPath(new NodeURL("../generators/default-styles.json", import.meta.url)), "utf8")
+  readFileSync(fileURLToPath(new NodeURL("../model/styles/default-styles.json", import.meta.url)), "utf8")
 ) as { routes: { groups: Record<string, { attrs: Record<string, unknown> }> } };
 
 // Every overland type the generator can emit (routes-generator.ts assigns these).

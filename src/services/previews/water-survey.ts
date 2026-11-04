@@ -1,9 +1,8 @@
+import type { MeasuredWaterContext, WaterPoint as Point, WaterSurvey } from "@/services/previews/water-context-types";
+import { packWaterCoordinates, WATER_COORDINATE_ERROR_M } from "@/services/previews/water-coordinate-pack";
+import { packWaterPolygons } from "@/services/previews/water-polygon-pack";
 import type { Bounds } from "@/utils/shoreline-geometry";
 import { boundsOf, closestPoint, flattenCurve, parseShorePath, ShoreIndex } from "@/utils/shoreline-geometry";
-import type { MeasuredWaterContext, WaterPoint as Point, WaterSurvey } from "./water-context-types";
-import { packWaterCoordinates, WATER_COORDINATE_ERROR_M } from "./water-coordinate-pack";
-import { packWaterPolygons } from "./water-polygon-pack";
-
 export const WATER_SURVEY_RADIUS_M = 3000;
 const FLATTENING_ERROR_M = 0.2;
 const GEOMETRY_ERROR_M = 0.5;

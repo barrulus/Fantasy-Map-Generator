@@ -1,19 +1,19 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { rw } from "../utils/probabilityUtils";
-import { heightmapTemplates } from "./heightmap-templates";
+import { heightmapTemplates } from "@/data/heightmap-templates";
+import { HeightmapGenerator as HeightmapGeneratorModel } from "@/model/physical/heightmap-generator";
+import { rw } from "@/utils/probability-utils";
 
 let HeightmapGenerator: any;
 
 beforeAll(async () => {
   const g = globalThis as any;
-  g.TIME = false;
   g.WARN = false;
   g.ERROR = false;
   g.graphWidth = 100;
   g.graphHeight = 100;
 
-  await import("../generators/heightmap-generator");
-  HeightmapGenerator = g.window.HeightmapGenerator;
+  await import("@/model/physical/heightmap-generator");
+  HeightmapGenerator = HeightmapGeneratorModel;
 });
 
 function buildSquareGrid(cellsX: number, cellsY: number, cellsDesired: number) {

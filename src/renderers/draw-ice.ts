@@ -1,6 +1,8 @@
-import { Layers } from "@/components/layers";
-import type { Ice } from "@/generators/ice-generator";
-import { Scene, ViewportLayers, type ViewportRenderContext } from "./viewport/viewport-renderer";
+import type { Ice } from "@/model/physical/ice-generator";
+import { Layers } from "@/renderers/layers";
+import type { ViewportRenderContext } from "@/renderers/viewport/viewport-renderer";
+import { Scene, ViewportLayers } from "@/renderers/viewport/viewport-renderer";
+import { log } from "@/utils/logger";
 
 interface IceSceneItem {
   id: string;
@@ -15,10 +17,10 @@ const scene = new Scene<IceSceneItem>();
 const layer = ViewportLayers.register({ id: "ice", render: reconcileIce });
 
 export const drawIce = (): void => {
-  TIME && console.time("drawIce");
+  log.time("drawIce");
   scene.replace(pack.ice.map(buildItem));
   layer.render();
-  TIME && console.timeEnd("drawIce");
+  log.timeEnd("drawIce");
 };
 
 /** sync one updated or deleted ice element into the scene and the visible DOM;

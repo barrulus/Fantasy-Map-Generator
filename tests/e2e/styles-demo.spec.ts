@@ -1,9 +1,5 @@
 import { test, expect } from "@playwright/test";
-import defaultStyles from "../../src/generators/default-styles.json";
-import { stylesSchema } from "../../src/generators/styles-schema";
 import { waitForMap } from "./wait-for-map";
-
-const DEFAULT_STYLES = stylesSchema.parse(defaultStyles);
 
 // The data-layer/data-group addressing contract between src/styles and the app:
 // every address the styles schema can produce must resolve in the real DOM.
@@ -15,8 +11,12 @@ const DEFAULT_STYLES = stylesSchema.parse(defaultStyles);
 const ADDRESSES: string[][] = [];
 for (const [layer, node] of Object.entries(DEFAULT_STYLES)) {
   ADDRESSES.push([layer]);
-  for (const key of Object.keys(node as Record<string, unknown>)) {
-    if (key === "attrs" || key === "options" || key === "groups" || key === "types") continue;
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key === "attrs" || key === "options") continue;
+    if (key === "groups") {
+      for (const name of Object.keys(value as Record<string, unknown>)) ADDRESSES.push([layer, name]);
+      continue;
+    }
     ADDRESSES.push([layer, key]);
   }
 }
@@ -33,7 +33,22 @@ async function generateMap(page: import("@playwright/test").Page) {
 test("every styles address resolves in the generated map's DOM", async ({ page }) => {
   await generateMap(page);
 
-  const result = await page.evaluate(addresses => {
+  // [layer] and [layer, subgroup] addresses from the app's parsed styles, read in the page:
+  // the schema source needs Vite, so the spec cannot import it
+  const result = await page.evaluate(() => {
+    const addresses: string[][] = [];
+    for (const [layer, node] of Object.entries(globalThis.styles as Record<string, Record<string, unknown>>)) {
+      addresses.push([layer]);
+      for (const [key, value] of Object.entries(node)) {
+        if (key === "attrs" || key === "options") continue;
+        if (key === "groups") {
+          for (const name of Object.keys(value as Record<string, unknown>)) addresses.push([layer, name]);
+          continue;
+        }
+        addresses.push([layer, key]);
+      }
+    }
+
     const resolved: string[] = [];
     const absentRoot: string[] = [];
     const missing: string[] = [];
@@ -52,7 +67,7 @@ test("every styles address resolves in the generated map's DOM", async ({ page }
       else missing.push(key);
     }
     return { resolved, absentRoot, missing };
-  }, ADDRESSES);
+  });
 
   // a schema key with no stamped element under an existing layer is a contract break
   expect(result.missing.filter(key => !LAZY.has(key))).toEqual([]);
@@ -61,8 +76,8 @@ test("every styles address resolves in the generated map's DOM", async ({ page }
   // dynamic groups: renderers stamp what they create
   for (const selector of [
     '[data-layer="labels"] [data-group]',
-    '[data-layer="burgIcons"] [data-group="burgIcons"] [data-group]',
-    '[data-layer="burgIcons"] [data-group="anchors"] [data-group]'
+    '[data-layer="burgIcons"] [data-group]',
+    '[data-layer="burgIcons"] [data-group="anchors"]'
   ]) {
     expect(await page.locator(selector).count(), selector).toBeGreaterThan(0);
   }
@@ -74,13 +89,13 @@ test("the library styles the live map through the contract", async ({ page }, te
   await page.screenshot({ path: testInfo.outputPath("styles-demo-before.png") });
 
   const result = await page.evaluate(async () => {
-    const { Styles } = await import("/Fantasy-Map-Generator/generators/styles.ts");
+    const { Styles } = await import("/Fantasy-Map-Generator/model/styles/styles.ts");
     const styles = globalThis.styles;
     styles.rivers.attrs.fill = "#ff00aa";
     styles.routes.groups.roads.attrs.stroke = "#00e5ff";
     styles.routes.groups.roads.attrs["stroke-width"] = 2;
     styles.lakes.groups.freshwater.attrs.fill = "#ffe000";
-    styles.states.statesHalo.attrs.filter = null; // null = remove
+    styles.states.groups.statesHalo.attrs.filter = null; // null = remove
     Styles.apply("rivers", "routes", "lakes", "states");
     return {
       riverFill: document.querySelector('[data-layer="rivers"]')?.getAttribute("fill"),

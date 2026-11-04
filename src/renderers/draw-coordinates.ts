@@ -1,6 +1,8 @@
 import { geoEquirectangular, geoGraticule, geoPath, select } from "d3";
-import { viewport } from "@/components/viewport";
-import { ensureEl, rn, round } from "@/utils";
+import { viewport } from "@/renderers/viewport/viewport";
+import { ensureEl } from "@/utils/node-utils";
+import { rn } from "@/utils/number-utils";
+import { round } from "@/utils/string-utils";
 
 const STEPS = [0.5, 1, 2, 5, 10, 15, 30]; // possible distances between the graticule lines, in degrees
 
@@ -12,7 +14,7 @@ export function drawCoordinates(): void {
   const goal = lonT / viewport.scale / 10;
   const step = STEPS.reduce((prev, curr) => (Math.abs(curr - goal) < Math.abs(prev - goal) ? curr : prev));
 
-  const desiredSize = styles.coordinates.options.fontSize;
+  const desiredSize = Number.parseFloat(styles.coordinates.attrs["font-size"]);
   coordinates.attr("font-size", Math.max(rn(desiredSize / viewport.scale ** 0.8, 2), 0.1));
 
   const graticule = geoGraticule()

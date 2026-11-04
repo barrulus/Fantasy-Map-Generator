@@ -1,10 +1,11 @@
 // @vitest-environment node
+
 import { describe, expect, it } from "vitest";
+import type { WaterPoint as Point } from "@/services/previews/water-context-types";
+import { WATER_COORDINATE_ERROR_M } from "@/services/previews/water-coordinate-pack";
+import type { SurveyBoundary } from "@/services/previews/water-survey";
+import { WaterSurveyIndex } from "@/services/previews/water-survey";
 import { closestPoint } from "@/utils/shoreline-geometry";
-import type { WaterPoint as Point } from "./water-context-types";
-import { WATER_COORDINATE_ERROR_M } from "./water-coordinate-pack";
-import type { SurveyBoundary } from "./water-survey";
-import { WaterSurveyIndex } from "./water-survey";
 
 const bounds = { minX: -50000, minY: -50000, maxX: 50000, maxY: 50000 };
 const rectangle = (x1: number, y1: number, x2: number, y2: number) => `M${x1},${y1}H${x2}V${y2}H${x1}Z`;

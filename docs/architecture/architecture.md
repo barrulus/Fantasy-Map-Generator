@@ -2,7 +2,7 @@ This document outlines the future architecture of the Fantasy Map Generator. It 
 
 ## Goals
 
-The proposed FMG 2.0 architecture aims to gradually transform the project from a large, tightly-coupled vanilla JavaScript application into a modular, maintainable, and testable system.
+The FMG 2.0 architecture gradually transforms the project from a large, tightly-coupled application into a modular, maintainable, and testable system.
 
 Main goals:
 
@@ -12,7 +12,7 @@ Main goals:
 - Make world data independent from SVG / DOM manipulation
 - Reduce hidden global state and implicit side effects
 - Enable easier contribution and onboarding
-- Support gradual migration from JavaScript to TypeScript
+- Keep every module typed, imported and explicit: no ambient state beyond the world data
 - Improve long-term maintainability without breaking existing `.map` files
 - Allow alternative renderers in the future (e.g. WebGL)
 
@@ -22,7 +22,7 @@ Main goals:
 
 The overall desired architecture model is as below:
 
-````
+```
                  settings
                     │
                     ▼
@@ -38,20 +38,7 @@ The overall desired architecture model is as below:
       │                           │
       ▼                           ▼
 data mutations            SVG or WebGL Canvas
-
-The architecture is conceptually divided into four major layers:
-
-Or more formally:
-
-```text
-world data + styles (state)
-        ↑↓
-generators (model)
-        ↑↓
-editors (controllers)
-        ↓
-renderers (view)
-````
+```
 
 All the map-related state should be represented by a single gigantic `map` object. When the `.map` file is saved, the object is transformed into a single json file.
 
@@ -199,116 +186,39 @@ The same world state could theoretically support:
 
 # Map Styling
 
-Map styling is map state. The desired model is one plain, JSON-compatible `style`
-object that contains everything needed to reproduce the map appearance. SVG attributes
-and other rendered output are projections of that object, never the source of truth.
+Map appearance is map state. One plain, JSON-compatible `styles` object holds everything needed to
+reproduce how the map looks; the SVG is a projection of it and never the source of truth. Nothing
+reads a style value back from the DOM.
 
-Layer visibility, layer presets, and stacking order are separate concerns and are not part of the style model described here — they belong to the layers registry.
+The record is keyed by **style element** — a map layer, or `map` for the whole-map filter — and each
+element is a tree of three kinds of node:
 
-## Problems with the current approach
+- `attrs` — SVG attributes, written to the element as they are (`null` means "not set")
+- `options` — renderer inputs (`scheme`, `icon`, …), read from the store, never written to the DOM
+- `groups` — a record of user-named entries (label groups, lake types, …) sharing one shape
 
-The current style preset files are close to the desired serializable form, but their
-structure mirrors the rendered SVG:
+The record is declared once, as a zod schema (`src/model/styles/styles-schema.ts`). The TypeScript
+type, the defaults, validation on load and the Style tab's form are all derived from that one
+declaration: a style field cannot exist without a type, a default and a control.
 
-- Most style values live as attributes on SVG elements and are read back from the DOM.
-- Presets are keyed by selectors such as `#stateBorders` and `#labels > #states`.
-- SVG attributes, custom `data-*` attributes, and application options are mixed together.
-- The global `style` object covers only selected subsystems: Label Groups, Burg icon
-  groups, and anchor groups. Other styles remain attached to SVG nodes.
-- The Style UI changes the rendered SVG directly and calls drawing functions when an
-  attribute affects geometry.
+Roles, by layer:
 
-This makes the DOM part state container and part renderer output. It also couples preset
-files, saving, loading, and migration to the current SVG structure. Renaming or nesting an
-SVG group can become a data-format change even when the visible feature did not change.
+- **State** — the `styles` global, complete by construction: `Styles.parse` repairs an invalid or
+  missing section from the defaults, so no read site carries a fallback. Serialized whole into the `.map`.
+- **Renderers** — read `styles.<element>.options` when drawing; `Styles.write` puts `attrs` onto the
+  elements they drew, addressed by `data-layer` / `data-group`, never by element id.
+- **Controllers** — `Controllers.StyleEditor` is a form built from the schema at open time: it
+  mutates the store and runs the change's effect (write the one attr, or redraw the layer).
+  `Controllers.StylePresetsEditor` swaps the whole record for a preset.
+- **Services** — `services/style-presets.ts` is the preset source (bundled default, fetched system
+  presets, `localStorage` customs); it reads no map state.
 
-## Desired style object
+Layer visibility and z-order are not style — they belong to the [layers registry](#map-layers).
+Per-entity visual overrides (one label's own size) stay with the entity as exceptions to its
+group style, not a second style system.
 
-The `style` object is organized by map feature rather than by DOM selector. Related
-parts are nested, while repeated user-defined styles are stored in keyed `groups`
-objects. The following is illustrative schema:
-
-```ts
-const style = {
-  borders: {
-    state: { opacity: 0.8, stroke: "#56566d", "stroke-width": 1, "line-cap": "butt", filter: null },
-    province: { opacity: 0.8, stroke: "#56566d", "stroke-width": 0.5, "line-cap": "round", filter: null }
-  }
-};
-```
-
-Existing selector fragments become
-nested parts, for example:
-
-- `#statesBody` and `#statesHalo` become `style.states.body` and `style.states.halo`.
-- `#freshwater`, `#salt`, and the other lake types become entries in `style.lakes.groups`.
-- `#rural` and `#urban` become `style.population.rural` and `style.population.urban`.
-- `#stateEmblems`, `#provinceEmblems`, and `#burgEmblems` become nested emblem styles.
-- `#goodsCells`, `#goodsIcons`, and `#goodsBurgs` become nested parts of `style.goods`.
-- `#legendBox`, `#scaleBarBack`, and the compass rose become nested parts of their owning feature.
-
-The grouping is organizational only. It does not introduce a generic style framework,
-CSS cascade, or inheritance system. Each renderer owns the small typed style shape for
-its feature.
-
-## Naming and values
-
-- Use html snake case attributes names such as `stroke-width`, `font-size`, `data-dx`.
-- Preserve every styling capability users have today, including colors, opacity,
-  strokes, typography, filters, masks, textures, patterns, sizes, offsets, and
-  feature-specific rendering options.
-
-## Ownership and data flow
-
-The Style controller edits the serialized object and then asks the affected renderer to
-redraw:
-
-```text
-User changes a style
-        ↓
-Style controller mutates style.<feature>
-        ↓
-Feature renderer reads world data + style.<feature>
-        ↓
-SVG / WebGL / canvas output
-```
-
-The renderer translates the feature style into its output format. It may write SVG
-attributes, but it must not read those attributes back as current style. Re-rendering
-from the same world data and style must produce the same result.
-
-Reusable styles belong in the global `style` object. Existing entity-specific visual
-overrides, such as one label's size or offset, may remain with that entity's data. They
-are exceptions to a reusable group style, not another global styling system.
-
-## Presets and persistence
-
-Built-in presets, custom presets, and the style stored in a `.map` file use the same
-complete object schema.
-
-- Applying a preset replaces the current `style` object and redraws affected features.
-- Saving stores the resolved object, not only a preset name, so the map looks the same
-  when opened without access to the original preset.
-- Custom preset storage may remain an app preference, but its contents use the same
-  schema as map style state.
-- Selector-based preset files are migrated by mapping each selector and attribute to a
-  semantic object path and field.
-
-## Incremental migration
-
-Move one feature at a time:
-
-1. Define its typed style subtree and defaults.
-2. Map the corresponding bundled preset values into that subtree.
-3. Make its Style controller edit the object rather than SVG attributes.
-4. Make its renderer accept the subtree and write the resulting output.
-5. Read legacy SVG attributes only in map compatibility code, then store the converted
-   values in the style object.
-
-During migration the object can contain both modern feature subtrees and the existing
-group-style entries. Once a feature is migrated, its normal editor, renderer, save, and
-load paths must not reconstruct its style from the DOM. Existing maps and presets should
-retain their appearance throughout the conversion.
+The full model — the record, the store API, presets and persistence, legacy conversion and the
+schema-driven editor — is in [style.md](./style.md).
 
 ---
 
@@ -316,18 +226,53 @@ retain their appearance throughout the conversion.
 
 The four-layer model above (state → generators → editors → renderers) is the _conceptual_
 core, but a real application also needs code that is none of those: persistence,
-app-shell lifecycle, static content, and shared helpers.
+app-shell lifecycle, reusable UI, static content, and shared helpers.
 
-| Folder             | Layer       | Holds                                                |
-| ------------------ | ----------- | ---------------------------------------------------- |
-| `src/generators/`  | Model       | procedural generators & domain logic                 |
-| `src/renderers/`   | View        | code that draws SVG / WebGL layers                   |
-| `src/controllers/` | Controller  | transient editors, tools, dialogs, panels, overviews |
-| `src/components/`  | Application | application state and reusable UI                    |
-| `src/data/`        | —           | static content / reference data                      |
-| `src/services/`    | —           | app-shell & platform infra                           |
-| `src/utils/`       | —           | pure helpers: no ambient state, min 2 consumers      |
-| `src/types/`       | Shape       | shared TypeScript interfaces / domain models         |
+| Folder             | Role        | Holds                                                                      |
+| ------------------ | ----------- | -------------------------------------------------------------------------- |
+| `src/model/`       | Model       | world data definitions, generators, model classes and their edits, options |
+| `src/renderers/`   | View (map)  | code that draws SVG / WebGL layers, the layers registry, the viewport      |
+| `src/ui/`          | View (UI)   | reusable UI: dialogs, tables, tooltips, web components, map interaction    |
+| `src/controllers/` | Controller  | transient editors, tools, dialogs, panels, overviews                       |
+| `src/app/`         | Application | composition root: boot, lifecycle, shell, hotkeys, always-on chrome        |
+| `src/services/`    | —           | serialization, app-shell & platform infra                                  |
+| `src/data/`        | —           | static content / reference data                                            |
+| `src/utils/`       | —           | pure helpers: no ambient state, min 2 consumers                            |
+| `src/types/`       | Shape       | shared TypeScript interfaces / domain models                               |
+
+Read as MVC: the model is `model/`, the view is `renderers/` (the map) plus `ui/` (widgets), and the
+controller is `controllers/`. `app/` wires them together. The fit is loose on purpose — a controller
+renders its own dialog markup — so folders are named by role, not by MVC letter.
+
+## Domains inside a role
+
+The role is always the top-level folder, so the layer a file belongs to stays visible in its path.
+Inside the two large role folders, `model/` and `controllers/`, files are grouped by **domain**:
+
+| Domain         | Covers                                                                      |
+| -------------- | --------------------------------------------------------------------------- |
+| `graph/`       | the grid and packed Voronoi graph, and the tools that rebuild it            |
+| `physical/`    | heightmap, climate, features, coastline, lakes, rivers, ice, biomes, relief |
+| `society/`     | population, cultures, religions, names                                      |
+| `political/`   | states, provinces, burgs, diplomacy, military, zones, emblems               |
+| `economy/`     | goods, production, markets and trade, transports, routes                    |
+| `story/`       | markers, notes, lore, journeys                                              |
+| `annotations/` | labels, rulers, the legend: what the map adds on top of the world           |
+| `styles/`      | the style record, its schema and formats (`model/` only)                    |
+| `style/`       | the Style editor and presets (`controllers/` only)                          |
+
+Inside a domain, an entity gets its own folder once it has **three or more files** there
+(`controllers/political/burgs/`, `controllers/economy/routes/`); below that the files sit in the
+domain folder. A module that serves the whole map rather than one domain (`map-entities`,
+`pipeline`, `omnibar`, `context-menu`) stays at the role's root. `renderers/`, `ui/` and `app/` are
+small enough to stay flat, with a subject folder only for a cluster such as `renderers/heightmap/`.
+
+## What the model is
+
+`src/model/` holds everything that defines the world and its configuration: the generators
+(`*-generator.ts`), the model classes that own each entity's edits, styles, the options model and
+schema (`model/options/`), icon references (`icons`, `icon-sets`) and the entity registry
+(`map-entities`). A model module never opens a dialog or reaches a controller.
 
 ## What a "controller" is
 
@@ -345,41 +290,45 @@ The unifying rule: _UI that is **opened and closed**, and that **mutates or pres
 state**._ A controller does **not** hold pure static data, services, or serialization
 — those have their own folders.
 
-## What a "component" is
+## What `ui/` is
 
-`src/components/` holds Application state and UI that is **not owned by one editor**. Four kinds:
+`src/ui/` holds UI that is **not owned by one editor** and that several callers share rather than copy:
 
-- **Application state** — statefull application-level modules, active layers and their order,
-  viewport zoom and position.
-- **Web components** — reusable custom elements with no map knowledge (`fill-box`,
-  `slider-input`).
-- **App-level UI** — dialogs and widgets that are opened over the map but say nothing about it:
-  the About dialog (`app-info`). They have a controller's lifecycle but not a controller's
-  subject, so they live here and load with the shell.
-- **Shared editor behaviour** — interaction helpers several editors call rather than copy:
-  dialog helpers, tooltips, the default map events (`viewbox-events`), the brush over the map
-  (`map-brush`, which owns the size control, radius circle and gestures while each tool supplies
-  what a stroke does), and map modes such as `annex-mode`, which the States and Provinces editors
-  both drive with their own merge logic.
+- `ui/dialog/` — the `Dialog` window, dialog helpers, editor tables, sorting, line highlighting, the per-browser dialog state
+- `ui/elements/` — reusable custom elements with no map knowledge (`fill-box`, `slider-input`)
+- `ui/tooltips.ts` — the tip line
+- `ui/map/` — interaction with the map canvas: pan and zoom, the default map events (`viewbox-events`),
+  the hover tooltip, the brush (`map-brush`, which owns the size control, radius circle and gestures
+  while each tool supplies what a stroke does), placement, `reveal`, and map modes such as `annex-mode`,
+  which the States and Provinces editors both drive with their own merge logic
 
-Widgets like `hierarchy-tree` and `minimap` may move to `components/` if they generalize.
+Widgets like `hierarchy-tree` and `minimap` may move to `ui/` if they generalize.
+
+## What `app/` is
+
+`src/app/` is the composition root. `app/index.ts` loads every eager module in order and exports
+`boot`; `lifecycle`, `shell`, `canvas`, `seed`, `hotkeys` and `map-commands` drive the application.
+`app/chrome/` is the UI that is always there and loads with the shell: the options panel and its
+tabs, the load/save/export panes, the Assistant bubble and the About dialog (`app-info`). Nothing
+below `app/` imports it.
 
 ## Cross-layer subsystems
 
-Most folders are flat. When a feature spans layers, each part stays under the folder for
-its role. Heraldry is the current example:
+When a feature spans layers, each part stays under the folder for its role, in the same domain.
+Heraldry is the current example:
 
 - `src/data/emblems/` — static heraldry catalogs
-- `src/generators/emblems-generator.ts` — emblem generation (registers `window.Emblems`)
-- `src/renderers/emblems/` — SVG drawing of emblems (registers `window.EmblemRenderer`)
+- `src/model/political/emblems-generator.ts` — emblem generation
+- `src/controllers/political/emblems/` — the Emblems editor and the Armoria bridge
+- `src/renderers/emblems/` — SVG drawing of emblems. Its shields, lines,
+  patterns, templates and diapers are ported from [Armoria](https://github.com/Azgaar/Armoria), and `public/charges/`
+  is a verbatim copy of Armoria's charges: sync both from Armoria rather than editing them here
 
 ## Why no `core/`
 
 Folders are named by **role**, never by vague importance. A generic `core/` becomes a
 junk drawer — everything feels "core," so unrelated code accretes there and the name
-stops meaning anything. If a genuinely foundational bucket is ever needed, prefer a
-meaningful name like `src/state/` (the `pack`/`grid` container and the serialization
-contract) over `core/`.
+stops meaning anything. The same goes for a catch-all `components/`: name the role instead.
 
 ## Libraries
 
@@ -387,55 +336,76 @@ New bundled code imports third-party dependencies from **npm**; Vite tree-shakes
 into the graph (e.g. d3 v7 via `import { select } from "d3"`). There is **no vendored
 `libs/` under `src/`**.
 
-`public/libs/*.min.js` (d3 v5, jQuery, three, …) is loaded via `<script>` tags **only**
-for classic `public/**/*.js` that still depend on runtime globals. It is legacy-only and
-shrinks as modules migrate: when a feature ports to `src/`, its dependency flips from a
-vendored global script to an npm import, and the vendored script is dropped once nothing
-classic needs it.
+A large library used by one feature is reached through that feature's dynamic `import()`, so it
+lands in a lazy chunk: three.js and its add-ons load with the 3D renderer. A library of a
+few dozen lines is kept in `utils/` as typed source (`flat-queue.ts`, `simplify.ts`) rather than added
+as a dependency.
 
 ## Where does my file go?
 
-- Mutates world state from user input → **editor** in `controllers/`
-- Presents map state read-only in a dialog the user opens and closes → **overview** in `controllers/`
-- Presents map state but is _always_ on screen → **chrome** in `components/`
-- A dialog or widget that knows nothing about the map and loads with the shell (About) → `components/`
+- Mutates world state from user input → **editor** in `controllers/<domain>/`
+- Presents map state read-only in a dialog the user opens and closes → **overview** in `controllers/<domain>/`
 - Transient UI loaded only when opened (for example, the color picker) → `controllers/`
+- UI that is always on screen or loads with the shell (options panel, About) → **chrome** in `app/chrome/`
+- Boots, regenerates or wires the application together → `app/`
+- A dialog helper, widget or custom element several modules share → `ui/`
+- Interaction with the map canvas shared by editors (zoom, brush, map modes) → `ui/map/`
 - Draws an SVG / WebGL layer (incl. stateful animation engines like `trade-animation`) → `renderers/`
-  — and the layer itself is declared in the registry in `components/layers.ts`
+  — and the layer itself is declared in the registry in `renderers/layers.ts`
 - Turns coordinates into path data for one layer, or derives data only that drawing needs
   → `renderers/<subject>.ts`, no `draw-` prefix (see [Renderers](#renderers-view))
 - Draws transient feedback that removes itself (highlight, brush circle, fog) → `renderers/overlays/`
-- Generates or simulates world data → `generators/`
+- Generates, simulates or defines world data → `model/<domain>/`; map options → `model/options/`
 - Serializes, saves, loads, or exports state → `services/io/`
 - Manages browser/app lifecycle, a platform asset, or app preferences → `services/`
-- Talks to the project's help gateway on the user's behalf → `services/help/`
+- Talks to the Azgaar server on the user's behalf → `services/assistant/azgaar-server/`
+- Talks to the user's own AI provider → `services/assistant/provider/`
 - A constant list or template, no behavior → `data/`
-- A helper that reads no ambient state and has ≥2 consumers → `utils/`
+- A helper that reads no ambient state and has ≥2 consumers → `utils/`, imported from its own file
 - A shared type / interface → `types/`
 
 ## Imports point down, never up
 
-Bundled code **imports what it calls** — a migrated module must not reach a migrated function
-through its `window.*` global. The globals exist for classic `public/**/*.js`, not for `src/`.
+Code **imports what it calls** and never reads a module through `window`. The one object the app
+puts on `window` is the [scripting surface](#scripting-surface), and the app itself never reads it.
 
 But an import is also a dependency, and dependencies only run **downhill**:
 
 ```text
-components / controllers / services      ← may import anything below
+             app                          ← may import anything
               ↑
-          renderers                       ← utils, types, data, generators
+   controllers / services                 ← ui, renderers, model, below
               ↑
-          generators                      ← utils, types, data
+              ui                          ← renderers, model, below
+              ↑
+          renderers                       ← model, utils, types, data
+              ↑
+            model                         ← utils, types, data
               ↑
         utils / types / data              ← only each other
 ```
 
-So `states-editor` imports `tip` from `components/tooltips`, but a **generator or a
-renderer that wants to show a tooltip may not** — that import would point up the stack. Those
-few call sites keep the `window` bridge with a comment saying why; the real fix is to move the
-message to the controller that owns the interaction, not to import across the layer boundary.
-`utils/registry.ts` is the standing example: it shows a loading tip through `window.tip`
-because utils must never depend on the UI.
+The `Controllers` and `Services` registries are lazy handles, not eager dependencies: `ui/` may
+dispatch through them (`viewbox-events` opens an editor on click), the model and renderers may not.
+Type-only imports (`import type { LayerId }`) carry no runtime dependency and may cross.
+
+So `states-editor` imports `tip` from `ui/tooltips`, but a **model or a renderer module that wants
+to show a tooltip may not** — that import would point up the stack. Move the message to the
+controller that owns the interaction, or let the caller pass the behavior down: `createRegistry` in
+`utils/registry.ts` takes its loading feedback from the registry that builds it, and the minimap
+follows the camera through `onViewportChange` in `ui/map/zoom.ts` rather than being called by it.
+
+Two seams carry what still has to travel up:
+
+- **`notify`** (`utils/notices.ts`): a model or renderer message for the user; `ui/tooltips` shows it.
+- **`App`** (`ui/app-commands.ts`): the composition root's commands — generate or regenerate the map,
+  sync the options panel, open a tab, the command catalog — bound by `app/index.ts` at start-up, so a
+  controller or a service calls `App.regeneratePrompt()` without importing `app/`.
+
+A few direct upward imports are accepted where a seam would only add indirection: the style store
+redraws through the layers registry (`Styles.apply` → `Layers.draw`), the options model keeps custom
+icons in `services/local-db`, and the legend positions are stored with the dialog layouts in
+`ui/dialog/state`.
 
 ---
 
@@ -460,6 +430,10 @@ A generator turns inputs into world data.
   never depend on wall-clock time or unspecified iteration order.
 - **No view, no UI.** A generator never reads the DOM, builds SVG, or opens a dialog. If it
   needs to _show_ something, that is a renderer's or controller's job.
+- **Model classes own their edits.** An edit to an entity (`Burgs.rename`, `States.recolor`,
+  `Notes.write`…) is a public method of the class that owns the data. It validates its arguments,
+  keeps dependent data consistent (labels, full names, codes, cell ownership) and never redraws. Editors and the
+  Assistant call the same method, so there is one implementation of each edit.
 - **Keep the data out.** Lookup tables, recipes, and tuning constants are _data_, not
   algorithm. Fixed properties of the domain stay co-located reference data
   ([Configurations and data](#configurations-and-data)); any parameter a user might want to
@@ -519,7 +493,7 @@ A controller is the thin seam between a user action and the state.
   (`Controllers.StatesEditor.open()`), never imported eagerly. See [Lazy module registry](#lazy-module-registry).
 - **Transient overlays own their styles.** A palette, popover, or bubble that lives only while
   it is open may render its own `<style>` block next to its markup, scoped under its own id, so
-  the rules are created and removed with the element. Keep `public/index.css` for the shell and
+  the rules are created and removed with the element. Keep `src/index.css` for the shell and
   for widgets whose markup is static in `src/index.html`. The omnibar is the reference case: its
   stylesheet is one block in `omnibar.ts`, scoped under `#omnibar`.
 
@@ -541,6 +515,12 @@ Static content: lookup tables, templates, tuning constants, reference lists.
   silently dropped field corrupts saves.
 - **Pure functions.** Serialization reads state and returns bytes; it owns no state of its
   own.
+- **Migrations are isolated and one-time.** Upgrading an older `.map` belongs only in
+  `src/services/io/auto-update.ts`, in the `isOlderThan("<version>")` block of the version that
+  changed the format. It runs once, on load of an older file; saving writes the current shape, so
+  the next load skips it. Code outside `auto-update` (the loader, generators, renderers, editors)
+  assumes the current shape: it never back-fills fields older maps lack, nor carries fallbacks for
+  them. When a format changes, add the migration block, not a guard in the code that reads the field.
 
 ## Services
 
@@ -555,10 +535,31 @@ Static content: lookup tables, templates, tuning constants, reference lists.
 - **IO is a service.** Save/load/export live in `src/services/io/`. Like controllers, each
   service/io module exports a single named object (`Save`, `Load`, `ExportMap`, …) reached
   through the `Services` registry (`Services.Save.toMachine()`).
-- **The help gateway client is a service.** `src/services/help/` (api, auth, conversation) is the
-  only code that talks to ask.azgaarsfmg.com; `controllers/help-assistant.ts` is the UI over it. The
-  client keeps the Discord sign-in token in `localStorage` and only the server-issued conversation id
-  in `sessionStorage`, never conversation content.
+  CSV tables go through `Csv` (`services/io/csv.ts`): downloads quote every value that needs it,
+  uploads are parsed and checked there. An editor's upload is `Controllers.CsvUpload.update`
+  (`controllers/csv-upload.ts`, lazy like other dialogs) with the editor's column list (shared
+  with its download) and one model setter per column. It owns id checks, blank and unchanged cells and population splits,
+  runs the setters on a `World` draft for a modal preview the user confirms, then runs them on the
+  map; setters must therefore only change data, and the row callback reads its entity by id so it
+  gets the draft one. Values another row may change are compared with the map as it was before the
+  upload.
+  Downloads carry a UTF-8 BOM so spreadsheets keep accented and non-Latin names.
+- **Azgaar Assistant** lives in `src/controllers/assistant/`. `index.ts` is its one controller, for the panel, chat list, key sheet and transcript.
+  `map.ts` is the open map as the Assistant sees it — one `AssistantMap` object with its id,
+  per-question context and its map tools: `read_map`, `propose_change`, `view_emblem`, `view_map` and one `show_*` tool per
+  widget (`entities`, `card`, `chart`, `choices`, `inset`). Changes go through
+  `operations.ts`, a plain registry of model-class methods, and `proposals.ts`, which dry-runs a
+  batch on a draft of the map into a Change and applies, undoes or discards it on the user's click.
+  `redraw.ts` derives the layers to redraw from the data a Change touched. Services in
+  `src/services/assistant/` do not access world data or the DOM: `chats.ts` persists map-bound chats in IndexedDB;
+  `azgaar-server/` answers Guest and Member questions from the documentation and handles Discord sign-in; `provider/`
+  serves the Key tier: `connection.ts` stores provider settings and keys in localStorage, `answerer.ts` runs the tool
+  loop through `providers.ts` and `openai.ts`, `models.ts` discovers a key's models, `context.ts` builds the system
+  prompt, `docs.ts` and `knowledge.ts` serve `read_docs` and `read_help`, and `runtime.ts` runs `read_map` scripts.
+  The Azgaar server receives only the question and its server chat id. A connected Provider receives the open-map context
+  and tool results directly from the browser. The Assistant never stores chats in `.map` files.
+  `read_map` runs model-written JavaScript in page scope with the app's full access, stored keys included. This is an
+  accepted, disclosed risk (see the PRD's Further Notes and the Policy wiki page): users load only map files they trust.
 
 ## Lazy module registry
 
@@ -570,18 +571,31 @@ two typed registries — `Controllers` (built in `src/controllers/index.ts`) and
   object whose properties are its public methods — `export const StatesEditor = { open }`,
   `export const Save = { toStorage, toMachine, toDropbox, prepareMapData, writeToStorage }`. The registry key matches
   that export name. A module exposing data or a nested object wraps it in a method facade (e.g.
-  `CloudStorage` flattens `Cloud.providers.dropbox`) so it fits the dispatch contract.
+  `CloudStorage` wraps the Dropbox provider) so it fits the dispatch contract.
 - **Lazy by default, async at the call site.** `Controllers.X.method(...)` dynamically imports
   the module on first use (its own code-split chunk, evaluated once) and then dispatches — so
   every call returns a Promise. The factory infers each module's real signatures, so callers
   get precise, type-checked contracts rather than `any`.
-- **Same handle everywhere.** Migrated TS imports `{ Controllers }` / `{ Services }`; legacy
-  `public/**/*.js` and inline handlers use the `window.Controllers` / `window.Services` globals.
+- **Same handle everywhere.** Every caller imports `{ Controllers }` / `{ Services }`. Markup never
+  calls code: a template carries ids or `data-` attributes and its module wires the listeners.
 
-Generators, renderers, and components are different: they are **eager** and self-register their
-own globals (`window.Markets`, `window.drawRoutes`, `window.tip`) because classic code calls them
-directly and, in chrome's case, because there is no moment at which they would be "opened". See
+Model, renderers, `ui/` and `app/` modules are different: they are **eager**, imported directly by
+their callers, and chrome has no moment at which it would be "opened". See
 [lazy-loading.md](./lazy-loading.md) for the full pattern and how to add a module.
+
+## Scripting surface
+
+`window.FMG`, built in `src/app/fmg.ts`, is how a person at the browser console and the Assistant's
+`read_map` scripts reach the app: the map state (`pack`, `grid`, `options`, `styles` through getters,
+since a regeneration or a load replaces them), the helpers in `utils/`, every model singleton, the
+layers registry, `Controllers`, `Services` and a few app commands. `read_map` scripts see each member
+by name, so `pack.burgs` works there as `FMG.pack.burgs` does in the console.
+
+- **One-way.** The app never reads `window.FMG`, and TypeScript does not declare it: a module imports
+  what it calls. The one reader is the `read_map` runtime, which is the script side: it spreads the
+  members into each script's scope at run time.
+- **Add, don't bridge.** A new public singleton or command is one line in `fmg.ts`. The Assistant's
+  Globals doc is generated from that file (`npm run generate:assistant-context`), so it stays in step.
 
 ---
 
@@ -589,7 +603,7 @@ directly and, in chrome's case, because there is no moment at which they would b
 
 A map layer is one slot in the map's z-order: an SVG group, the code that draws it, and whether it
 is currently on. Layers are the unit the user toggles, reorders and saves, so they are **application
-state**, not style and not world data. They live in one registry — `src/components/layers.ts` —
+state**, not style and not world data. They live in one registry — `src/renderers/layers.ts` —
 which is the single source of truth for layer identity, order and visibility.
 
 Each layer is declared exactly once, as a value in one ordered list. **Registration order is the
@@ -598,9 +612,10 @@ cannot drift apart. A declaration names the layer's id, the SVG group and its pa
 permanent child elements and static attributes, and the `draw` / `erase` functions.
 
 The active set and the layer order are serialized with the map (`data[50]`) and re-applied with
-`Layers.restore` on load, which adopts the state without redrawing content the loaded SVG already
-carries. `restore` tolerates version skew in both directions: unknown ids are ignored, and layers
-the file predates slot in after their registration-order predecessor.
+`Layers.restore` on load; the load then draws every layer from the map data, as generation does.
+`restore` tolerates version skew in both directions: unknown ids are ignored, and layers
+the file predates slot in after their registration-order predecessor. A layer id never changes, while
+its svg group id is the registry's own: a file carries no groups for the load to adopt.
 
 ---
 
@@ -692,9 +707,9 @@ generation, load, transform and heightmap edit. Almost every leak is one of a fe
   (a running flag) with a single cancellation point; teardown resets the flag, cancels the handle
   and releases what the loop touched. Async work that can resolve after teardown checks an
   `active` flag before touching the scene.
-- **Destroy dialogs, don't remove them.** Close a jQuery-UI dialog with `destroyDialog(id)` /
-  `.dialog("destroy")` so the widget, its `.ui-dialog` wrapper and the detached subtree go
-  together; a raw `element.remove()` on live dialog content orphans the wrapper.
+- **Close dialogs, don't remove them.** `Dialog.close(id)` runs the dialog's `onClose` and removes
+  its window with the content; `Dialog.destroy(id)` drops one silently before it is rendered anew.
+  Markup built once and reused is opened `persistent`, so closing only hides it.
 - **One listener per element, owned by the module.** Bind with property assignment, `.on(...)` or
   an `AbortController` — never `addEventListener` on a page-lifetime element from code that runs
   per open. Create transient inputs in the module that uses them (`createFileInput`) instead of
@@ -718,7 +733,7 @@ Split rarely-used features into on-demand chunks so the initial bundle stays sma
 
 ## Measure, don't guess
 
-Guard hot paths with `TIME && console.time(…)` / `console.timeEnd(…)` and keep the guards.
+Time hot paths with `log.time(…)` / `log.timeEnd(…)` from `utils/logger.ts` and keep the timers.
 Profile real maps at large cell counts and optimise the measured bottleneck.
 
 ---
@@ -813,7 +828,8 @@ reason a session can climb toward gigabytes. The target:
 - **Destroy on close — always.** `close()` removes the generated subtree (`element.remove()`),
   drops its listeners, cancels timers/observers/animation loops, and releases references.
   **Hiding is not closing**: a hidden panel still costs its full DOM, listeners, and retained
-  closures.
+  closures. The one exception is the Azgaar Assistant panel: it is built once and hidden on close,
+  so an answer in flight, the draft and the scroll survive.
 - **Symmetric ownership.** Every `build` has a matching `teardown` in the same controller. If
   `open` created it, `close` destroys it — no orphaned subtrees, no half-freed state.
 - **Bound large lists.** A panel over N entities must not materialize N rows when N is large:
@@ -828,32 +844,12 @@ what the user is looking at now — not everything they have opened this session
 
 ---
 
-# Migration Strategy
+# Migration Plan
 
-The refactor is explicitly incremental and is already in progress. The project is too large for a full rewrite, so the architecture aims for:
-
-- Progressive extraction
-- Compatibility bridges
-- Mixed JS/TS operation
-- Gradual module isolation
-- Step-by-step modernization
-
-Key strategy: old code continues working, while new subsystems adopt cleaner architecture.
-
----
-
-# TypeScript Adoption
-
-A major direction of the modernization is gradual TypeScript migration.
-
-Goals:
-
-- Strong typing
-- Better editor tooling
-- Safer refactors
-- Explicit contracts between systems
-- Better discoverability for contributors
-
-For the concrete `src/` layout the code actually uses — and a guide to where each new
-file belongs — see [Project Structure](#project-structure) below. The transition is
-designed to coexist with legacy JavaScript.
+1. **One world object and its `.map` file.** `pack`, `grid`, `options` and `styles` are still ambient
+   globals. They become the single `map` object of [future-data-model.md](./future-data-model.md), and
+   the `.map` file becomes that object as JSON instead of today's line-based format. Rendering no
+   longer depends on the file's SVG part, so the format can change on its own schedule.
+2. **Model code that touches the DOM.** The style store writes attributes to the map's SVG, the icon
+   library mounts `#icons-library`, the cultures generator opens a message dialog and the heightmap
+   image import draws to a canvas. Each moves to the renderer or controller that owns it.

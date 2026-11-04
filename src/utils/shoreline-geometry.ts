@@ -1,5 +1,4 @@
 import type { WaterPoint as Point } from "@/services/previews/water-context-types";
-
 export interface Bounds {
   minX: number;
   minY: number;

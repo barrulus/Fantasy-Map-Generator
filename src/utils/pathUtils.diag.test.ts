@@ -1,3 +1,7 @@
+import FlatQueue from "flatqueue";
+import { beforeAll, describe, expect, it } from "vitest";
+import { findPathTree } from "@/utils/path-utils";
+
 /**
  * Diagnostic measurement (not a regression test).
  *
@@ -12,9 +16,6 @@
  * distance with a mild deterministic modifier (so relaxations actually
  * compete and stale entries exist, unlike a pure unit grid).
  */
-import FlatQueue from "flatqueue";
-import { beforeAll, describe, expect, it } from "vitest";
-import { findPathTree } from "./pathUtils";
 
 const N = 300;
 

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import type { Ice } from "@/generators/ice-generator";
-import { drawIce, redrawIce } from "./draw-ice";
+import type { Ice } from "@/model/physical/ice-generator";
+import { drawIce, redrawIce } from "@/renderers/draw-ice";
+import { viewport } from "@/renderers/viewport/viewport";
 
-vi.mock("@/components/layers", () => ({ Layers: { isOn: () => true } }));
+vi.mock("@/renderers/layers", () => ({ Layers: { isOn: () => true } }));
 
 const iceberg = (i: number, points: [number, number][], offset?: [number, number]): Ice => ({
   type: "iceberg",
@@ -28,7 +29,7 @@ const renderedIds = (): string[] =>
 beforeEach(() => {
   document.body.innerHTML = `<svg><g id="ice"></g></svg>`;
   // viewport globals read by ViewportLayers.getViewport: a 100x100 view at origin, no zoom
-  Object.assign(globalThis, { scale: 1, viewX: 0, viewY: 0, svgWidth: 100, svgHeight: 100 });
+  Object.assign(viewport, { scale: 1, x: 0, y: 0, width: 100, height: 100 });
   (globalThis as Record<string, unknown>).pack = { ice: [] };
 });
 

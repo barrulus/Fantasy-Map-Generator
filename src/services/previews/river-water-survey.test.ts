@@ -1,9 +1,10 @@
 // @vitest-environment node
+import "@/model/physical/river-generator";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import "@/generators/river-generator";
-import type { Burg } from "@/generators/burgs-generator";
-import type { River } from "@/generators/river-generator";
-import { projectRiverSurvey, surveyBurgRivers, surveyRiver } from "./river-water-survey";
+import type { River } from "@/model/physical/river-generator";
+import { Rivers } from "@/model/physical/river-generator";
+import type { Burg } from "@/model/political/burgs-generator";
+import { projectRiverSurvey, surveyBurgRivers, surveyRiver } from "@/services/previews/river-water-survey";
 
 afterEach(() => {
   vi.restoreAllMocks();
