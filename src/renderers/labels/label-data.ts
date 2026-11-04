@@ -1,15 +1,15 @@
-import type { AddedLabel } from "@/generators/added-labels";
-import type { Burg } from "@/generators/burgs-generator";
-import type { Label, LabelType } from "@/generators/labels-generator";
-import { findMegalopolises, MEGALOPOLIS_SPLIT_ZOOM, megalopolisName } from "@/generators/megalopolis";
-import type { Province } from "@/generators/provinces-generator";
-import type { River } from "@/generators/river-generator";
-import type { Route } from "@/generators/routes-generator";
-import type { State } from "@/generators/states-generator";
+import type { AddedLabel } from "@/model/annotations/added-labels";
+import type { Label, LabelType } from "@/model/annotations/labels-generator";
+import type { Route } from "@/model/economy/routes-generator";
+import { findMegalopolises, MEGALOPOLIS_SPLIT_ZOOM, megalopolisName } from "@/model/physical/megalopolis";
+import type { River } from "@/model/physical/river-generator";
+import { Rivers } from "@/model/physical/river-generator";
+import type { Burg } from "@/model/political/burgs-generator";
+import type { Province } from "@/model/political/provinces-generator";
+import type { State } from "@/model/political/states-generator";
+import { fitStateLabel } from "@/renderers/labels/fit-state-label";
 import type { LabelData } from "@/renderers/labels/labels";
 import type { Point } from "@/types/global";
-import { fitStateLabel } from "./fit-state-label";
-
 /** A label without its geometry: what search and lists need, and all that is cheap to build */
 export type LabelIndexEntry = Pick<LabelData, "id" | "entityId" | "type" | "group" | "text" | "anchor" | "dx" | "dy">;
 
@@ -228,4 +228,3 @@ function getMiddleCellPoint(cells: number[]): Point | undefined {
   const point = pack.cells.p[onMap[Math.floor(onMap.length / 2)]];
   return point && [point[0], point[1]];
 }
-window.getLabelsData = getLabelsData;

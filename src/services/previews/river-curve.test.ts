@@ -2,9 +2,9 @@
 
 import { curveCatmullRom, path } from "d3";
 import { describe, expect, it } from "vitest";
+import { smoothRiverCourse } from "@/services/previews/river-curve";
+import { projectRiverSurvey } from "@/services/previews/river-water-survey";
 import { closestPoint, parseShorePath } from "@/utils/shoreline-geometry";
-import { smoothRiverCourse } from "./river-curve";
-import { projectRiverSurvey } from "./river-water-survey";
 
 const anchors = [
   { x: -5000, y: 0, width: 20 },

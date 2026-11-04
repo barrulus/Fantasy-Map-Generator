@@ -1,14 +1,25 @@
 // @vitest-environment jsdom
+import type { Route } from "@/model/economy/routes-generator";
+import { Routes } from "@/model/economy/routes-generator";
+import "@/model/styles/styles";
 import { beforeEach, expect, test, vi } from "vitest";
-import { setViewportSize, setViewportTransform } from "@/components/viewport";
-import type { Route } from "@/generators/routes-generator";
+import { Styles } from "@/model/styles/styles";
+import {
+  drawRoutes,
+  getRouteBox,
+  redrawRoute,
+  removeRoutes,
+  setEditedRoute,
+  setTempRoute
+} from "@/renderers/draw-routes";
+import type { Layer } from "@/renderers/layers";
+import { setViewportSize, setViewportTransform } from "@/renderers/viewport/viewport";
 import { ViewportLayers } from "@/renderers/viewport/viewport-renderer";
 
 const mocks = vi.hoisted(() => ({ layerOn: true }));
-vi.mock("@/components/layers", () => ({ Layers: { isOn: () => mocks.layerOn } }));
+vi.mock("@/renderers/layers", () => ({ Layers: { isOn: () => mocks.layerOn } }));
 
-import "@/generators/styles";
-import { drawRoutes, getRouteBox, redrawRoute, removeRoutes, setEditedRoute, setTempRoute } from "./draw-routes";
+const routesLayer = { getEl: () => document.getElementById("routes") } as unknown as Layer;
 
 function route(i: number, x: number, group = "roads"): Route {
   return {
@@ -30,7 +41,7 @@ beforeEach(() => {
       <g id="routes"><g id="roads"></g><g id="trails"></g><g id="searoutes"></g></g>
     </svg>`;
   globalThis.pack = { routes: [route(1, 0), route(2, 500), route(3, 0, "trails")] } as never;
-  globalThis.Routes = { getPath } as never;
+  Object.assign(Routes, { getPath });
   getPath.mockClear();
   setViewportSize(100, 100);
   setViewportTransform(1, 0, 0);
@@ -39,7 +50,7 @@ beforeEach(() => {
 });
 
 test("routes are materialized into their own group and culled on panning", () => {
-  drawRoutes();
+  drawRoutes(routesLayer);
   expect(document.querySelector("#roads > #route1")).not.toBeNull();
   expect(document.querySelector("#trails > #route3")).not.toBeNull();
   expect(document.getElementById("route2")).toBeNull();
@@ -59,7 +70,7 @@ test("routes are materialized into their own group and culled on panning", () =>
 });
 
 test("the edited route stays rendered off-screen and follows a group change", () => {
-  drawRoutes();
+  drawRoutes(routesLayer);
   setEditedRoute(2);
   expect(document.querySelector("#roads > #route2")).not.toBeNull();
 
@@ -74,7 +85,7 @@ test("the edited route stays rendered off-screen and follows a group change", ()
 });
 
 test("editing a visible route updates its path in place", () => {
-  drawRoutes();
+  drawRoutes(routesLayer);
   const edited = document.getElementById("route1");
   pack.routes[0].points = [
     [0, 10, 1],
@@ -86,7 +97,7 @@ test("editing a visible route updates its path in place", () => {
 });
 
 test("the creator's temporary route renders in the selected group and never in an export", () => {
-  drawRoutes();
+  drawRoutes(routesLayer);
   setTempRoute({
     group: "trails",
     points: [
@@ -106,9 +117,9 @@ test("the creator's temporary route renders in the selected group and never in a
 });
 
 test("redraw picks up new paths and removed routes", () => {
-  drawRoutes();
+  drawRoutes(routesLayer);
   pack.routes = [pack.routes[0]];
-  drawRoutes();
+  drawRoutes(routesLayer);
   expect(document.querySelectorAll("#routes path")).toHaveLength(1);
   expect(getRouteBox(3)).toBeNull();
 
@@ -118,19 +129,19 @@ test("redraw picks up new paths and removed routes", () => {
 });
 
 test("erasing the layer keeps the groups, which carry the user's styles", () => {
-  drawRoutes();
+  drawRoutes(routesLayer);
   removeRoutes();
   expect(document.querySelectorAll("#routes path")).toHaveLength(0);
-  expect(document.querySelectorAll("#routes > g")).toHaveLength(3);
+  expect(document.querySelectorAll("#routes > g")).toHaveLength(Object.keys(styles.routes.groups).length);
 
   ViewportLayers.renderNow();
   expect(document.querySelectorAll("#routes path")).toHaveLength(0); // invalidated: nothing to reconcile against
-  drawRoutes();
+  drawRoutes(routesLayer);
   expect(document.querySelectorAll("#routes path")).toHaveLength(2);
 });
 
 test("viewport rendering leaves a disabled layer empty", () => {
-  drawRoutes();
+  drawRoutes(routesLayer);
   mocks.layerOn = false;
   document.getElementById("roads")!.replaceChildren(); // the layer registry erases the content when hidden
   ViewportLayers.renderNow();
@@ -151,7 +162,7 @@ test("type sub-groups take their line style from the store, marked for Styles.wr
   ];
   styles.routes.types.royal.attrs["stroke-width"] = 3.5;
   styles.routes.types.royal.attrs["stroke-dasharray"] = "9 1";
-  drawRoutes();
+  drawRoutes(routesLayer);
 
   const royal = document.querySelector<SVGGElement>("#routes > #roads > g#royal")!;
   expect(royal.dataset.type).toBe("royal");
@@ -168,8 +179,19 @@ test("type sub-groups take their line style from the store, marked for Styles.wr
 
 test("a type the store does not know falls back to the built-in table, then the group", () => {
   pack.routes = [{ ...route(1, 0), type: "mystery" }];
-  drawRoutes();
+  drawRoutes(routesLayer);
   const mystery = document.querySelector<SVGGElement>("#routes > #roads > g#mystery")!;
   expect(mystery.dataset.type).toBe("mystery");
   expect(mystery.hasAttribute("stroke-width")).toBe(false);
+});
+
+test("editing a shared route type writes every matching group", () => {
+  document.body.innerHTML = `<svg><g id="routes" data-layer="routes">
+    <g data-group="roads"><g data-type="royal"></g></g>
+    <g data-group="custom"><g data-type="royal"></g></g>
+  </g></svg>`;
+  Styles.setValue("routes.types.royal.attrs.stroke", "#123456");
+  Styles.writeAttr(["routes", "types", "royal", "attrs", "stroke"]);
+  for (const element of document.querySelectorAll('[data-type="royal"]'))
+    expect(element.getAttribute("stroke")).toBe("#123456");
 });

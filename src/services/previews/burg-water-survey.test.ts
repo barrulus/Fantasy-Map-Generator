@@ -1,9 +1,10 @@
 // @vitest-environment node
+import { Coastline } from "@/model/physical/coastline-generator";
+import "@/model/physical/river-generator";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Burg } from "@/generators/burgs-generator";
-import { Coastline } from "@/generators/coastline-generator";
-import "@/generators/river-generator";
-import { surveyBurgWater } from "./burg-water-survey";
+import { Rivers } from "@/model/physical/river-generator";
+import type { Burg } from "@/model/political/burgs-generator";
+import { surveyBurgWater } from "@/services/previews/burg-water-survey";
 
 afterEach(() => {
   vi.unstubAllGlobals();

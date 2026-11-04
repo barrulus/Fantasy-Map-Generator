@@ -3,6 +3,9 @@ import path from "path";
 import { expect, test, type Page } from "@playwright/test";
 import { countMaps, waitForMap, waitForNextMap } from "./wait-for-map";
 
+// the app's console surface, see src/app/fmg.ts
+declare const FMG: any;
+
 // Step 4 of the style-migration doc: styles.ts is now its own record (data[48]) in the map file.
 // These tests pin the round trips the doc promises: a store-format save/reload survives a preset
 // switch and a DOM-only editor write, an old, record-less map gets harvested into the store on
@@ -10,11 +13,6 @@ import { countMaps, waitForMap, waitForNextMap } from "./wait-for-map";
 // stays absent rather than getting backfilled from Styles.defaults, and a DOM-only #terrain write
 // survives because the relief overlay no longer clobbers it.
 
-declare const changeStyle: (preset: string) => Promise<void>;
-declare const d3: { select: (selector: string) => { attr: (name: string, value: string) => unknown } };
-declare const Services: {
-  Save: { toMachine: () => Promise<void>; prepareMapData: () => string | Promise<string> };
-};
 declare const styles: any;
 declare const options: { map: { style: { preset: string } } };
 
@@ -24,7 +22,11 @@ function readPreset(name: string): any {
 
 async function saveAsDownload(page: Page): Promise<Buffer> {
   const downloadPromise = page.waitForEvent("download");
-  await page.evaluate(() => Services.Save.toMachine());
+  await page.evaluate(() => {
+    // This round trip captures a download, not the native file picker.
+    Object.defineProperty(window, "showSaveFilePicker", { value: undefined, configurable: true });
+    return FMG.Services.Save.toMachine();
+  });
   const download = await downloadPromise;
   return fs.readFileSync(await download.path());
 }
@@ -39,21 +41,14 @@ async function reload(page: Page, buffer: Buffer, seed: string): Promise<void> {
 }
 
 test.describe("style persistence round trips", () => {
-  test("new-map record: a preset switch survives a save and load", async ({ page, context }) => {
-    await context.clearCookies();
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
-
+  test("new-map record: a preset switch survives a save and load", async ({ page }) => {
     await page.goto("/?seed=style-persistence-preset&width=1280&height=720");
     await waitForMap(page);
 
     await page.evaluate(() => sessionStorage.setItem("styleChangeConfirmed", "true"));
-    await page.evaluate(() => changeStyle("ancient"));
+    await page.evaluate(() => (window as any).FMG.Controllers.StylePresetsEditor.change("ancient"));
 
-    const expectedFill = readPreset("ancient").ocean.base.attrs.fill;
+    const expectedFill = readPreset("ancient").ocean.groups.base.attrs.fill;
     const beforeFill = await page.locator("#oceanBase").getAttribute("fill");
     expect(beforeFill).toBe(expectedFill);
 
@@ -61,7 +56,7 @@ test.describe("style persistence round trips", () => {
     await reload(page, buffer, "style-persistence-preset-reloaded");
 
     const after = await page.evaluate(() => ({
-      store: styles.ocean.base.attrs.fill,
+      store: styles.ocean.groups.base.attrs.fill,
       dom: document.getElementById("oceanBase")?.getAttribute("fill")
     }));
 
@@ -71,16 +66,12 @@ test.describe("style persistence round trips", () => {
     // the name travels with the map, so the Style tab shows which preset the styles came from
     const preset = await page.evaluate(() => ({
       option: options.map.style.preset,
-      select: (document.getElementById("stylePreset") as HTMLSelectElement).value
+      label: document.getElementById("stylePreset")!.textContent
     }));
-    expect(preset).toEqual({ option: "ancient", select: "ancient" });
+    expect(preset).toEqual({ option: "ancient", label: "Ancient" });
   });
 
-  test("a legacy map's preset name is migrated out of the pipe string and into the options", async ({
-    page,
-    context
-  }) => {
-    await context.clearCookies();
+  test("a legacy map's preset name is migrated out of the pipe string and into the options", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
       localStorage.clear();
@@ -96,13 +87,12 @@ test.describe("style persistence round trips", () => {
 
     const preset = await page.evaluate(() => ({
       option: options.map.style.preset,
-      select: (document.getElementById("stylePreset") as HTMLSelectElement).value
+      label: document.getElementById("stylePreset")!.textContent
     }));
-    expect(preset).toEqual({ option: "cyberpunk", select: "cyberpunk" });
+    expect(preset).toEqual({ option: "cyberpunk", label: "Cyberpunk" });
   });
 
-  test("an unavailable custom preset name survives a load", async ({ page, context }) => {
-    await context.clearCookies();
+  test("an unavailable custom preset name survives a load", async ({ page }) => {
     await page.goto("/?seed=missing-style-preset&width=1280&height=720");
     await waitForMap(page);
 
@@ -114,22 +104,12 @@ test.describe("style persistence round trips", () => {
 
     const preset = await page.evaluate(() => ({
       option: options.map.style.preset,
-      select: (document.getElementById("stylePreset") as HTMLSelectElement).value
+      label: document.getElementById("stylePreset")!.textContent
     }));
-    expect(preset).toEqual({ option: "custom-from-another-browser", select: "default" });
+    expect(preset).toEqual({ option: "custom-from-another-browser", label: "Default" });
   });
 
-  test("a DOM-only style write does not survive a save and load: the store is the authority", async ({
-    page,
-    context
-  }) => {
-    await context.clearCookies();
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
-
+  test("a DOM-only style write does not survive a save and load: the store is the authority", async ({ page }) => {
     await page.goto("/?seed=style-persistence-editor&width=1280&height=720");
     await waitForMap(page);
 
@@ -137,7 +117,7 @@ test.describe("style persistence round trips", () => {
     // now the save serializes the store and the reload applies it back over the rogue value
     const storeFill = await page.evaluate(() => styles.rivers.attrs.fill);
     await page.evaluate(() => {
-      d3.select("#rivers").attr("fill", "#ff0000");
+      document.querySelector("#rivers")!.setAttribute("fill", "#ff0000");
     });
     expect(await page.locator("#rivers").getAttribute("fill")).toBe("#ff0000");
 
@@ -153,11 +133,7 @@ test.describe("style persistence round trips", () => {
     expect(after.dom).toBe(storeFill);
   });
 
-  test("old-map harvest: a record-less map is harvested into the store and re-saves as store-format", async ({
-    page,
-    context
-  }) => {
-    await context.clearCookies();
+  test("old-map harvest: a record-less map is harvested into the store and re-saves as store-format", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
       localStorage.clear();
@@ -185,7 +161,7 @@ test.describe("style persistence round trips", () => {
     const harvested = await page.evaluate(() => ({
       riversStore: styles.rivers.attrs.fill,
       riversDom: document.getElementById("rivers")?.getAttribute("fill"),
-      statesHaloWidth: styles.states.statesHalo.options.width
+      statesHaloWidth: styles.states.groups.statesHalo.attrs["stroke-width"]
     }));
 
     expect(harvested.riversDom).toBe("#6738bc");
@@ -193,18 +169,14 @@ test.describe("style persistence round trips", () => {
     expect(harvested.statesHaloWidth).toBe(13);
 
     const record48 = await page.evaluate(async () => {
-      const mapData = await Services.Save.prepareMapData();
+      const mapData = await FMG.Services.Save.prepareMapData();
       return mapData.split("\r\n")[48];
     });
     const parsed = JSON.parse(record48);
     expect(parsed).toHaveProperty("map");
   });
 
-  test("record-less burg and anchor groups: the map's own styling reaches the store and the record", async ({
-    page,
-    context
-  }) => {
-    await context.clearCookies();
+  test("record-less burg and anchor groups: the map's own styling reaches the store and the record", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
       localStorage.clear();
@@ -227,10 +199,10 @@ test.describe("style persistence round trips", () => {
     await page.waitForTimeout(1000);
 
     const harvested = await page.evaluate(() => ({
-      iconFill: styles.burgIcons.burgIcons.groups.cities?.attrs?.fill ?? null,
-      iconSize: styles.burgIcons.burgIcons.groups.cities?.options?.size ?? null,
-      anchorFill: styles.burgIcons.anchors.groups.cities?.attrs?.fill ?? null,
-      anchorSize: styles.burgIcons.anchors.groups.cities?.options?.size ?? null
+      iconFill: styles.burgIcons.groups.cities?.groups.icons.attrs?.fill ?? null,
+      iconSize: styles.burgIcons.groups.cities?.groups.icons.options?.size ?? null,
+      anchorFill: styles.burgIcons.groups.cities?.groups.anchors.attrs?.fill ?? null,
+      anchorSize: styles.burgIcons.groups.cities?.groups.anchors.options?.size ?? null
     }));
 
     // this fixture postdates the 1.109 size-doubling migration, so the sizes harvest as written
@@ -241,26 +213,16 @@ test.describe("style persistence round trips", () => {
 
     const savedAgain = await saveAsDownload(page);
     const record = JSON.parse(savedAgain.toString("utf8").split("\r\n")[48]);
-    expect(record.burgIcons.burgIcons.groups.cities.options.size).toBe(0.9);
-    expect(record.burgIcons.anchors.groups.cities.options.size).toBe(2.2);
+    expect(record.burgIcons.groups.cities.groups.icons.options.size).toBe(0.9);
+    expect(record.burgIcons.groups.cities.groups.anchors.options.size).toBe(2.2);
   });
 
-  test("preset-nulled attr stays absent: a preset switch survives a save and load with no backfill", async ({
-    page,
-    context
-  }) => {
-    await context.clearCookies();
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
-
+  test("preset-nulled attr stays absent: a preset switch survives a save and load with no backfill", async ({ page }) => {
     await page.goto("/?seed=style-persistence-null-preset&width=1280&height=720");
     await waitForMap(page);
 
     await page.evaluate(() => sessionStorage.setItem("styleChangeConfirmed", "true"));
-    await page.evaluate(() => changeStyle("clean"));
+    await page.evaluate(() => (window as any).FMG.Controllers.StylePresetsEditor.change("clean"));
 
     expect(await page.locator("#statesHalo").getAttribute("filter")).toBeNull();
 
@@ -268,7 +230,7 @@ test.describe("style persistence round trips", () => {
     await reload(page, buffer, "style-persistence-null-preset-reloaded");
 
     const after = await page.evaluate(() => ({
-      store: styles.states.statesHalo.attrs.filter,
+      store: styles.states.groups.statesHalo.attrs.filter,
       dom: document.getElementById("statesHalo")?.getAttribute("filter")
     }));
 
@@ -276,17 +238,7 @@ test.describe("style persistence round trips", () => {
     expect(after.dom).toBeNull();
   });
 
-  test("step-4-era map: a store record beside the retired attrs strips them on load and every save after", async ({
-    page,
-    context
-  }) => {
-    await context.clearCookies();
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
-
+  test("step-4-era map: a store record beside the retired attrs strips them on load and every save after", async ({ page }) => {
     await page.goto("/?seed=style-persistence-step4-era&width=1280&height=720");
     await waitForMap(page);
 
@@ -323,7 +275,7 @@ test.describe("style persistence round trips", () => {
       .replace('<g id="markets"', '<g id="markets" font-size="66" data-icon="Z"')
       .replace('<g id="goodsIcons"', '<g id="goodsIcons" data-circle="0"')
       .replace('<g id="texture"', '<g id="texture" data-href="./z.jpg" data-x="66" data-y="66"')
-      .replace('<g id="oceanLayers"', '<g id="oceanLayers" layers="-6"')
+      .replace('<g id="oceanLayers"', '<g id="oceanLayers" layers="-6,-4,-2"')
       .replace('<g id="scaleBar"', '<g id="scaleBar" data-bar-size="4" data-x="40" data-y="40" data-label="stale"')
       .replace(
         '<rect id="scaleBarBack"',
@@ -350,7 +302,7 @@ test.describe("style persistence round trips", () => {
         document.getElementById("landHeights")?.getAttribute(a)
       ),
       oceanRenderAttr: document.getElementById("oceanHeights")?.getAttribute("data-render"),
-      landScheme: styles.heightmap.landHeights.options.scheme,
+      landScheme: styles.heightmap.groups.landHeights.options.scheme,
       smallFamilyAttrs: [
         document.getElementById("armies")?.getAttribute("box-size"),
         document.getElementById("gridOverlay")?.getAttribute("type"),
@@ -365,7 +317,7 @@ test.describe("style persistence round trips", () => {
         document.getElementById("texture")?.getAttribute("data-href"),
         document.getElementById("oceanLayers")?.getAttribute("layers")
       ],
-      oceanOutline: styles.ocean.oceanLayers.options.outline,
+      oceanOutline: styles.ocean.groups.oceanLayers.options.outline,
       geometryAttrs: [
         document.getElementById("scaleBar")?.getAttribute("data-bar-size"),
         document.getElementById("scaleBarBack")?.getAttribute("data-top"),
@@ -373,9 +325,9 @@ test.describe("style persistence round trips", () => {
         document.getElementById("legend")?.getAttribute("data-columns")
       ],
       scaleBarSize: styles.scaleBar.options.barSize,
-      rescale: styles.markers.options.rescale,
-      haloWidth: styles.states.statesHalo.options.width,
-      coordinatesSize: styles.coordinates.options.fontSize
+      markersOptions: styles.markers.options,
+      haloWidth: styles.states.groups.statesHalo.attrs["stroke-width"],
+      coordinatesSize: styles.coordinates.attrs["font-size"]
     }));
 
     // The retired attrs are gone immediately. Legacy migration harvests their values into the
@@ -393,35 +345,27 @@ test.describe("style persistence round trips", () => {
     expect(afterLoad.smallFamilyAttrs).toEqual([null, null, null, null]);
     expect(afterLoad.gridScale).toBe(9);
     expect(afterLoad.contentAttrs).toEqual([null, null, null, null, null]);
-    expect(afterLoad.oceanOutline).toBe("-6");
+    expect(afterLoad.oceanOutline).toBe("-6,-4,-2");
     expect(afterLoad.geometryAttrs).toEqual([null, null, null, null]);
     expect(afterLoad.scaleBarSize).toBe(4);
-    expect(afterLoad.rescale).toBe(0);
+    expect(afterLoad.markersOptions).toBeUndefined(); // markers are sized in em since v1.154: rescale is gone
     expect(afterLoad.haloWidth).toBe(7);
-    expect(afterLoad.coordinatesSize).toBe(55);
+    expect(afterLoad.coordinatesSize).toBe("55px");
 
     // flip values through the store the way the real editor handlers do, then run a REAL save:
     // since step 7 the record serializes the store directly, no harvest in between
     await page.evaluate(() => {
-      styles.markers.options.rescale = 0;
-      styles.states.statesHalo.options.width = 3;
-      styles.coordinates.options.fontSize = 21;
+      styles.states.groups.statesHalo.attrs["stroke-width"] = 3;
+      styles.coordinates.attrs["font-size"] = "21px";
     });
 
     const savedAgain = await saveAsDownload(page);
     const record = JSON.parse(savedAgain.toString("utf8").split("\r\n")[48]);
-    expect(record.markers.options.rescale).toBe(0);
-    expect(record.states.statesHalo.options.width).toBe(3);
-    expect(record.coordinates.options.fontSize).toBe(21);
+    expect(record.states.groups.statesHalo.attrs["stroke-width"]).toBe(3);
+    expect(record.coordinates.attrs["font-size"]).toBe("21px");
   });
 
-  test("save serializes the store: a rogue DOM-only attr does not leak into the record", async ({ page, context }) => {
-    await context.clearCookies();
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
+  test("save serializes the store: a rogue DOM-only attr does not leak into the record", async ({ page }) => {
     await page.goto("/?seed=store-authoritative-save&width=1280&height=720");
     await waitForMap(page);
 
@@ -437,14 +381,7 @@ test.describe("style persistence round trips", () => {
     expect(record.rivers.attrs.fill).toBe("#0000aa");
   });
 
-  test("relief attrs persistence: a store write survives a save and load", async ({ page, context }) => {
-    await context.clearCookies();
-    await page.goto("/");
-    await page.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
-
+  test("relief attrs persistence: a store write survives a save and load", async ({ page }) => {
     await page.goto("/?seed=style-persistence-relief&width=1280&height=720");
     await waitForMap(page);
 
@@ -452,7 +389,7 @@ test.describe("style persistence round trips", () => {
     // DOM-only write is presentation that does not outlive the session
     await page.evaluate(() => {
       styles.relief.attrs.opacity = 0.42;
-      d3.select("#terrain").attr("opacity", "0.42");
+      document.querySelector("#terrain")!.setAttribute("opacity", "0.42");
     });
 
     const buffer = await saveAsDownload(page);

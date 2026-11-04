@@ -1,6 +1,7 @@
 // @vitest-environment node
+
 import { describe, expect, it } from "vitest";
-import { packWaterCoordinates, WATER_COORDINATE_ERROR_M } from "./water-coordinate-pack";
+import { packWaterCoordinates, WATER_COORDINATE_ERROR_M } from "@/services/previews/water-coordinate-pack";
 
 const box = (x: number, y: number, w: number, h: number) => [
   { x, y },

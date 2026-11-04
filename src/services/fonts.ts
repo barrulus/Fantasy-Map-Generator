@@ -1,21 +1,16 @@
-import { tip } from "@/components/tooltips";
-import { ensureEl } from "../utils";
+import type { StylesData } from "@/types/styles";
+import { tip } from "@/ui/tooltips";
+import { t } from "@/utils/i18n";
+import { log } from "@/utils/logger";
 
-declare global {
-  var addGoogleFont: (family: string) => Promise<void>;
-  var addLocalFont: (family: string) => void;
-  var addWebFont: (family: string, src: string) => void;
-  var fonts: FontDefinition[];
-}
-
-type FontDefinition = {
+export type FontDefinition = {
   family: string;
   src?: string;
   unicodeRange?: string;
   variant?: string;
 };
 
-window.fonts = [
+export const fonts: FontDefinition[] = [
   { family: "Arial" },
   { family: "Brush Script MT" },
   { family: "Century Gothic" },
@@ -280,7 +275,6 @@ window.fonts = [
 
 /** Register a font so the app can use and export it */
 const declaredFonts = new Set<string>(); // font definitions already declared to the document
-const declaredFamilies = new Set<string>(); // families already present in the font select
 
 export function declareFont(font: FontDefinition): void {
   const { family, src, ...rest } = font;
@@ -288,31 +282,13 @@ export function declareFont(font: FontDefinition): void {
   if (declaredFonts.has(key)) return; // a repeated load must not stack options or FontFace records
   declaredFonts.add(key);
 
-  if (!declaredFamilies.has(family)) {
-    declaredFamilies.add(family);
-    addFontOption(family);
-  }
-
   if (!src) return;
   const fontFace = new FontFace(family, src, { ...rest, display: "block" });
   document.fonts.add(fontFace);
 }
 
-declareDefaultFonts(); // execute once on load
-
-function declareDefaultFonts() {
-  fonts.forEach(font => {
-    declareFont(font);
-  });
-}
-
-function addFontOption(family: string) {
-  const options = document.getElementById("styleSelectFont")!;
-  const option = document.createElement("option");
-  option.value = family;
-  option.innerText = family;
-  option.style.fontFamily = family;
-  options.append(option);
+export function declareDefaultFonts(): void {
+  for (const font of fonts) declareFont(font);
 }
 
 async function fetchGoogleFont(family: string) {
@@ -336,7 +312,7 @@ async function fetchGoogleFont(family: string) {
 
     return fonts;
   } catch (err) {
-    ERROR && console.error(err);
+    log.error(err);
     return null;
   }
 }
@@ -365,23 +341,14 @@ export async function loadFontsAsDataURI(fonts: FontDefinition[]): Promise<FontD
   return await Promise.all(promises);
 }
 
-/** Collect fonts referenced by the map and, when saving, its notes. */
-export function getUsedFonts(svg: SVGSVGElement, legends: string[] = []): FontDefinition[] {
-  const usedFontFamilies = new Set();
+/** Collect fonts the map styles and, when saving, its notes use */
+export function getUsedFonts(styles: StylesData, notes: string[] = []): FontDefinition[] {
+  const usedFontFamilies = new Set<string>();
+  collectStyleFonts(styles, usedFontFamilies);
 
-  const labelGroups = svg.querySelectorAll("#labels g");
-  for (const labelGroup of labelGroups) {
-    const font = labelGroup.getAttribute("font-family");
-    if (font) usedFontFamilies.add(font);
-  }
-
-  const legend = svg.querySelector("#legend");
-  const legendFont = legend?.getAttribute("font-family");
-  if (legendFont) usedFontFamilies.add(legendFont);
-
-  for (const legend of legends) {
+  for (const note of notes) {
     const template = document.createElement("template");
-    template.innerHTML = legend;
+    template.innerHTML = note;
     for (const el of template.content.querySelectorAll<HTMLElement>("[style], font[face]")) {
       const family = el.style.fontFamily || el.getAttribute("face") || "";
       for (const match of family.matchAll(/"([^"]+)"|'([^']+)'|([^,]+)/g)) {
@@ -394,61 +361,52 @@ export function getUsedFonts(svg: SVGSVGElement, legends: string[] = []): FontDe
   return usedFonts;
 }
 
-window.addGoogleFont = async (family: string) => {
+// every font-family in the style tree, whether its layer is drawn or not
+function collectStyleFonts(node: unknown, families: Set<string>): void {
+  if (typeof node !== "object" || node === null) return;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "font-family" && typeof value === "string") families.add(value);
+    else collectStyleFonts(value, families);
+  }
+}
+
+/** Fetch a Google font by family name and register it; the family once loaded, undefined when it cannot be */
+export async function addGoogleFont(family: string): Promise<string | undefined> {
   const fontRanges = await fetchGoogleFont(family);
-  if (!fontRanges) return tip("Cannot fetch Google font for this value", true, "error", 4000);
-  tip(`Google font ${family} is loading...`, true, "warn", 4000);
+  if (!fontRanges) {
+    tip(t("Cannot fetch Google font for this value"), true, "error", 4000);
+    return undefined;
+  }
+  tip(t("Google font {{family}} is loading...", { family }), true, "warn", 4000);
 
-  const promises = fontRanges.map(range => {
-    const { src, unicodeRange } = range;
-    const fontFace = new FontFace(family, src!, {
-      unicodeRange,
-      display: "block"
-    });
-    return fontFace.load();
-  });
+  const faces = fontRanges.map(
+    ({ src, unicodeRange }) => new FontFace(family, src!, { unicodeRange, display: "block" })
+  );
+  try {
+    for (const fontFace of await Promise.all(faces.map(face => face.load()))) document.fonts.add(fontFace);
+  } catch (error) {
+    tip(t("Failed to load Google font {{family}}", { family }), true, "error", 4000);
+    log.error(error);
+    return undefined;
+  }
+  fonts.push(...fontRanges);
+  tip(t("Font {{family}} is added to the list", { family }), true, "success", 4000);
+  return family;
+}
 
-  Promise.all(promises)
-    .then(fontFaces => {
-      fontFaces.forEach(fontFace => {
-        document.fonts.add(fontFace);
-      });
-      fonts.push(...fontRanges);
-      tip(`Google font ${family} is added to the list`, true, "success", 4000);
-      addFontOption(family);
-      const select = ensureEl<HTMLSelectElement>("styleSelectFont");
-      if (select) select.value = family;
-      changeFont();
-    })
-    .catch(err => {
-      tip(`Failed to load Google font ${family}`, true, "error", 4000);
-      ERROR && console.error(err);
-    });
-};
-
-window.addLocalFont = (family: string) => {
+/** Register a font installed on this machine */
+export function addLocalFont(family: string): string {
   fonts.push({ family });
+  document.fonts.add(new FontFace(family, `local(${family})`, { display: "block" }));
+  tip(t("Font {{family}} is added to the list", { family }), true, "success", 4000);
+  return family;
+}
 
-  const fontFace = new FontFace(family, `local(${family})`, {
-    display: "block"
-  });
-  document.fonts.add(fontFace);
-  tip(`Local font ${family} is added to the fonts list`, true, "success", 4000);
-  addFontOption(family);
-  const select = ensureEl<HTMLSelectElement>("styleSelectFont");
-  if (select) select.value = family;
-  changeFont();
-};
-
-window.addWebFont = (family: string, url: string) => {
+/** Register a font file hosted online */
+export function addWebFont(family: string, url: string): string {
   const src = `url('${url}')`;
   fonts.push({ family, src });
-
-  const fontFace = new FontFace(family, src, { display: "block" });
-  document.fonts.add(fontFace);
-  tip(`Font ${family} is added to the list`, true, "success", 4000);
-  addFontOption(family);
-  const select = ensureEl<HTMLSelectElement>("styleSelectFont");
-  if (select) select.value = family;
-  changeFont();
-};
+  document.fonts.add(new FontFace(family, src, { display: "block" }));
+  tip(t("Font {{family}} is added to the list", { family }), true, "success", 4000);
+  return family;
+}

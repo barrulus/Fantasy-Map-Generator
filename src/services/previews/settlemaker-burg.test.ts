@@ -1,15 +1,16 @@
 // @vitest-environment node
+
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Burg } from "@/generators/burgs-generator";
+import type { Burg } from "@/model/political/burgs-generator";
 
 const mocks = vi.hoisted(() => ({
   context: vi.fn(),
   survey: vi.fn(),
   url: vi.fn(async (_ctx: unknown, _opts: unknown) => ({ link: "preview", preview: "preview" }))
 }));
-vi.mock("@/generators/burg-context", () => ({ buildBurgContext: mocks.context }));
-vi.mock("./burg-water-survey", () => ({ surveyBurgWater: mocks.survey }));
-vi.mock("./settlemaker", () => ({
+vi.mock("@/model/physical/burg-context", () => ({ buildBurgContext: mocks.context }));
+vi.mock("@/services/previews/burg-water-survey", () => ({ surveyBurgWater: mocks.survey }));
+vi.mock("@/services/previews/settlemaker", () => ({
   buildSettlemakerUrl: mocks.url,
   SETTLEMAKER_BASE_URL: "https://settlemaker.com/fmg"
 }));
@@ -28,7 +29,7 @@ async function preview(population: number, endpoint?: string, surveyRadiusM?: nu
   vi.stubGlobal("pack", { cells: { haven: [], harbor: [], f: [], r: [] }, features: [] });
   mocks.context.mockReturnValue({ burg: { population }, hydrology: { rivers: [] } });
   mocks.survey.mockReturnValue({ waterContext: { version: 1, status: "unknown-units", sourceUnit: "hex" } });
-  const { createSettlemakerPreview } = await import("./settlemaker-burg");
+  const { createSettlemakerPreview } = await import("@/services/previews/settlemaker-burg");
   return createSettlemakerPreview({ i: 1, x: 10, y: 20, tradeRole: "hub" } as Burg, { surveyRadiusM });
 }
 
@@ -120,7 +121,7 @@ describe("harbour water body", () => {
       cells: { haven: [1], harbor: [kind === "river" ? 0 : 1], f: [0, 2], r: [653] },
       features: [{}, { type: "ocean" }, { type: kind }]
     });
-    const { createSettlemakerPreview } = await import("./settlemaker-burg");
+    const { createSettlemakerPreview } = await import("@/services/previews/settlemaker-burg");
     await createSettlemakerPreview({ i: 403, cell: 0, port: 223, x: 396.98, y: 511.28 } as Burg);
     const opts = mocks.url.mock.calls.at(-1)![1];
     expect(opts).toHaveProperty("harbourWaterKind", kind);
@@ -133,13 +134,13 @@ describe("harbour water body", () => {
       cells: { haven: [1], harbor: [1], f: [0, 2], r: [0] },
       features: [{}, { type: "ocean" }, { type }]
     });
-    const { harbourWaterKind } = await import("./settlemaker-burg");
+    const { harbourWaterKind } = await import("@/services/previews/settlemaker-burg");
     expect(harbourWaterKind({ cell: 0, port: 1 } as Burg)).toBe(type);
   });
 
   it("identifies an inland river port even when its drain feature is ocean", async () => {
     vi.stubGlobal("pack", { cells: { haven: [0], harbor: [0], f: [1], r: [7] }, features: [{}, { type: "ocean" }] });
-    const { harbourWaterKind } = await import("./settlemaker-burg");
+    const { harbourWaterKind } = await import("@/services/previews/settlemaker-burg");
     expect(harbourWaterKind({ cell: 0, port: 1 } as Burg)).toBe("river");
     expect(harbourWaterKind({ cell: 0, port: 0 } as Burg)).toBeUndefined();
   });
@@ -161,7 +162,7 @@ describe("settlement water relations", () => {
       },
       features: [{}, {}, { type: "ocean" }]
     });
-    const { burgWaterfront } = await import("./settlemaker-burg");
+    const { burgWaterfront } = await import("@/services/previews/settlemaker-burg");
     expect(burgWaterfront({ cell: 0, port: 0, x: 0, y: 0 } as Burg)).toEqual({
       riverId: "7",
       shoreKind: "ocean",
@@ -185,7 +186,7 @@ describe("settlement water relations", () => {
       },
       features: []
     });
-    const { burgWaterfront } = await import("./settlemaker-burg");
+    const { burgWaterfront } = await import("@/services/previews/settlemaker-burg");
     expect(burgWaterfront({ cell: 0, port: 0, x: 0, y: 0 } as Burg)).toEqual({ riverId: "9" });
     expect(burgWaterfront({ cell: 1, port: 0, x: 10, y: 0 } as Burg)).toEqual({ riverId: "8" });
   });
@@ -196,7 +197,7 @@ describe("settlement water relations", () => {
       cells: { haven: [1], harbor: [1], f: [0, 2], r: [49], c: [[]] },
       features: [{}, {}, { type: "ocean" }]
     });
-    const { createSettlemakerPreview } = await import("./settlemaker-burg");
+    const { createSettlemakerPreview } = await import("@/services/previews/settlemaker-burg");
     await createSettlemakerPreview({ i: 1, cell: 0, port: 1, x: 481.83, y: 230.61 } as Burg);
     expect(mocks.survey).toHaveBeenLastCalledWith(expect.anything(), [], 20000, "49", {
       kind: "ocean",

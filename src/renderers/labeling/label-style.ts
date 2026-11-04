@@ -1,7 +1,6 @@
+import { authoredSizeFactor } from "@/renderers/labeling/label-sizing";
+import { groupMinZoom, groupRank, groupRestPx, groupStartPx } from "@/renderers/labeling/tier-table";
 import { getGroupStyle } from "@/renderers/labels/label-groups";
-import { authoredSizeFactor } from "./label-sizing";
-import { groupMinZoom, groupRank, groupRestPx, groupStartPx } from "./tier-table";
-
 export interface GroupStyle {
   group: string;
   rank: number; // collision priority, lower wins

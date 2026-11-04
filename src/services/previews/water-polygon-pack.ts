@@ -1,4 +1,4 @@
-import type { WaterPoint as Point } from "./water-context-types";
+import type { WaterPoint as Point } from "@/services/previews/water-context-types";
 
 interface Edge {
   a: Point;

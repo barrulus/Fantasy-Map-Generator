@@ -1,10 +1,10 @@
 // @vitest-environment node
+import "@/model/physical/river-generator";
 import { afterEach, expect, it, vi } from "vitest";
-import type { Burg } from "@/generators/burgs-generator";
-import "@/generators/river-generator";
-import fixture from "./fixtures/moncyia-kindum-waterfront.json";
-import { surveyBurgRivers } from "./river-water-survey";
-import { burgWaterfront } from "./settlemaker-burg";
+import type { Burg } from "@/model/political/burgs-generator";
+import fixture from "@/services/previews/fixtures/moncyia-kindum-waterfront.json";
+import { surveyBurgRivers } from "@/services/previews/river-water-survey";
+import { burgWaterfront } from "@/services/previews/settlemaker-burg";
 
 afterEach(() => vi.unstubAllGlobals());
 

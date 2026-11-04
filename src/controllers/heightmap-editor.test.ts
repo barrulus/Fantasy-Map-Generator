@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 // the options tab drags the jQuery-backed layers tab in with it; the editor only needs the input sync
-vi.mock("@/components/options/tabs/options-tab", () => ({ syncOptionInputs: vi.fn() }));
+vi.mock("@/app/chrome/tabs/options-tab", () => ({ syncOptionInputs: vi.fn() }));
 
 (globalThis as Record<string, unknown>).ERROR = false;
 (globalThis as Record<string, unknown>).changeViewMode = () => {};
@@ -18,7 +18,7 @@ document.getElementById = (() =>
     classList: { add: () => {}, remove: () => {}, contains: () => false },
     style: {}
   }) as unknown as HTMLElement) as typeof document.getElementById;
-const { createAvailableLandCellFinder } = await import("./heightmap-editor");
+const { createAvailableLandCellFinder } = await import("@/model/map-restoration");
 document.getElementById = originalGetElementById;
 
 describe("createAvailableLandCellFinder", () => {

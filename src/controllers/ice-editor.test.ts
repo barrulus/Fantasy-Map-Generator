@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import type { Ice } from "@/generators/ice-generator";
-import { IceEditor } from "./ice-editor";
+import { IceEditor } from "@/controllers/physical/ice-editor";
+import type { Ice } from "@/model/physical/ice-generator";
 
-vi.mock("@/components/layers", () => ({ Layers: { isOn: () => true, show: vi.fn() } }));
-vi.mock("@/components/dialog/dialog-helpers", () => ({ closeDialogs: vi.fn(), destroyDialog: vi.fn() }));
-vi.mock("@/components/tooltips", () => ({ clearMainTip: vi.fn(), tip: vi.fn() }));
-vi.mock("@/components/viewbox-events", () => ({ applyDefaultViewboxEvents: vi.fn() }));
+vi.mock("@/renderers/layers", () => ({ Layers: { isOn: () => true, show: vi.fn() } }));
+vi.mock("@/ui/dialog/dialog-helpers", () => ({ closeDialogs: vi.fn(), destroyDialog: vi.fn() }));
+vi.mock("@/ui/tooltips", () => ({ clearMainTip: vi.fn(), tip: vi.fn(), loadingTip: vi.fn() }));
+vi.mock("@/ui/map/viewbox-events", () => ({ applyDefaultViewboxEvents: vi.fn() }));
 
 const iceberg = (i: number, x: number, y: number): Ice => ({
   type: "iceberg",

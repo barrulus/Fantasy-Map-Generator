@@ -14,13 +14,6 @@ test.describe("map layers", () => {
     sharedContext = await browser.newContext();
     sharedPage = await sharedContext.newPage();
 
-    await sharedContext.clearCookies();
-    await sharedPage.goto("/");
-    await sharedPage.evaluate(() => {
-      localStorage.clear();
-      sessionStorage.clear();
-    });
-
     // Navigate with seed parameter and wait for full load
     // NOTE:
     // - We use a fixed seed ("test-seed") to make map generation deterministic for snapshot tests.
@@ -169,16 +162,16 @@ test.describe("map layers", () => {
 
   // Settlement layers
   test("burgs/icons layer", async () => {
-    const icons = sharedPage.locator("#icons");
+    const icons = sharedPage.locator("#burgIcons");
     await expect(icons).toBeAttached();
     const html = await icons.evaluate(el => el.outerHTML);
-    expect(html).toMatchSnapshot("icons.html");
+    expect(html).toMatchSnapshot("burgIcons.html");
   });
 
   test("anchors layer", async () => {
-    const anchors = sharedPage.locator("#anchors");
-    await expect(anchors).toBeAttached();
-    const html = await anchors.evaluate(el => el.outerHTML);
+    const anchors = sharedPage.locator('#burgIcons [data-group="anchors"]');
+    await expect(anchors.first()).toBeAttached();
+    const html = await anchors.evaluateAll(elements => elements.map(element => element.outerHTML).join(""));
     expect(html).toMatchSnapshot("anchors.html");
   });
 
@@ -212,12 +205,12 @@ test.describe("map layers", () => {
       const before = count();
 
       stateGroup.active = false;
-      (window as any).Layers.draw("labels");
+      (window as any).FMG.Layers.draw("labels");
       await new Promise(resolve => setTimeout(resolve, 300));
       const deactivated = count();
 
       delete stateGroup.active;
-      (window as any).Layers.draw("labels");
+      (window as any).FMG.Layers.draw("labels");
       await new Promise(resolve => setTimeout(resolve, 300));
       return { before, deactivated, reactivated: count() };
     });
@@ -264,9 +257,9 @@ test.describe("map layers", () => {
     await sharedPage.evaluate(() => {
       // only the first good is visible by default; make all of them visible for this test
       (window as any).pack.goods.forEach((good: any) => (good.visible = true));
-      (window as any).Layers.toggle("goods");
+      (window as any).FMG.Layers.toggle("goods");
       // markets render in a standalone layer, toggled independently
-      (window as any).Layers.toggle("markets");
+      (window as any).FMG.Layers.toggle("markets");
     });
     await sharedPage.waitForTimeout(300);
 
@@ -283,20 +276,20 @@ test.describe("map layers", () => {
     await expect(marketsEl).toBeAttached();
     await expect(marketsEl.locator("g[data-id]").first()).toBeAttached();
 
-    // Good icons are <use> elements pointing to a #good-* SVG symbol
+    // Good icons are <use> elements pointing to a #goods-* SVG symbol
     const icons = goodsEl.locator("use");
     await expect(icons.first()).toBeAttached();
 
     const href = await icons.first().getAttribute("href");
-    expect(href).toMatch(/^#good-/);
+    expect(href).toMatch(/^#goods-/);
 
     const html = await goodsEl.evaluate(el => el.outerHTML);
     expect(html).toMatchSnapshot("goods.html");
 
     // Restore: toggle goods and markets layers off
     await sharedPage.evaluate(() => {
-      (window as any).Layers.toggle("goods");
-      (window as any).Layers.toggle("markets");
+      (window as any).FMG.Layers.toggle("goods");
+      (window as any).FMG.Layers.toggle("markets");
     });
   });
 

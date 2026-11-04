@@ -1,16 +1,16 @@
 // @vitest-environment node
+
 import { describe, expect, it } from "vitest";
-import type { BurgContext } from "@/generators/burg-context";
+import type { BurgContext } from "@/model/physical/burg-context";
 import {
   buildSettlemakerUrl,
   MAX_ENCODED_PAYLOAD_BYTES,
   SETTLEMAKER_BASE_URL,
   toSettlemakerInput
-} from "./settlemaker";
-import { WaterSurveyIndex } from "./water-survey";
+} from "@/services/previews/settlemaker";
+import { WaterSurveyIndex } from "@/services/previews/water-survey";
 
 // Stub WARN global to suppress console output in tests
-globalThis.WARN = false;
 
 const ctx = (over: Partial<BurgContext> = {}): BurgContext =>
   ({

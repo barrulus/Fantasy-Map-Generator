@@ -1,6 +1,7 @@
 // @vitest-environment node
+
 import { describe, expect, it } from "vitest";
-import { closestPoint, flattenCurve, parseShorePath, ShoreIndex } from "./shoreline-geometry";
+import { closestPoint, flattenCurve, parseShorePath, ShoreIndex } from "@/utils/shoreline-geometry";
 
 describe("canonical shoreline curves", () => {
   it("parses saved absolute and relative line and Bezier commands", () => {

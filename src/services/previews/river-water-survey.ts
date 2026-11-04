@@ -1,7 +1,8 @@
-import type { Burg } from "@/generators/burgs-generator";
-import type { River } from "@/generators/river-generator";
-import { smoothRiverCourse } from "./river-curve";
-import type { RiverSurvey, WaterPoint } from "./water-context-types";
+import type { River } from "@/model/physical/river-generator";
+import { Rivers } from "@/model/physical/river-generator";
+import type { Burg } from "@/model/political/burgs-generator";
+import { smoothRiverCourse } from "@/services/previews/river-curve";
+import type { RiverSurvey, WaterPoint } from "@/services/previews/water-context-types";
 
 interface WidthPoint extends WaterPoint {
   width: number;

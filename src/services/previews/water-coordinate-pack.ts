@@ -1,5 +1,4 @@
-import type { WaterPoint as Point } from "./water-context-types";
-
+import type { WaterPoint as Point } from "@/services/previews/water-context-types";
 export const WATER_COORDINATE_ERROR_M = 1e-5;
 const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
 const orient = (a: Point, b: Point, c: Point) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));

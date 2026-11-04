@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effectiveLabelPx } from "./label-sizing";
+import { effectiveLabelPx } from "@/renderers/labeling/label-sizing";
 import {
   groupMaxZoom,
   groupMinZoom,
@@ -8,7 +8,7 @@ import {
   groupRestPx,
   groupStartPx,
   REST_PX
-} from "./tier-table";
+} from "@/renderers/labeling/tier-table";
 
 describe("groupRank", () => {
   it("ranks settlement tiers by importance (lower rank = higher priority)", () => {

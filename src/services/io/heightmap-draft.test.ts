@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHeightmapDraft, serializeHeightmapDraft } from "./heightmap-draft";
+import { parseHeightmapDraft, serializeHeightmapDraft } from "@/services/io/heightmap-draft";
 
 const draft = () => ({
   seed: "123456789",

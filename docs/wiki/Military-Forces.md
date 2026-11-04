@@ -17,7 +17,7 @@ The footer sums up states number, total and average forces, average rate and ave
 Military units used for generation are customizable. To open the units editor click the _cog_ icon in the Military overview screen. Here you can add new units and specify their features. The number of units is not limited, but having many of them makes the overview screens hard to read. The behaviour of a unit is defined by its _type_. Type variants are hard-coded and define the rules applied on generation, described in the next section.
 
 Customizable parameters are:
-* **Icon** - unit symbol. Unicode emojis are used for simplicity. While there is a list of pre-selected ones, you can use any Unicode character, or supply an image URL / data URI. Please note that Unicode emojis look different in different systems and browsers. Here is [the full list](https://unicode.org/emoji/charts/full-emoji-list.html)
+* **Icon** - unit symbol, chosen in the icon picker: an emoji or short text (the defaults), a built-in icon or a custom icon linked or uploaded to the map. Emoji look different in different systems and browsers. See [Icons](https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Icons)
 * **Name** - a unique unit name. Renaming an existing unit replaces it
 * **Biomes**, **States**, **Cultures**, **Religions** - optional limitations. By default a unit is generated everywhere (`all`); click a button to restrict the unit to selected biomes, states, cultures or religions (`some`). A cell or burg that fails any active limitation produces no troops of that unit
 * **Rural** - percentage of rural population to be conscripted to the unit. It defines how many troops of this unit are generated per cell population point. The number is then adjusted by the rules described in the next section. Set to 0 if you want the unit to be generated in burgs only
@@ -122,6 +122,8 @@ Troops for each cell and burg form a _platoon_. As the number of platoons is far
 
 If you click on a regiment box, a Regiment Editor will pop up at the top left corner. Once editor is displayed, you can drag regiment boxes to move them around. A circle shows regiment's base and can be dragged as well. 
 
-From the Regiment Editor screen you can rename the regiment or restore its original name, hear the name spoken, change the regiment emblem and edit the number of troops of each unit. You can also switch the regiment type between _land_ and _naval_. Naval regiments look almost the same as land ones, the only visual difference is the box size.
+From the Regiment Editor screen you can rename the regiment or restore its original name, hear the name spoken, toggle its visibility on the map (eye icon), change the regiment emblem and edit the number of troops of each unit. You can also switch the regiment type between _land_ and _naval_. Naval regiments look almost the same as land ones, the only visual difference is the box size. Hidden regiments can also be toggled from the regiments overview table.
 
 The buttons at the bottom let you attack a foreign regiment (see [Battle Simulator](https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Battle-Simulator) for the details), create a new regiment or fleet, split the regiment into two, attach it to another regiment, regenerate or edit the regiment legend, and remove the regiment.
+
+In the _Style_ tab under _Military forces_, you can also toggle _Show names_ to display regiment names below units on the map.

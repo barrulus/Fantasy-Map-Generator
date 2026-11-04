@@ -1,3 +1,4 @@
+import { log } from "@/utils/logger";
 /**
  * Version Control Guidelines
  * --------------------------
@@ -15,36 +16,37 @@
  * For the changes that may be interesting for end users, update the `latestPublicChanges` below.
  */
 
-import { dialogState } from "@/components/dialog/state";
-import { Pins } from "@/components/pins";
-import { tip } from "@/components/tooltips";
-import { isElectron } from "./platform";
+import { Options } from "@/model/options/options-model";
+import { Pins } from "@/model/options/pins";
+import { Services } from "@/services";
+import { Dialog } from "@/ui/dialog/dialog";
+import { dialogState } from "@/ui/dialog/state";
+import { tip } from "@/ui/tooltips";
+import { isElectron } from "@/utils/environment";
+import { sentences, t } from "@/utils/i18n";
+import { findEl } from "@/utils/node-utils";
 
-export const VERSION = "1.153.0";
+export const VERSION = "1.156.0";
 
-// new changes on top
-const latestPublicChanges = [
-  "Global map search (press Space to open)",
-  "New style presets: Ink, Cinderwood and Frostbite",
-  "Heightmap hachures, coastal bands and shore ripples embellishments",
-  "Labels styling: font weight, font style and text transform",
-  "Wrap Tool: reshape cells with a brush",
-  "Geographical Features Overview",
-  "Coastline Editor: customizable per feature",
-  "Coastlines: roughness localized to coastline section",
-  "Performance Settings",
-  "Dialogs: titlebar button to restore the default position, columns and sorting",
-  "Heightmap Editor: 'Show drainage' overlay",
-  "Heightmap: option to render contour lines",
-  "Ability to override a burg's treasury",
-  "Dialogs: preserve position between sessions",
-  "Options rework: map settings are stored with the map, preferences with the browser",
-  "Map name and era moved to Set Lore dialog",
-  "Notes: kept on the element they describe, and available for more element types",
-  "Notes Editor: new rich text editor Quill2",
-  "Goods, Rivers, Routes, Markers, Markets and Burg icons rendering optimization",
-  "Help assistant: ask questions about the Generator in the app",
-  "Journey Editor and new Journeys layer"
+// new changes on top, never translated
+const latestPublicChanges = (): string[] => [
+  "Interface translated into 29 languages",
+  "Map context menu",
+  "Advanced Options: configurable map lattice",
+  "Trade tariffs and embargoes",
+  "View-only mode for saved maps",
+  "Free-text tags for states and other entities (hidden by default)",
+  "CSV upload for most entities",
+  "Color picker rework",
+  "Regenerate provinces for selected states",
+  "Heightmap Risk mode: map restoration algorithm rework",
+  "Submap and Transform fixes",
+  "Rivers: lock a river to keep it through regeneration",
+  "Paint editor: lock elements from being painted over",
+  "Military forces: hide/show individual regiments",
+  "Shift + Click to bypass confirmation",
+  "Population layer: colored cells style",
+  "Altitude legend: heightmap colors"
 ];
 
 export function parseMapVersion(version: string): string {
@@ -106,6 +108,19 @@ export async function clearCache(): Promise<void> {
   location.reload();
 }
 
+/** cleanupData once the user agrees: it wipes every option and reloads the page */
+export function confirmCleanupData(): void {
+  Dialog.confirm({
+    title: t("Reset Options"),
+    message: sentences(
+      t("All options return to their defaults and the page reloads"),
+      t("If you have unsaved changes, save the map first")
+    ),
+    confirm: t("Reset"),
+    onConfirm: () => cleanupData()
+  });
+}
+
 export const ARROW_TIP_KEY = "fmg-disable-click-arrow-tooltip";
 
 export async function cleanupData(): Promise<void> {
@@ -127,39 +142,59 @@ function showUpdateWindow(storedVersion: string | null): void {
   const discord = "https://discordapp.com/invite/X7E84HU";
   const patreon = "https://www.patreon.com/azgaar";
 
-  alertMessage.innerHTML = /* html */ `The Fantasy Map Generator is updated up to version <strong>${VERSION}</strong>. This version is compatible with <a href="${changelog}" target="_blank">previous versions</a>, loaded save files will be auto-updated.
-    ${storedVersion ? "<span>In case of errors reload the page to update the code.</span>" : ""}
+  Dialog.message({
+    message: /* html */ `${t(
+      "The Fantasy Map Generator is updated up to version {{version}}. This version is compatible with {{- previous}}, loaded save files will be auto-updated.",
+      {
+        version: VERSION,
+        previous: `<a href="${changelog}" target="_blank" style="white-space: nowrap">${t("previous versions")}</a>`
+      }
+    )}
+    ${storedVersion ? `<span>${t("In case of errors reload the page to update the code.")}</span>` : ""}
 
     <ul>
-      <strong>Latest changes:</strong>
-      ${latestPublicChanges.map(change => `<li>${change}</li>`).join("")}
+      <strong>${t("Latest changes")}:</strong>
+      ${latestPublicChanges()
+        .map(change => `<li>${change}</li>`)
+        .join("")}
     </ul>
 
-    ${isElectron() ? "" : `<p>The Generator is also available as a <a href="#" onclick="window.Services.AppOffer.open(); return false">desktop app</a> that works offline.</p>`}
+    ${isElectron() ? "" : `<p>${t("The Generator is also available as a {{- app}} that works offline.", { app: `<a id="updateAppOffer" href="#">${t("desktop app")}</a>` })}</p>`}
 
-    <p>Join our <a href="${discord}" target="_blank">Discord server</a> and <a href="${reddit}" target="_blank">Reddit community</a> to ask questions, share maps, discuss the Generator and Worldbuilding, report bugs and propose new features.</p>
-    <span><i>Thanks for all supporters on <a href="${patreon}" target="_blank">Patreon</a>!</i></span>`;
-
-  $("#alert").dialog({
-    resizable: false,
-    title: "Fantasy Map Generator update",
+    <p>${t(
+      "Join our {{- discord}} and {{- reddit}} to ask questions, share maps, discuss the Generator and Worldbuilding, report bugs and propose new features.",
+      {
+        discord: `<a href="${discord}" target="_blank">${t("Discord server")}</a>`,
+        reddit: `<a href="${reddit}" target="_blank">${t("Reddit community")}</a>`
+      }
+    )}</p>
+    <span><i>${t("Thanks for all supporters on {{- patreon}}!", { patreon: `<a href="${patreon}" target="_blank">Patreon</a>` })}</i></span>`,
+    title: t("Fantasy Map Generator update"),
     width: "28em",
     position: { my: "center center-4em", at: "center", of: "svg" },
-    buttons: {
-      "Clear cache": () => clearCache(),
-      "Don't show again": function (this: HTMLElement) {
-        $(this).dialog("close");
-      }
-    }
+    buttons: [
+      {
+        label: t("Clear cache"),
+        onClick: () => {
+          clearCache();
+          return false;
+        }
+      },
+      { label: t("Don't show again") }
+    ]
+  });
+  findEl("updateAppOffer")?.addEventListener("click", event => {
+    event.preventDefault();
+    Services.AppOffer.open();
   });
 }
 
 function announceVersion(): void {
-  if (parseMapVersion(VERSION) !== VERSION) alert("versioning: Invalid format or parsing function");
+  if (parseMapVersion(VERSION) !== VERSION) log.error("versioning: Invalid format or parsing function");
 
   document.title += ` v${VERSION}`;
-  const loadingScreenVersion = document.getElementById("versionText");
-  if (loadingScreenVersion) loadingScreenVersion.innerText = `v${VERSION}`;
+  const loadingScreenVersion = findEl("versionText");
+  if (loadingScreenVersion) loadingScreenVersion.textContent = `v${VERSION}`;
 
   const storedVersion = localStorage.getItem("version");
   if (!storedVersion) {
@@ -171,19 +206,10 @@ function announceVersion(): void {
     setTimeout(() => showUpdateWindow(storedVersion), 6000);
   } else if (compareVersions(storedVersion, VERSION).isOlder) {
     localStorage.setItem("version", VERSION);
-    tip(`Updated to v${VERSION}. Reload the page if you get errors`, true, "success", 6000);
+    tip(t("Updated to v{{version}}. Reload the page if you get errors", { version: VERSION }), true, "success", 6000);
   }
 }
 
 announceVersion();
 
-declare global {
-  // biome-ignore lint/suspicious/noRedeclare: exposed on window for legacy JS
-  var VERSION: string;
-  // biome-ignore lint/suspicious/noRedeclare: exposed on window for legacy JS
-  var cleanupData: () => Promise<void>;
-}
-
 // temp legacy compatibility
-window.VERSION = VERSION;
-window.cleanupData = cleanupData;

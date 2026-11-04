@@ -1,6 +1,13 @@
-import { groupMaxZoom, groupMinZoom, groupRank, groupReferenceD, groupRestPx, groupStartPx } from "./tier-table";
+import {
+  groupMaxZoom,
+  groupMinZoom,
+  groupRank,
+  groupReferenceD,
+  groupRestPx,
+  groupStartPx
+} from "@/renderers/labeling/tier-table";
 
-export { groupReferenceD, groupRestPx } from "./tier-table";
+export { groupReferenceD, groupRestPx } from "@/renderers/labeling/tier-table";
 
 const FACTOR_MIN = 0.75;
 const FACTOR_MAX = 1.5;

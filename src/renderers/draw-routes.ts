@@ -1,12 +1,12 @@
-import { Layers } from "@/components/layers";
-import type { Route } from "@/generators/routes-generator";
+import type { Route } from "@/model/economy/routes-generator";
+import { Routes } from "@/model/economy/routes-generator";
+import type { Layer } from "@/renderers/layers";
+import { Layers } from "@/renderers/layers";
 import { applyRouteLineStyle, routeTypeStyle } from "@/renderers/route-styles";
-import {
-  boundsIntersect,
-  Scene,
-  ViewportLayers,
-  type ViewportRenderContext
-} from "@/renderers/viewport/viewport-renderer";
+import { syncStyleGroups } from "@/renderers/style-groups";
+import type { ViewportRenderContext } from "@/renderers/viewport/viewport-renderer";
+import { boundsIntersect, Scene, ViewportLayers } from "@/renderers/viewport/viewport-renderer";
+import { log } from "@/utils/logger";
 
 interface RouteShape {
   id: string;
@@ -20,7 +20,7 @@ interface RouteShape {
 }
 
 const scene = new Scene<RouteShape>();
-const layer = ViewportLayers.register({ id: "routes", render: reconcileRoutes });
+const viewportLayer = ViewportLayers.register({ id: "routes", render: reconcileRoutes });
 const rendered = new WeakMap<Element, RouteShape>();
 
 let editedRouteId: string | null = null; // edited route is rendered even when off-screen
@@ -35,16 +35,17 @@ function applyRouteTypeStyle(el: Element, type: string): void {
   applyRouteLineStyle(el, routeTypeStyle(type), styles.routes.types[type]?.attrs);
 }
 
-export function drawRoutes(): void {
-  TIME && console.time("drawRoutes");
+export function drawRoutes(layer: Layer): void {
+  log.time("drawRoutes");
   const shapes: RouteShape[] = [];
   for (const route of pack.routes) {
     const shape = buildShape(route);
     if (shape) shapes.push(shape);
   }
   scene.replace(shapes);
-  layer.render();
-  TIME && console.timeEnd("drawRoutes");
+  syncStyleGroups(layer.getEl(), styles.routes.groups);
+  viewportLayer.render();
+  log.timeEnd("drawRoutes");
 }
 
 /** drop the paths, keeping the route groups: they are user data carrying the group styles */
@@ -59,7 +60,7 @@ export function redrawRoute(route: Route): void {
   const shape = buildShape(route);
   if (!shape || !scene.valid) return;
   scene.set(shape);
-  layer.render();
+  viewportLayer.render();
 }
 
 /** Draw a route added after the layer was drawn (burgs generator, route editor) */
@@ -75,13 +76,13 @@ export function getRouteBox(routeId: number): DOMRect | null {
 
 export function setEditedRoute(routeId: number | null): void {
   editedRouteId = routeId === null ? null : `route${routeId}`;
-  layer.render();
+  viewportLayer.render();
 }
 
 const TEMP_ID = "routeTemp";
 export function setTempRoute(route: { group: string; points: number[][] } | null): void {
   tempRoute = route && route.points.length > 1 ? buildShape({ ...route, i: -1 } as Route, TEMP_ID) : null;
-  layer.render();
+  viewportLayer.render();
 }
 
 function buildShape(route: Route, id = `route${route.i}`): RouteShape | null {

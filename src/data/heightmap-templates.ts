@@ -187,10 +187,4 @@ export const heightmapTemplates: Record<string, HeightmapTemplate> = {
   blank: { id: 15, name: "Blank", template: blank, probability: 0 }
 };
 
-declare global {
-  // biome-ignore lint/suspicious/noRedeclare: exposed on window for legacy JS
-  var heightmapTemplates: Record<string, HeightmapTemplate>;
-}
-
 // temp legacy compatibility
-window.heightmapTemplates = heightmapTemplates;
