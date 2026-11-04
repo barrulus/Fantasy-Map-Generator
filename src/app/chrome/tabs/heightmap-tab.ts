@@ -9,6 +9,16 @@ const TEMPLATE = /* html */ `
     <button data-tip="${t("Display brushes panel")}" id="paintBrushes">${t("Paint Brushes")}</button>
     <button data-tip="${t("Template Editor")}" id="applyTemplate" style="display: none">${t("Template Editor")}</button>
     <button data-tip="${t("Image Converter")}" id="convertImage" style="display: none">${t("Image Converter")}</button>
+    <button
+      data-tip="${t("Save the painted heightmap to a draft file to continue later without generating a map")}"
+      id="saveHeightmapDraft"
+      style="display: none"
+    >${t("Save Draft")}</button>
+    <button
+      data-tip="${t("Load a heightmap draft file and continue painting")}"
+      id="loadHeightmapDraft"
+      style="display: none"
+    >${t("Load Draft")}</button>
     <button data-tip="${t("Render heightmap data as a small monochrome image")}" id="heightmapPreview">${t("Preview")}</button>
     <button data-tip="${t("Preview the heightmap in a 3D scene")}" id="heightmap3DView">${t("3D scene")}</button>
   </div>
