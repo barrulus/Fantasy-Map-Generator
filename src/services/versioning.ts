@@ -26,7 +26,7 @@ import { isElectron } from "@/utils/environment";
 import { sentences, t } from "@/utils/i18n";
 import { findEl } from "@/utils/node-utils";
 
-export const VERSION = "1.156.0";
+export const VERSION = "1.156.1";
 
 // new changes on top, never translated
 const latestPublicChanges = (): string[] => [
