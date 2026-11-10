@@ -6,7 +6,7 @@ import type { Label } from "@/model/annotations/labels-generator";
 import { Pack } from "@/model/graph/pack-generator";
 import type { Point } from "@/model/graph/voronoi";
 import { buildAirRoutes } from "@/model/physical/air-routes-generator";
-import { findMegalopolises, groupedMemberIds, pooledPopulation } from "@/model/physical/megalopolis";
+import { type River, Rivers } from "@/model/physical/river-generator";
 import type { TradeNode } from "@/model/physical/trade-network-generator";
 import { assignTradeRoles, buildLegGraph, routeTradeNetwork } from "@/model/physical/trade-network-generator";
 import type { Burg } from "@/model/political/burgs-generator";
@@ -323,7 +323,40 @@ type RouteBurgIndex = {
   skyPorts: Burg[];
 };
 
+type RiverEdge = { riverId: number; fromIndex: number };
+
+type RiverRun = {
+  startIdx: number; // first route-cell index of the run
+  endIdx: number; // last route-cell index of the run (shared with the next run at confluences)
+  riverId: number;
+  direction: 1 | -1; // +1 if the route runs downstream (source->mouth), -1 if upstream
+  firstCanonicalIndexInRiver: number; // river.cells index of the run's source-most cell
+};
+
 class RoutesModule {
+  private riverEdges: Map<number, Map<number, RiverEdge>> = new Map();
+  private riversById: Map<number, River> = new Map();
+  private riverGeometryCache: Map<number, { points: Point[]; anchorIndices: number[] }> = new Map();
+
+  private buildRiverEdges() {
+    this.riverEdges = new Map();
+    this.riversById = new Map();
+    this.riverGeometryCache = new Map();
+    for (const river of pack.rivers) {
+      this.riversById.set(river.i, river);
+      if (!river.cells || river.cells.length < 2) continue;
+      for (let i = 0; i < river.cells.length - 1; i++) {
+        const a = river.cells[i];
+        const b = river.cells[i + 1];
+        if (a < 0 || b < 0) continue;
+        if (!this.riverEdges.has(a)) this.riverEdges.set(a, new Map());
+        if (!this.riverEdges.has(b)) this.riverEdges.set(b, new Map());
+        this.riverEdges.get(a)!.set(b, { riverId: river.i, fromIndex: i });
+        this.riverEdges.get(b)!.set(a, { riverId: river.i, fromIndex: i + 1 });
+      }
+    }
+  }
+
   /** Rename a route */
   rename(routeId: number, name: string): void {
     const route = pack.routes.find(({ i }) => i === routeId);
@@ -1347,33 +1380,18 @@ class RoutesModule {
       if (b.i && !b.removed && b.capital && b.state !== undefined) capitalByState.set(b.state, b);
     }
 
-    // megalopolises trade as ONE node: members are excluded from role
-    // assignment and the anchor's gravity uses the pooled population
-    const megas = findMegalopolises(pack.burgs, pack.cells.burg);
-    const memberIds = groupedMemberIds(megas);
-    const pooledPop = pooledPopulation(megas);
-    for (const id of memberIds) pack.burgs[id].tradeRole = undefined; // members never trade independently
-    const megalopolisImportance = (b: Burg) => {
-      const pop = pooledPop.get(b.i);
-      return pop === undefined ? portImportance(b) : portImportance({ ...b, population: pop } as Burg);
-    };
-
-    assignTradeRoles(
-      pack.burgs.filter(b => !b.i || !memberIds.has(b.i)),
-      {
-        importance: megalopolisImportance,
-        isLargePort: (b: Burg) => Boolean(b.isLargePort) || b.settlementType === "largePort",
-        minHubSize: MIN_HUB_SIZE,
-        capitalByState,
-        dist2
-      }
-    );
+    assignTradeRoles(pack.burgs, {
+      importance: portImportance,
+      isLargePort: (b: Burg) => Boolean(b.isLargePort) || b.settlementType === "largePort",
+      minHubSize: MIN_HUB_SIZE,
+      capitalByState,
+      dist2
+    });
 
     // build nodes (hubs + waystations) with their navigable component
     const nodes: TradeNode[] = [];
     const hubIndices: number[] = [];
     for (const b of pack.burgs) {
-      if (b.i && memberIds.has(b.i)) continue; // grouped members never become trade nodes
       if (!b.tradeRole) continue;
       if (!b.port) continue;
       const component = components.get(b.port as number) ?? (b.port as number);
@@ -1449,7 +1467,118 @@ class RoutesModule {
     return [x, y];
   }
 
+  // Group consecutive route cells that follow a single river in one direction into maximal runs.
+  // A run ends at a confluence (riverId change) or when the route leaves the river course; the
+  // confluence cell is shared as the last cell of one run and the first of the next.
+  private findRiverRuns(cells: number[]): RiverRun[] {
+    const runs: RiverRun[] = [];
+
+    let k = 0;
+    while (k < cells.length - 1) {
+      const edge = this.riverEdges.get(cells[k])?.get(cells[k + 1]);
+      const reverseEdge = edge ? this.riverEdges.get(cells[k + 1])?.get(cells[k]) : undefined;
+      if (!edge || !reverseEdge) {
+        k++;
+        continue;
+      }
+
+      const direction: 1 | -1 = reverseEdge.fromIndex === edge.fromIndex + 1 ? 1 : -1;
+      const { riverId } = edge;
+      let endIdx = k + 1;
+      let prevToIndex = reverseEdge.fromIndex;
+
+      // Extend the run while each step stays on the same river, contiguous and same-direction.
+      while (endIdx + 1 < cells.length) {
+        const ahead = this.riverEdges.get(cells[endIdx])?.get(cells[endIdx + 1]);
+        if (!ahead || ahead.riverId !== riverId || ahead.fromIndex !== prevToIndex) break;
+        const aheadReverse = this.riverEdges.get(cells[endIdx + 1])?.get(cells[endIdx]);
+        if (!aheadReverse || aheadReverse.fromIndex - ahead.fromIndex !== direction) break;
+        prevToIndex = aheadReverse.fromIndex;
+        endIdx++;
+      }
+
+      const firstCanonicalIndexInRiver = direction === 1 ? edge.fromIndex : prevToIndex;
+      runs.push({ startIdx: k, endIdx, riverId, direction, firstCanonicalIndexInRiver });
+      k = endIdx;
+    }
+
+    return runs;
+  }
+
+  private getRiverGeometry(river: River): { points: Point[]; anchorIndices: number[] } {
+    const cached = this.riverGeometryCache.get(river.i);
+    if (cached) return cached;
+
+    const geometry = Rivers.getCourse(river.cells, river.points);
+
+    this.riverGeometryCache.set(river.i, geometry);
+    return geometry;
+  }
+
+  private emitRiverRun(run: RiverRun, cells: number[], result: [number, number, number][]): void {
+    const runCells = cells.slice(run.startIdx, run.endIdx + 1);
+    const river = this.riversById.get(run.riverId);
+    if (!river) return;
+
+    const { points, anchorIndices } = this.getRiverGeometry(river);
+
+    const lo = run.firstCanonicalIndexInRiver;
+    const hi = lo + runCells.length - 1;
+    const startPoint = anchorIndices[lo];
+    const endPoint = anchorIndices[hi];
+    let slicePoints: Point[] = points.slice(startPoint, endPoint + 1).map(point => [point[0], point[1]]);
+    let sliceAnchorIndices = anchorIndices.slice(lo, hi + 1).map(idx => idx - startPoint);
+
+    // Reverse for upstream routes so the output runs in route order.
+    if (run.direction === -1) {
+      const total = slicePoints.length;
+      slicePoints = slicePoints.slice().reverse();
+      sliceAnchorIndices = sliceAnchorIndices
+        .slice()
+        .reverse()
+        .map(idx => total - 1 - idx);
+    }
+
+    let nextAnchorPtr = 0;
+    let currentCellId = runCells[0];
+    const skipFirst = result.length > 0 && result[result.length - 1][2] === runCells[0];
+    for (let pk = 0; pk < slicePoints.length; pk++) {
+      if (nextAnchorPtr < sliceAnchorIndices.length && sliceAnchorIndices[nextAnchorPtr] === pk) {
+        currentCellId = runCells[nextAnchorPtr];
+        nextAnchorPtr++;
+      }
+      if (pk === 0 && skipFirst) continue;
+      result.push([slicePoints[pk][0], slicePoints[pk][1], currentCellId]);
+    }
+  }
+
+  addMeandering(cells: number[], anchors: Point[]): [number, number, number][] {
+    const runs = this.findRiverRuns(cells);
+    const result: [number, number, number][] = [];
+    let runPtr = 0;
+    let i = 0;
+
+    while (i < cells.length) {
+      if (runPtr < runs.length && runs[runPtr].startIdx === i) {
+        const run = runs[runPtr++];
+        this.emitRiverRun(run, cells, result);
+        i = run.endIdx; // the run's last cell may start the next run (confluence)
+      } else {
+        const alreadyEmitted = result.length > 0 && result[result.length - 1][2] === cells[i];
+        if (!alreadyEmitted) result.push([anchors[i][0], anchors[i][1], cells[i]]);
+        i++;
+      }
+    }
+
+    return result;
+  }
+
   private getPoints(group: string, cells: number[], points: Point[]) {
+    if (group === "searoutes")
+      return this.addMeandering(
+        cells,
+        cells.map(cellId => points[cellId])
+      );
     const data = cells.map(cellId => [...points[cellId], cellId]);
 
     // resolve sharp angles
@@ -1631,6 +1760,7 @@ class RoutesModule {
 
   generate(lockedRoutes: Route[] = [], randomSeed?: number) {
     Math.random = Alea(randomSeed ?? options.map.seed);
+    this.buildRiverEdges();
     const connections = new Set<number>();
     lockedRoutes.forEach((route: Route) => {
       this.addConnections(
@@ -1930,25 +2060,16 @@ class RoutesModule {
     return route;
   }
 
-  /** Remove a route and its cell connections */
-  remove(routeId: number) {
-    const route = this.living(routeId);
-    const routes = pack.cells.routes;
+  /** Rebuild the cell links from the routes' points */
+  relink(): void {
+    pack.cells.routes = this.buildLinks(pack.routes);
+  }
 
-    for (const point of route.points) {
-      const from = point[2];
-      if (!routes[from]) continue;
-
-      for (const [to, routeId] of Object.entries(routes[from])) {
-        if (routeId === route.i) {
-          const toCell = parseInt(to, 10);
-          delete routes[from][toCell];
-          if (routes[toCell]) delete routes[toCell][from];
-        }
-      }
-    }
-
-    pack.routes = pack.routes.filter(r => r.i !== route.i);
+  /** Remove routes and their cell connections */
+  remove(...routeIds: number[]) {
+    const removed = new Set(routeIds.map(routeId => this.living(routeId).i));
+    pack.routes = pack.routes.filter(r => !removed.has(r.i));
+    this.relink(); // a cell pair links one route, so other routes through the same cells must be relinked
   }
 
   getConnectivityRate(cellId: number): number {
@@ -2048,6 +2169,7 @@ class RoutesModule {
   };
 
   sync(): void {
+    this.buildRiverEdges();
     pack.cells.routes = {};
     for (const route of pack.routes) this.link(route.points, route.i);
   }

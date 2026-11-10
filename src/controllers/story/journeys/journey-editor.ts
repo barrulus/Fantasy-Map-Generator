@@ -4,10 +4,10 @@ import {
   JourneyPathEditor,
   recomputeSegment
 } from "@/controllers/story/journeys/journey-path-editor";
-import { Transports } from "@/model/economy/transports-generator";
 import type { CellPlace } from "@/model/story/journeys/journey-places";
 import { cellEndpointLabel, getCellPoint, resolveCellPlace } from "@/model/story/journeys/journey-places";
 import { Journeys } from "@/model/story/journeys/journeys-generator";
+import { Transports } from "@/model/story/journeys/transports-generator";
 import { convertSpeed, formatSpeed, getDistanceUnit, parseSpeed } from "@/model/units";
 import { startJourneyTravel, stopJourneyTravel } from "@/renderers/journey-travel";
 import { Layers } from "@/renderers/layers";
@@ -57,6 +57,7 @@ const columns: EditorColumn<JourneySegment>[] = [
 ];
 
 const segmentsTable = initEditorTable<JourneySegment>({
+  dialogId,
   getData: () => getJourney()?.segments ?? [],
   onUpdate: renderSegmentsPage
 });

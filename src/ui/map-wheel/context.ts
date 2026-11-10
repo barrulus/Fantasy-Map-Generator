@@ -367,10 +367,10 @@ function burgSubject(id: number, hit: Hit): WheelSubject | null {
     actions: [
       { label: "Edit burg", icon: "icon-edit", verb: "open", run: () => void Controllers.BurgEditor.open(id) },
       {
-        label: "Production",
+        label: "Economy",
         icon: "icon-hammer",
         verb: "inspect",
-        run: () => void Controllers.ProductionOverview.open(id)
+        run: () => void Controllers.BurgEconomyOverview.open(id)
       },
       {
         label: "Compare prices",

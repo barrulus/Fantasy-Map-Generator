@@ -1,6 +1,6 @@
 import path from "path";
-import { test, expect, type Page } from "@playwright/test";
-import { applyZoomExtent, denseTarget, domNodes, gestures, measureScenario, record, ZOOM_MAX } from "./metrics";
+import { test, type Page } from "@playwright/test";
+import { applyZoomExtent, denseTarget, gestures, measureScenario, record, ZOOM_MAX } from "./metrics";
 
 /**
  * Interaction timing on a fixture map: real wheel/drag gestures (never the zoom API — programmatic

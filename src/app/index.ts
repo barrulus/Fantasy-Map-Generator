@@ -4,7 +4,7 @@ import "@/model/globals";
 import "@/model/options/options-defaults";
 import "./chrome/tabs";
 import { changeCellsDensity, syncOptionInputs } from "./chrome/tabs/options-tab";
-import { isLinkable, MAP_COMMANDS } from "./map-commands";
+import { isLinkable, MAP_COMMANDS, openEconomyRegeneration } from "./map-commands";
 
 import "@/data/supporters";
 import "@/data/heightmap-templates";
@@ -50,6 +50,7 @@ bindApp({
   applyLayersPreset,
   applyURLLayers,
   mapCommands: MAP_COMMANDS,
+  openEconomyRegeneration,
   isLinkable
 });
 

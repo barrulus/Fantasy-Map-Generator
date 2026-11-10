@@ -959,53 +959,6 @@ describe("RoutesModule.remove", () => {
   beforeEach(async () => {
     log.enabled.time = false;
     globalThis.window = globalThis.window || ({} as any);
-    options.map.graph = { ...options.map.graph, width: 1000, height: 1000, points: 10000 };
-    globalThis.pack = {
-      cells: {
-        h: [] as number[],
-        r: [] as number[],
-        fl: [] as number[],
-        p: [] as [number, number][],
-        t: [] as number[],
-        g: [] as number[],
-        burg: [] as number[]
-      },
-      burgs: [],
-      rivers: [],
-      routes: []
-    } as any;
-    globalThis.grid = { cells: { temp: [20, 20, 20, 20, 20, 20, 20, 20] } } as any;
-
-    await import("./routes-generator");
-    Routes = RoutesModel;
-  });
-
-  it("removes a route when the link index is asymmetric (reverse cell absent)", () => {
-    globalThis.pack.routes = [
-      {
-        i: 1,
-        group: "roads",
-        points: [
-          [0, 0, 10],
-          [0, 0, 20]
-        ]
-      }
-    ] as any;
-    // asymmetric index: forward link 10->20 exists but cell 20 has no reverse entry
-    globalThis.pack.cells.routes = { 10: { 20: 1 } } as any;
-
-    expect(() => Routes.remove(globalThis.pack.routes[0].i)).not.toThrow();
-    expect(globalThis.pack.routes).toHaveLength(0);
-    expect(globalThis.pack.cells.routes[10][20]).toBeUndefined();
-  });
-});
-
-describe("RoutesModule.remove", () => {
-  let Routes: any;
-
-  beforeEach(async () => {
-    log.enabled.time = false;
-    globalThis.window = globalThis.window || ({} as any);
     // d3 select() needs a document in the node env
     globalThis.document = { querySelector: () => null, documentElement: {} } as any;
     globalThis.pack = { cells: {}, routes: [] } as any;
@@ -1029,7 +982,67 @@ describe("RoutesModule.remove", () => {
 
     expect(() => Routes.remove(globalThis.pack.routes[0].i)).not.toThrow();
     expect(globalThis.pack.routes).toHaveLength(0);
-    expect(globalThis.pack.cells.routes[10][20]).toBeUndefined();
+    expect(globalThis.pack.cells.routes).toEqual({});
+  });
+
+  it("keeps the links of a route that shares cells with the removed one", () => {
+    globalThis.pack.routes = [
+      {
+        i: 1,
+        group: "roads",
+        points: [
+          [0, 0, 10],
+          [0, 0, 20],
+          [0, 0, 30]
+        ]
+      },
+      {
+        i: 2,
+        group: "trails",
+        points: [
+          [0, 0, 10],
+          [0, 0, 20]
+        ]
+      }
+    ] as any;
+    Routes.relink(); // route 2 owns the shared 10-20 link
+
+    Routes.remove(2);
+    expect(globalThis.pack.cells.routes).toEqual({ 10: { 20: 1 }, 20: { 10: 1, 30: 1 }, 30: { 20: 1 } });
+  });
+
+  it("removes several routes at once", () => {
+    globalThis.pack.routes = [
+      {
+        i: 1,
+        group: "roads",
+        points: [
+          [0, 0, 10],
+          [0, 0, 20]
+        ]
+      },
+      {
+        i: 2,
+        group: "roads",
+        points: [
+          [0, 0, 20],
+          [0, 0, 30]
+        ]
+      },
+      {
+        i: 3,
+        group: "roads",
+        points: [
+          [0, 0, 30],
+          [0, 0, 40]
+        ]
+      }
+    ] as any;
+    Routes.relink();
+
+    Routes.remove(1, 3);
+    expect(globalThis.pack.routes.map((r: any) => r.i)).toEqual([2]);
+    expect(globalThis.pack.cells.routes).toEqual({ 20: { 30: 2 }, 30: { 20: 2 } });
   });
 });
 

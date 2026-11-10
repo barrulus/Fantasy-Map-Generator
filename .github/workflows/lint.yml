@@ -16,10 +16,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup Biome
-        uses: biomejs/setup-biome@v2
-        with:
-          # match the repo's devDependency: a floating "latest" starts enforcing rules the
-          # local toolchain doesn't have yet, failing PRs on files they never touched
-          version: 2.6.2
+        uses: biomejs/setup-biome@v2 # no version: it installs the one package-lock.json pins
       - name: Run Biome
         run: biome ci .

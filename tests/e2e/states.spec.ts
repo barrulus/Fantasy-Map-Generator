@@ -38,12 +38,6 @@ test.describe("States", () => {
 
     expect(stateId).not.toBeNull();
 
-    // Verify this state is in neighbors of other states before removal
-    const neighborsBefore = await page.evaluate((id: number) => {
-      const {states} = (window as any).pack;
-      return states.filter((s: any) => s.i && !s.removed && s.neighbors && s.neighbors.includes(id)).length;
-    }, stateId!);
-
     // Click the trash icon to remove the state
     await page.click(`#statesBodySection > div[data-id="${stateId}"] .icon-trash-empty`);
 
@@ -204,7 +198,7 @@ test.describe("Diplomacy", () => {
   const diplomacy = (page: Page) => page.evaluate(() => JSON.stringify(pack.states.map(state => state.diplomacy)));
   const relation = (page: Page, subject: number, object: number) =>
     page.evaluate(([a, b]) => pack.states[a].diplomacy![b], [subject, object]);
-  const chronicleLength = (page: Page) => page.evaluate(() => pack.states[0].diplomacy.length);
+  const chronicleLength = (page: Page) => page.evaluate(() => pack.states[0].diplomacy!.length);
   const selfId = (page: Page) => page.locator("#diplomacyBodySection .Self");
 
   async function openEditor(page: Page, relationName: string): Promise<void> {
@@ -238,7 +232,8 @@ test.describe("Diplomacy", () => {
     ids = await page.evaluate(() => {
       const states = pack.states.filter(state => state.i && !state.removed);
       for (const a of states) for (const b of states) a.diplomacy![b.i] = a.i === b.i ? "x" : "Neutral";
-      const [a, b, c] = states;
+      // the largest, as the dialogs can cover a small state whole
+      const [a, b, c] = [...states].sort((x, y) => y.cells! - x.cells!);
       a.diplomacy![b.i] = b.diplomacy![a.i] = "Rival";
       b.diplomacy![c.i] = c.diplomacy![b.i] = "Ally";
       pack.states[0].diplomacy = [];

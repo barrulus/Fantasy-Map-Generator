@@ -72,6 +72,10 @@ const GROUP_SOURCES: Partial<Record<StyleElement, () => GroupEntry[]>> = {
         .map(type => ({ id: `${id}/${type}`, label: `${id} / ${type}` }))
     ]);
   },
+  rivers: () => {
+    const counts = countBy(pack.rivers ?? [], river => river.group);
+    return Object.keys(styles.rivers.groups).map(id => ({ id, label: id, count: String(counts.get(id) ?? 0) }));
+  },
   lakes: () => {
     const counts = countBy(
       (pack.features ?? []).filter(feature => feature?.type === "lake"),

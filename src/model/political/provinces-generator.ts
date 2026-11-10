@@ -112,7 +112,7 @@ class ProvinceModule {
     }
 
     const provincesRatio = options.generation.provinces.ratio;
-    const baseMaxGrowth = provincesRatio === 100 ? 1000 : gauss(20, 5, 5, 100) * provincesRatio ** 0.5;
+    const baseMaxGrowth = provincesRatio === 100 ? 1000 : gauss(20, 5, 5, 100) * Math.max(provincesRatio, 1) ** 0.5;
     // Scale BFS cost ceiling by sqrt(cells/10000) so reach in physical units stays
     // constant regardless of grid density. Without this, provinces only fill ~10
     // cell-hops of terrain at 500k and leave large holes (cells unassigned).
@@ -506,6 +506,7 @@ class ProvinceModule {
     cells.province[center] = i;
     for (const cell of cells.c[center])
       if (cells.h[cell] >= 20 && cells.state[cell] === state && !isCenter(cell)) cells.province[cell] = i;
+    Pack.markChanged();
     this.getPoles();
     return i;
   }
@@ -536,6 +537,7 @@ class ProvinceModule {
     const state = pack.states[province.state];
     if (state?.provinces) state.provinces = state.provinces.filter(id => id !== provinceId);
     pack.provinces[provinceId] = { i: provinceId, removed: true } as Province;
+    Pack.markChanged();
   }
 
   /** Merge provinces of one state into a primary one, which takes their lands and burgs */
@@ -594,6 +596,7 @@ class ProvinceModule {
         throw new Error(`Cell ${cell} is the center of province ${owner}; remove that province first`);
     }
     for (const cell of cellIds) cells.province[cell] = provinceId;
+    Pack.markChanged();
     this.getPoles();
   }
 

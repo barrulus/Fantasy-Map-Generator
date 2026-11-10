@@ -6,7 +6,6 @@ import { Labels } from "@/model/annotations/labels-generator";
 import { Goods } from "@/model/economy/goods-generator";
 import { Markets } from "@/model/economy/markets-generator";
 import { Routes } from "@/model/economy/routes-generator";
-import { Transports } from "@/model/economy/transports-generator";
 import { Pack } from "@/model/graph/pack-generator";
 import { Biomes } from "@/model/physical/biomes-generator";
 import { Features } from "@/model/physical/features-generator";
@@ -15,14 +14,19 @@ import { Burgs } from "@/model/political/burgs-generator";
 import { Emblems } from "@/model/political/emblems-generator";
 import { Military } from "@/model/political/military-generator";
 import { Provinces } from "@/model/political/provinces-generator";
-import { States } from "@/model/political/states-generator";
+import { noFinance, States } from "@/model/political/states-generator";
 import { Zones } from "@/model/political/zones-generator";
 import { Cultures } from "@/model/society/cultures-generator";
 import { Names } from "@/model/society/names-generator";
 import { Religions } from "@/model/society/religions-generator";
 import { Journeys } from "@/model/story/journeys/journeys-generator";
+import { Transports } from "@/model/story/journeys/transports-generator";
 import { Lore } from "@/model/story/lore";
 import { Markers } from "@/model/story/markers-generator";
+
+/** States as the model keeps them: each with its finances, zero but for the given ones */
+const withFinance = (states: any[]) =>
+  states.map(state => ({ ...state, economy: { ...noFinance(), ...state.economy } }));
 
 // each test calls the model method its row names
 const MODELS: Record<string, any> = {
@@ -40,25 +44,26 @@ const MODELS: Record<string, any> = {
 
 beforeAll(async () => {
   await Promise.all([
-    import("@/model/political/burgs-generator"),
-    import("@/model/political/states-generator"),
-    import("@/model/political/provinces-generator"),
-    import("@/model/society/cultures-generator"),
-    import("@/model/society/religions-generator"),
-    import("@/model/physical/biomes-generator"),
-    import("@/model/political/zones-generator"),
-    import("@/model/economy/routes-generator"),
-    import("@/model/physical/river-generator"),
-    import("@/model/physical/features-generator"),
-    import("@/model/story/markers-generator"),
-    import("@/model/political/military-generator"),
-    import("@/model/annotations/added-labels"),
-    import("@/model/graph/pack-generator"),
-    import("@/model/annotations/labels-generator"),
-    import("@/model/story/journeys/journeys-generator"),
-    import("@/model/economy/transports-generator"),
-    import("@/model/economy/goods-generator"),
-    import("@/model/economy/markets-generator")
+    import("./political/burgs-generator"),
+    import("./political/states-generator"),
+    import("./political/provinces-generator"),
+    import("./society/cultures-generator"),
+    import("./society/religions-generator"),
+    import("./physical/biomes-generator"),
+    import("./political/zones-generator"),
+    import("./economy/routes-generator"),
+    import("./physical/river-generator"),
+    import("./physical/features-generator"),
+    import("./story/markers-generator"),
+    import("./political/military-generator"),
+    import("./annotations/added-labels"),
+    import("./graph/pack-generator"),
+    import("./annotations/labels-generator"),
+    import("./story/journeys/journeys-generator"),
+    import("./story/journeys/transports-generator"),
+    import("./economy/goods-generator"),
+    import("./economy/markets-generator"),
+    import("./economy/trade")
   ]);
 });
 
@@ -223,6 +228,9 @@ describe("Biomes", () => {
     Biomes.setHabitability(0, 40);
     expect(pack.biomes[0]).toMatchObject({ name: "Deep sea", habitability: 40 });
     expect(() => Biomes.setHabitability(0, -5)).toThrow("non-negative");
+    Biomes.setDevelopment(0, -6);
+    expect(pack.biomes[0].development).toBe(-6);
+    expect(() => Biomes.setDevelopment(0, 51)).toThrow("from -50 to 50");
     expect(() => Biomes.rename(3, "X")).toThrow("Biome 3 does not exist");
   });
 });
@@ -284,10 +292,39 @@ describe("Burgs: capital, move, remove", () => {
         state: [0, 1, 1, 0, 0],
         province: [0, 1, 1, 1, 0],
         h: [10, 30, 30, 30, 30],
+        development: [0, 0, 0, 0, 0],
+        pop: [0, 0, 0, 0, 0],
+        c: [[], [], [], [], []],
         f: [0, 1, 1, 1, 1]
       }
     });
     vi.spyOn(Burgs, "changeGroup").mockImplementation(() => {});
+  });
+
+  it("keeps two skyburgs above a ground burg through moves and removal", () => {
+    vi.spyOn(Pack, "requireCell").mockImplementation(x => Number(x));
+    const air = vi.spyOn(Routes, "rebuildAirroutes").mockImplementation(() => {});
+    const land = vi.spyOn(Routes, "connect").mockReturnValue(undefined);
+    pack.provinces = [];
+    Burgs.setFlying(2, true, 700);
+    pack.burgs.push({ i: 3, cell: 1, x: 1, y: 0, flying: 1, skyPort: 1 });
+    Burgs.move(2, 1, 0);
+    expect(pack.burgs[2]).toMatchObject({ flying: 1, altitude: 700, cell: 1 });
+    expect(pack.cells.burg[1]).toBe(1);
+    expect(() => Burgs.setFlying(2, false)).toThrow("already a ground burg");
+    expect(pack.burgs[2].flying).toBe(1);
+    Burgs.remove(3);
+    expect(pack.cells.burg[1]).toBe(1);
+    Burgs.move(2, 0, 0);
+    expect(pack.cells.burg[0]).toBe(0);
+    expect(pack.cells.burg[1]).toBe(1);
+    expect(() => Burgs.setFlying(2, false)).toThrow("in the water");
+    Burgs.move(2, 3, 0);
+    Burgs.setFlying(2, false);
+    expect(pack.cells.burg[3]).toBe(2);
+    expect(pack.burgs[2].flying).toBeUndefined();
+    expect(air).toHaveBeenCalled();
+    expect(land).not.toHaveBeenCalled();
   });
 
   it("setCapital moves the capital and the state center", () => {
@@ -299,19 +336,27 @@ describe("Burgs: capital, move, remove", () => {
     expect(() => Burgs.setCapital(2)).toThrow("neutral lands");
   });
 
-  it("remove refuses capitals and clears the province capital", () => {
+  it("remove refuses capitals and clears the province capital and the burg's deals", () => {
+    pack.deals = [
+      [1, 1, 1, 0, 5, 2, 0, 0, 0],
+      [2, 1, 1, 0, 5, 2, 0, 0, 0]
+    ];
     expect(() => Burgs.remove(1)).toThrow("is a capital");
     Burgs.remove(2);
     expect(pack.burgs[2].removed).toBe(true);
     expect(pack.cells.burg[2]).toBe(0);
     expect(pack.provinces[1].burg).toBe(0);
+    expect(pack.deals.map(([burg]) => burg)).toEqual([1]);
   });
 
   it("move takes a free land cell and keeps a capital in its state and province", () => {
     vi.spyOn(Pack, "requireCell").mockImplementation((x: unknown) => x as number);
     const portWater = vi.spyOn(Burgs, "getPortWater").mockReturnValue(0);
+    const connect = vi.spyOn(Routes, "connect").mockReturnValue(undefined);
+    pack.cells.routes = {};
     pack.burgs[2].port = 7;
     Burgs.move(2, 3, 5);
+    expect(connect).toHaveBeenCalledWith(3); // off the network it could not trade
     expect(pack.burgs[2]).toMatchObject({ cell: 3, state: 0, x: 3, y: 5, port: 0 });
     expect(pack.provinces[1].center).toBe(3);
     expect(portWater).toHaveBeenCalledWith(3);
@@ -328,11 +373,11 @@ describe("Burgs: capital, move, remove", () => {
 describe("States", () => {
   beforeEach(() => {
     vi.stubGlobal("pack", {
-      states: [
+      states: withFinance([
         { i: 0, diplomacy: [] },
         { i: 1, name: "Orwin", diplomacy: ["x", "x", "Neutral"], provinces: [1], military: [{ i: 0, name: "1st" }] },
         { i: 2, name: "Kahor", diplomacy: ["x", "Neutral", "x"], provinces: [], military: [{ i: 0, name: "Guard" }] }
-      ],
+      ]),
       provinces: [{ i: 0 }, { i: 1, state: 1 }],
       burgs: [0, { i: 1, state: 1, capital: 1 }, { i: 2, state: 2, capital: 1 }],
       cells: { state: [0, 1, 1, 2], province: [0, 1, 0, 0] }
@@ -430,6 +475,9 @@ describe("Cultures and Religions removal", () => {
     expect(() => Religions.setType(2, "Pantheon")).toThrow("The type must be one of");
     expect(() => Religions.setExpansion(2, "world")).toThrow("The expansion must be one of");
     expect(() => Cultures.setExpansionism(2, 100)).toThrow("from 0 to 99");
+    Cultures.setDevelopment(2, 40);
+    expect(pack.cultures[2].development).toBe(40);
+    expect(() => Cultures.setDevelopment(2, 0)).toThrow("from 1 to 100");
   });
 });
 
@@ -522,7 +570,7 @@ describe("Zones, Markers, Routes, labels and regiments", () => {
     expect(() => Routes.setGroup(5, "canals")).toThrow("The group must be one of: roads, trails");
     Routes.remove(5);
     expect(pack.routes).toEqual([]);
-    expect(pack.cells.routes).toEqual({ 0: {}, 1: {} });
+    expect(pack.cells.routes).toEqual({});
   });
 
   it("renames and removes added labels and regiments", () => {
@@ -601,7 +649,7 @@ describe("locks, treasuries and links", () => {
   beforeEach(() => {
     vi.stubGlobal("pack", {
       burgs: [0, { i: 1, name: "Vel" }],
-      states: [{ i: 0 }, { i: 1, salesTax: 0, pollTax: 0, treasury: 0 }],
+      states: withFinance([{ i: 0 }, { i: 1 }]),
       provinces: [{ i: 0 }, { i: 1 }],
       cultures: [{ i: 0 }, { i: 1 }],
       religions: [{ i: 0 }, { i: 1 }],
@@ -629,14 +677,31 @@ describe("locks, treasuries and links", () => {
     expect("lock" in entity()).toBe(false);
   });
 
-  it("sets treasuries, taxes and preview links within their bounds", () => {
-    Burgs.setTreasury(1, 12.345);
-    expect(pack.burgs[1].treasury).toBe(12.35);
+  it("sets adjustments, taxes and preview links within their bounds", () => {
+    Burgs.setAdjustments(1, [{ name: " Debts ", value: -12.346 }]);
+    expect(pack.burgs[1].adjustments).toEqual([{ name: "Debts", value: -12.35 }]);
+    expect(() => Burgs.setAdjustments(1, [{ name: "Rents", value: Number.NaN }])).toThrow("must be a number");
     States.setTaxes(1, 0.2, 1.5);
-    States.setTreasury(1, 900);
-    expect(pack.states[1]).toMatchObject({ salesTax: 0.2, pollTax: 1.5, treasury: 900 });
+    States.setAdjustments(1, [
+      { name: "Tribute", value: 40 },
+      { name: "Loans", value: -12.346 }
+    ]);
+    expect(pack.states[1].economy).toMatchObject({
+      salesTax: 0.2,
+      pollTax: 1.5,
+      adjustments: [
+        { name: "Tribute", value: 40 },
+        { name: "Loans", value: -12.35 }
+      ]
+    });
     expect(() => States.setTaxes(1, 2, 0)).toThrow("from 0 to 1");
-    expect(() => States.setTreasury(0, 1)).toThrow("Neutral lands");
+    States.setMarketFee(1, 12.345);
+    expect(pack.states[1].economy.marketFee).toBe(12);
+    expect(() => States.setMarketFee(1, -1)).toThrow("non-negative");
+    States.setCorruption(1, 33.4);
+    expect(pack.states[1].economy.budget.corruption).toBe(33);
+    expect(() => States.setCorruption(1, 101)).toThrow("from 0 to 100");
+    expect(() => States.setAdjustments(0, [])).toThrow("Neutral lands");
     Burgs.setLink(1, "https://example.com/map.png");
     expect(pack.burgs[1].link).toBe("https://example.com/map.png");
     expect(() => Burgs.setLink(1, "javascript:alert(1)")).toThrow("http(s) URL");
@@ -648,11 +713,11 @@ describe("locks, treasuries and links", () => {
 describe("States: chronicle, painting and merging as provinces", () => {
   beforeEach(() => {
     vi.stubGlobal("pack", {
-      states: [
+      states: withFinance([
         { i: 0, diplomacy: [["Old war", "It ended"]] },
         { i: 1, name: "Orwin", center: 1, capital: 1, color: "#aa0000", provinces: [1], military: [] },
         { i: 2, name: "Kahor", center: 3, capital: 2, color: "#0000aa", formName: "Duchy", provinces: [], military: [] }
-      ],
+      ]),
       provinces: [{ i: 0 }, { i: 1, state: 1, center: 1, name: "Vel" }],
       burgs: [0, { i: 1, cell: 1, state: 1, capital: 1 }, { i: 2, cell: 3, state: 2, capital: 1 }],
       cells: {
@@ -963,6 +1028,7 @@ describe("Military", () => {
     vi.stubGlobal("options", {
       map: {
         military: { units: [{ name: "infantry" }, { name: "archers" }] },
+        units: { population: { scale: 1 } },
         graph: { width: 100, height: 100 },
         lore: { calendar: { year: 1200, eraShort: "AE" } }
       }
@@ -976,7 +1042,7 @@ describe("Military", () => {
     pack.states[1].alert = 2;
     Military.setAlert(1, 1);
     expect(pack.states[1].alert).toBe(1);
-    expect(pack.states[1].military![0]).toMatchObject({ u: { infantry: 3, archers: 2 }, a: 5 });
+    expect(pack.states[1].military![0]).toMatchObject({ u: { infantry: 2.5, archers: 1.5 }, a: 4 });
     expect(() => Military.setAlert(1, -1)).toThrow("non-negative");
     expect(() => Military.setAlert(0, 1)).toThrow("State 0 does not exist");
   });
@@ -1093,11 +1159,11 @@ describe("Journeys", () => {
 
 describe("Goods and Markets", () => {
   beforeEach(() => {
+    options.map.goods = [
+      { i: 1, name: "Salt", tags: [], value: 2, unit: "", icon: "🧂", color: "#ffffff" },
+      { i: 2, name: "Fish", tags: [], value: 1, unit: "", icon: "🐟", color: "#0000ff" }
+    ] as never;
     vi.stubGlobal("pack", {
-      goods: [
-        { i: 1, name: "Salt", tags: [], value: 2, unit: "", icon: "🧂", color: "#ffffff" },
-        { i: 2, name: "Fish", tags: [], value: 1, unit: "", icon: "🐟", color: "#0000ff" }
-      ],
       markets: [{ i: 1, centerBurgId: 1, color: "#000000", goods: {} }]
     });
   });
@@ -1105,13 +1171,15 @@ describe("Goods and Markets", () => {
   it("edits goods and their production rules, never their distribution code", () => {
     Goods.rename(1, "Rock salt");
     Goods.setPrice(1, 3);
+    Goods.setCarriage(1, 0.3);
     Goods.setTags(1, ["Food", " food", "trade"]);
-    Goods.setProduction(1, { chance: 20, recipes: [{ 2: 1 }], multipliers: { cultureType: { Naval: 2 } } });
-    expect(pack.goods[0]).toMatchObject({
+    Goods.setProduction(1, { deposits: [1, 2.5], recipes: [{ 2: 1 }], multipliers: { cultureType: { Naval: 2 } } });
+    expect(options.map.goods[0]).toMatchObject({
       name: "Rock salt",
       value: 3,
+      carriage: 0.3,
       tags: ["food", "trade"],
-      chance: 20,
+      deposits: [1, 2.5],
       recipes: [{ 2: 1 }],
       multipliers: { cultureType: { Naval: 2 } }
     });
@@ -1119,8 +1187,15 @@ describe("Goods and Markets", () => {
       "Unknown production rule distribution"
     );
     expect(() => Goods.setProduction(1, { recipes: [{ 9: 1 }] })).toThrow("unknown 9");
+    expect(() => Goods.setProduction(1, { deposits: [3, 1] })).toThrow("must not exceed");
+    expect(() => Goods.setCarriage(1, -1)).toThrow("non-negative");
+    Goods.setDevelopment(1, 18);
+    expect(options.map.goods[0].development).toBe(18);
+    Goods.setDevelopment(1, 0);
+    expect("development" in options.map.goods[0] && options.map.goods[0].development !== undefined).toBe(false);
+    expect(() => Goods.setDevelopment(1, 101)).toThrow("0 to 100");
     Goods.setProduction(1, { recipes: null });
-    expect("recipes" in pack.goods[0]).toBe(false);
+    expect("recipes" in options.map.goods[0]).toBe(false);
   });
 
   it("renames markets, empty taking the burg's name again", () => {

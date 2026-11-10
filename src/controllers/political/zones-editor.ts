@@ -50,9 +50,10 @@ const columns: EditorColumn<ZoneRow>[] = [
   { key: "visibility", width: "1.1em" },
   { key: "remove", width: "1.4em", permanent: true }
 ];
-const zonesTable = initEditorTable<ZoneRow>({ getData: getZonesData, onUpdate: renderZonesPage });
+const zonesTable = initEditorTable<ZoneRow>({ dialogId, getData: getZonesData, onUpdate: renderZonesPage });
 
 function open(): void {
+  if (options.app.mode) return;
   Dialog.closeAll("#zonesEditor, .stable");
   Layers.show("zones");
 
@@ -189,9 +190,6 @@ function renderDialog(): void {
 
 function closeZonesEditor(): void {
   Controllers.ColorPicker.close();
-  const view = zonesTable.view();
-  view.rows = [];
-  view.all = [];
   Dialog.destroy("zonesEditor");
 }
 

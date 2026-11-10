@@ -44,7 +44,7 @@ export function assignTradeRoles(burgs: Burg[], cfg: TradeRoleConfig): void {
   // Reset non-manual roles so regeneration is idempotent. Skip the numeric
   // burgs[0] placeholder (writing a property onto `0` throws in strict mode).
   for (const b of burgs) {
-    if (!b || !b.i) continue;
+    if (!b?.i) continue;
     if (!b.tradeRoleManual) b.tradeRole = undefined;
   }
 

@@ -1,11 +1,10 @@
 import { DEFAULT_JOURNEY_TYPE } from "@/data/journey-lore";
 import type { Route } from "@/model/economy/routes-generator";
 import { Routes } from "@/model/economy/routes-generator";
-import type { TransportDomain } from "@/model/economy/transports-generator";
-import { MAX_HOURS_PER_DAY, Transports } from "@/model/economy/transports-generator";
 import { Rivers } from "@/model/physical/river-generator";
 import type { Burg } from "@/model/political/burgs-generator";
 import { generateStoryJourney } from "@/model/story/journeys/journey-story";
+import { MAX_HOURS_PER_DAY, type TransportDomain, Transports } from "@/model/story/journeys/transports-generator";
 import { getDistanceUnit, getDistanceUnitRatio } from "@/model/units";
 import type { Journey, JourneyPoint, JourneySegment } from "@/types/journey";
 import { getCardinalColor, requireColor } from "@/utils/color-utils";

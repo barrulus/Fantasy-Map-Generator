@@ -37,7 +37,7 @@ function fingerprint() {
     burgs: pack.burgs.map(burg => burg.i && [at(burg.cell), burg.name, burg.state, burg.port, burg.treasury]),
     states: pack.states.map(state => [state.name, state.capital, state.i && at(state.center)]),
     provinces: pack.provinces.map(province => province.i && [province.burg, at(province.center)]),
-    cultures: pack.cultures.map(culture => culture.i && !culture.removed && at(culture.center!)),
+    cultures: pack.cultures.map(culture => culture.i && at(culture.center!)),
     religions: pack.religions.map(religion => religion.i && at(religion.center)),
     routes: pack.routes.map(route => [route.name, route.points.map(([, , cell]) => at(cell))]),
     rivers: pack.rivers.map(river => [river.i, river.name, river.cells.map(cell => (cell < 0 ? cell : at(cell)))]),
@@ -110,7 +110,9 @@ describe("Risk heightmap edit", () => {
         riskEdit(edit, erosion);
 
         expect(newViolations(before)).toEqual([]);
-        expect(counts()).toEqual(kept); // land under burgs is never sunk, so nothing goes
+        // land under burgs is never sunk, so nothing goes; a burg off the roads takes a new one
+        expect({ ...counts(), routes: 0 }).toEqual({ ...kept, routes: 0 });
+        expect(counts().routes).toBeGreaterThanOrEqual(kept.routes);
       });
     }
   }
@@ -182,7 +184,7 @@ describe("Risk heightmap edit", () => {
   it("leaves the map as it was when the restore fails", async () => {
     await generateMap({ seed: "restoration-rollback" });
     const [previous, heights, before] = [pack, grid.cells.h.slice(), fingerprint()];
-    vi.spyOn(Production, "regenerateEconomy").mockImplementation(() => {
+    vi.spyOn(Production, "regenerate").mockImplementation(() => {
       throw new Error("injected");
     });
 
@@ -206,6 +208,16 @@ describe("Submap and Transform", () => {
       const [cos, sin, cx, cy] = [Math.cos(angle), Math.sin(angle), width / 2, height / 2];
       return [cx + (x - cx) * cos - (y - cy) * sin, cy + (x - cx) * sin + (y - cy) * cos];
     };
+  it("a mirrored map keeps every ground burg on the roads, and land regiments on land", async () => {
+    await generateMap({ seed: "transform-roads" });
+    const mirror: Projection = (x, y) => [width - x, y];
+    resample(mirror, mirror, 1);
+    for (const burg of living(pack.burgs).filter(burg => !burg.flying))
+      expect(Object.keys(pack.cells.routes[burg.cell] ?? {}).length).toBeGreaterThan(0);
+    for (const state of living(pack.states))
+      for (const regiment of state.military ?? [])
+        if (!regiment.n) expect(pack.cells.h[regiment.cell]).toBeGreaterThanOrEqual(20);
+  });
 
   it("a ×2 submap keeps the map sound", async () => {
     await generateMap({ seed: "restoration-submap" });
@@ -224,7 +236,10 @@ describe("Submap and Transform", () => {
   it("a mirrored and shifted transform keeps the map sound and moves everything with it", async () => {
     await generateMap({ seed: "restoration-transform" });
     const before = violations();
-    const burg = living(pack.burgs).find(b => b.x > 200 && b.x < width - 200)!;
+    // Coastal ports may be displaced onto new land by the transformed shoreline.
+    const burg = living(pack.burgs).find(
+      b => !b.port && !b.flying && pack.cells.h[b.cell] > 30 && b.x > 200 && b.x < width - 200
+    )!;
     const [x, y] = [burg.x, burg.y];
 
     resample(
@@ -280,33 +295,41 @@ describe("Submap and Transform", () => {
     expect(violations().has("state-capitals")).toBe(false);
   }, 15000);
 
-  it("a submap founds a capital for a state left with land but no burg", async () => {
-    const limit = options.generation.burgs.limit;
-    options.generation.burgs.limit = 50;
-    try {
-      await generateMap({ seed: "restoration-founded-capital" });
-    } finally {
-      options.generation.burgs.limit = limit;
-    }
-    const before = violations();
-    const firstNewBurg = pack.burgs.length;
-    const [x0, y0, scale] = [420, 230, 8];
+  // -2: a port capital off the window edge stays on the submap
+  for (const seed of ["founded-capital", "restoration-founded-capital-2"])
+    it(`a submap founds a capital for a state left with land but no burg (${seed})`, async () => {
+      await generateMap({ seed });
+      const [x0, y0, scale] = [420, 230, 8];
+      const inWindow = ([x, y]: number[]) => x >= x0 && x <= x0 + width / scale && y >= y0 && y <= y0 + height / scale;
+      // the state with the most land in the window loses its burgs there, whatever the generated map looks like
+      const land: number[] = [];
+      for (const cell of pack.cells.i)
+        if (inWindow(pack.cells.p[cell])) land[pack.cells.state[cell]] = (land[pack.cells.state[cell]] ?? 0) + 1;
+      const stateId = land.reduce((best, count, id) => (id && count > (best ? land[best] : 0) ? id : best), 0);
+      // a burg stays on the submap by its cell: a port can lie just off the window edge
+      for (const burg of living(pack.burgs)) {
+        if (burg.state !== stateId || !inWindow(pack.cells.p[burg.cell])) continue;
+        Object.assign(burg, { removed: true, capital: 0 });
+        pack.cells.burg[burg.cell] = 0;
+      }
+      const before = violations();
+      const firstNewBurg = pack.burgs.length;
 
-    resample(
-      (x, y) => [(x - x0) * scale, (y - y0) * scale],
-      (x, y) => [x / scale + x0, y / scale + y0],
-      scale
-    );
+      resample(
+        (x, y) => [(x - x0) * scale, (y - y0) * scale],
+        (x, y) => [x / scale + x0, y / scale + y0],
+        scale
+      );
 
-    expect(newViolations(before)).toEqual([]);
-    const founded = living(pack.states).filter(state => state.capital >= firstNewBurg);
-    expect(founded.length).toBeGreaterThan(0); // the region was chosen so a state keeps no burg
-    for (const state of living(pack.states)) {
-      const capital = pack.burgs[state.capital];
-      expect(capital).toMatchObject({ capital: 1, state: state.i, cell: state.center });
-      expect(pack.cells.state[capital.cell]).toBe(state.i);
-    }
-  }, 15000);
+      expect(newViolations(before)).toEqual([]);
+      const founded = living(pack.states).filter(state => state.capital >= firstNewBurg);
+      expect(founded.map(state => state.i)).toContain(stateId);
+      for (const state of living(pack.states)) {
+        const capital = pack.burgs[state.capital];
+        expect(capital).toMatchObject({ capital: 1, state: state.i, cell: state.center });
+        expect(pack.cells.state[capital.cell]).toBe(state.i);
+      }
+    }, 15000);
 
   for (const [name, projection, inverse, scale] of [
     ["a ×2 submap", (x, y) => [(x - 240) * 2, (y - 135) * 2], (x, y) => [x / 2 + 240, y / 2 + 135], 2],

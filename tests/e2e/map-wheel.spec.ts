@@ -1,6 +1,6 @@
 import { waitForMap } from "./wait-for-map";
 import { type Browser, type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { BANDS, boxRadius } from "../../src/components/map-wheel/geometry";
+import { BANDS, boxRadius } from "../../src/ui/map-wheel/geometry";
 
 // The map wheel is a radial context controller opened by right-clicking the map. Unit tests cover
 // the geometry, the menu tree and the drawer's borrow/restore in isolation; only a browser can

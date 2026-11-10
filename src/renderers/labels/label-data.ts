@@ -1,7 +1,6 @@
 import type { AddedLabel } from "@/model/annotations/added-labels";
 import type { Label, LabelType } from "@/model/annotations/labels-generator";
 import type { Route } from "@/model/economy/routes-generator";
-import { findMegalopolises, MEGALOPOLIS_SPLIT_ZOOM, megalopolisName } from "@/model/physical/megalopolis";
 import type { River } from "@/model/physical/river-generator";
 import { Rivers } from "@/model/physical/river-generator";
 import type { Burg } from "@/model/political/burgs-generator";
@@ -23,46 +22,15 @@ export function getLabelsIndex(): LabelIndexEntry[] {
 }
 
 function build(geometry: boolean): LabelData[] {
-  const megalopolises = getMegalopolisLabels();
   const byType: Record<LabelType, LabelData[]> = {
     state: collect(pack.states, state => buildStateLabel(state, geometry), true),
     province: collect(pack.provinces, buildProvinceLabel, true),
     added: collect(pack.addedLabels, buildAddedLabel, true),
-    burg: collect(pack.burgs, buildBurgLabel, true).concat(megalopolises.composites),
+    burg: collect(pack.burgs, buildBurgLabel, true),
     river: collect(pack.rivers, river => buildRiverLabel(river, geometry), true),
     route: collect(pack.routes, route => buildRouteLabel(route, geometry))
   };
   return Object.values(byType).flat();
-}
-
-// Below the split zoom one composite stands in for the whole same-cell group; members carry a
-// matching minZoom so only one of the two ever shows. Capitals are never hidden, so their
-// composite stacks above instead.
-let megalopolisMemberMinZoom = new Map<number, number>();
-
-function getMegalopolisLabels(): { composites: LabelData[] } {
-  const megas = findMegalopolises(pack.burgs, pack.cells.burg);
-  const composites: LabelData[] = [];
-  megalopolisMemberMinZoom = new Map();
-
-  for (const mega of megas.values()) {
-    const anchor = mega.anchor;
-    for (const member of mega.members) {
-      if (!member.capital) megalopolisMemberMinZoom.set(member.i, MEGALOPOLIS_SPLIT_ZOOM);
-    }
-    composites.push({
-      id: `megalopolisLabel${anchor.i}`,
-      entityId: anchor.i,
-      text: megalopolisName(anchor),
-      type: "burg",
-      group: anchor.group || "burg",
-      anchor: [anchor.x, anchor.y],
-      dy: anchor.capital ? -1.2 : 0, // ride above a never-hidden capital label
-      maxZoom: MEGALOPOLIS_SPLIT_ZOOM
-    });
-  }
-
-  return { composites };
 }
 
 function collect<T extends { i: number }>(
@@ -89,8 +57,7 @@ function buildBurgLabel(burg: Burg): LabelData | undefined {
     type: "burg",
     group: burg.label?.group || burg.group || "burg",
     anchor: [burg.x, burg.y],
-    pathPoints: getCustomPath(burg.label),
-    minZoom: megalopolisMemberMinZoom.get(burg.i)
+    pathPoints: getCustomPath(burg.label)
   };
 }
 

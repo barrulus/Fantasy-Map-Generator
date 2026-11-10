@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { Transports as TransportsModel } from "@/model/economy/transports-generator";
+import { Transports as TransportsModel } from "@/model/story/journeys/transports-generator";
 
 describe("transport defaults and saved-set upgrade", () => {
   let Transports: any;
 
   beforeEach(async () => {
     (globalThis as any).options = { map: {} };
-    await import("@/model/economy/transports-generator");
+    await import("@/model/story/journeys/transports-generator");
     Transports = TransportsModel;
     options.map.transports = Transports.getDefaults();
   });

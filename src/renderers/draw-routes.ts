@@ -136,12 +136,11 @@ function reconcileRoutes({ root, bounds }: ViewportRenderContext): void {
   if (tempRoute && root === document) show(tempRoute);
 
   for (const group of Array.from(container.querySelectorAll<SVGGElement>(":scope > g"))) {
-    // custom groups from loaded maps miss the data-group the layer registry stamps on declared ones
-    group.dataset.group = group.id;
+    const shapes = visibleByGroup.get(group.dataset.group!) ?? [];
 
     // untyped routes are direct children; each route type gets its own styled sub-group
     const byType = new Map<string, RouteShape[]>();
-    for (const shape of visibleByGroup.get(group.id) ?? []) {
+    for (const shape of shapes) {
       const shapes = byType.get(shape.type);
       if (shapes) shapes.push(shape);
       else byType.set(shape.type, [shape]);
