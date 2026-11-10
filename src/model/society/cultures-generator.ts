@@ -1,5 +1,8 @@
 import { max, quadtree, range } from "d3";
 import { CULTURE_SETS } from "@/data/culture-sets";
+import { CULTURE_TYPES, type CultureType, DEFAULT_CULTURE_TYPE } from "@/data/culture-types";
+import { DEFAULT_DEVELOPMENT } from "@/data/development";
+import { Goods } from "@/model/economy/goods-generator";
 import { Pack } from "@/model/graph/pack-generator";
 import { Emblems } from "@/model/political/emblems-generator";
 import { Names } from "@/model/society/names-generator";
@@ -32,6 +35,7 @@ export interface Culture {
   color?: string;
   type: CultureType;
   expansionism?: number;
+  development?: number; // technological development, 0–100, at its center
   origins?: (number | null)[];
   removed?: boolean;
   cells?: number;
@@ -42,39 +46,59 @@ export interface Culture {
   tags?: string[];
 }
 
-export const CULTURE_TYPES = ["Generic", "Hunting", "Highland", "River", "Lake", "Naval", "Nomadic"] as const;
-export type CultureType = (typeof CULTURE_TYPES)[number];
-export const DEFAULT_CULTURE_TYPE: CultureType = "Generic";
+/** A random culture's level by name, 15–42: drawing a number would shift the random sequence */
+function getNameDevelopment(name: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < name.length; i++) hash = Math.imul(hash ^ name.charCodeAt(i), 16777619);
+  return 15 + ((hash >>> 0) % 28);
+}
 
 class CulturesGenerator {
   cells!: PackedGraph["cells"];
+  private developmentByName: Map<string, number> | null = null;
 
   getRandomShield() {
     const type = rw(Emblems.shields.types);
     return rw(Emblems.shields[type]);
   }
 
-  getDefault(count: number = 0): Omit<Culture, "i" | "type">[] {
-    // generic sorting functions
+  /** A predefined culture's development by name, for older maps; sets naming at random are skipped */
+  getDefaultDevelopment(name: string): number | undefined {
+    if (!this.developmentByName) {
+      this.developmentByName = new Map();
+      for (const set of Object.keys(CULTURE_SETS)) {
+        if (set === "english" || set === "random") continue;
+        for (const culture of this.getDefault(0, set))
+          if (culture.development !== undefined) this.developmentByName.set(culture.name, culture.development);
+      }
+    }
+    return this.developmentByName.get(name);
+  }
+
+  getDefault(count: number = 0, set = options.map.cultures.set): Omit<Culture, "i" | "type">[] {
+    // sorting functions; they read the map only when called, so the list's data can be read without one
     const cells = pack.cells,
       s = cells.s,
-      sMax = max(s) as number,
       t = cells.t,
-      h = cells.h,
-      temp = grid.cells.temp;
-    const n = (cell: number) => Math.ceil((s[cell] / sMax) * 3); // normalized cell score
+      h = cells.h;
+    let sMax = 0;
+    const n = (cell: number) => {
+      sMax ||= max(s) as number;
+      return Math.ceil((s[cell] / sMax) * 3);
+    }; // normalized cell score
     const td = (cell: number, goal: number) => {
-      const d = Math.abs(temp[cells.g[cell]] - goal);
+      const d = Math.abs(grid.cells.temp[cells.g[cell]] - goal);
       return d ? d + 1 : 1;
     }; // temperature difference fee
     const bd = (cell: number, biomes: number[], fee = 4) => (biomes.includes(cells.biome[cell]) ? 1 : fee); // biome difference fee
     const sf = (cell: number, fee = 4) =>
       cells.haven[cell] && pack.features[cells.f[cells.haven[cell]]].type !== "lake" ? 1 : fee; // not on sea coast fee
 
-    if (options.map.cultures.set === "european") {
+    if (set === "european") {
       return [
         {
           name: "Shwazen",
+          development: 36,
           base: 0,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 10) / bd(i, [6, 8]),
@@ -82,6 +106,7 @@ class CulturesGenerator {
         },
         {
           name: "Angshire",
+          development: 36,
           base: 1,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 10) / sf(i),
@@ -89,6 +114,7 @@ class CulturesGenerator {
         },
         {
           name: "Luari",
+          development: 40,
           base: 2,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 12) / bd(i, [6, 8]),
@@ -96,6 +122,7 @@ class CulturesGenerator {
         },
         {
           name: "Tallian",
+          development: 42,
           base: 3,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 15),
@@ -103,6 +130,7 @@ class CulturesGenerator {
         },
         {
           name: "Astellian",
+          development: 36,
           base: 4,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 16),
@@ -110,6 +138,7 @@ class CulturesGenerator {
         },
         {
           name: "Slovan",
+          development: 32,
           base: 5,
           odd: 1,
           sort: (i: number) => (n(i) / td(i, 6)) * t[i],
@@ -117,6 +146,7 @@ class CulturesGenerator {
         },
         {
           name: "Norse",
+          development: 30,
           base: 6,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 5),
@@ -124,6 +154,7 @@ class CulturesGenerator {
         },
         {
           name: "Elladan",
+          development: 36,
           base: 7,
           odd: 1,
           sort: (i: number) => (n(i) / td(i, 18)) * h[i],
@@ -131,6 +162,7 @@ class CulturesGenerator {
         },
         {
           name: "Romian",
+          development: 36,
           base: 8,
           odd: 0.2,
           sort: (i: number) => n(i) / td(i, 15) / t[i],
@@ -138,6 +170,7 @@ class CulturesGenerator {
         },
         {
           name: "Soumi",
+          development: 28,
           base: 9,
           odd: 1,
           sort: (i: number) => (n(i) / td(i, 5) / bd(i, [9])) * t[i],
@@ -145,6 +178,7 @@ class CulturesGenerator {
         },
         {
           name: "Portuzian",
+          development: 36,
           base: 13,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 17) / sf(i),
@@ -152,6 +186,7 @@ class CulturesGenerator {
         },
         {
           name: "Vengrian",
+          development: 33,
           base: 15,
           odd: 1,
           sort: (i: number) => (n(i) / td(i, 11) / bd(i, [4])) * t[i],
@@ -159,6 +194,7 @@ class CulturesGenerator {
         },
         {
           name: "Turchian",
+          development: 35,
           base: 16,
           odd: 0.05,
           sort: (i: number) => n(i) / td(i, 14),
@@ -166,6 +202,7 @@ class CulturesGenerator {
         },
         {
           name: "Euskati",
+          development: 30,
           base: 20,
           odd: 0.05,
           sort: (i: number) => (n(i) / td(i, 15)) * h[i],
@@ -173,6 +210,7 @@ class CulturesGenerator {
         },
         {
           name: "Keltan",
+          development: 30,
           base: 22,
           odd: 0.05,
           sort: (i: number) => (n(i) / td(i, 11) / bd(i, [6, 8])) * t[i],
@@ -181,10 +219,11 @@ class CulturesGenerator {
       ];
     }
 
-    if (options.map.cultures.set === "oriental") {
+    if (set === "oriental") {
       return [
         {
           name: "Koryo",
+          development: 36,
           base: 10,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 12) / t[i],
@@ -192,6 +231,7 @@ class CulturesGenerator {
         },
         {
           name: "Hantzu",
+          development: 42,
           base: 11,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 13),
@@ -199,6 +239,7 @@ class CulturesGenerator {
         },
         {
           name: "Yamoto",
+          development: 35,
           base: 12,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 15) / t[i],
@@ -206,6 +247,7 @@ class CulturesGenerator {
         },
         {
           name: "Turchian",
+          development: 35,
           base: 16,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 12),
@@ -213,6 +255,7 @@ class CulturesGenerator {
         },
         {
           name: "Amazi",
+          development: 28,
           base: 17,
           odd: 0.2,
           sort: (i: number) => (n(i) / td(i, 19) / bd(i, [1, 2, 3], 7)) * t[i],
@@ -220,6 +263,7 @@ class CulturesGenerator {
         },
         {
           name: "Eurabic",
+          development: 40,
           base: 18,
           odd: 1,
           sort: (i: number) => (n(i) / td(i, 26) / bd(i, [1, 2], 7)) * t[i],
@@ -227,6 +271,7 @@ class CulturesGenerator {
         },
         {
           name: "Efratic",
+          development: 35,
           base: 23,
           odd: 0.1,
           sort: (i: number) => (n(i) / td(i, 22)) * t[i],
@@ -234,6 +279,7 @@ class CulturesGenerator {
         },
         {
           name: "Tehrani",
+          development: 38,
           base: 24,
           odd: 1,
           sort: (i: number) => (n(i) / td(i, 18)) * h[i],
@@ -241,6 +287,7 @@ class CulturesGenerator {
         },
         {
           name: "Maui",
+          development: 12,
           base: 25,
           odd: 0.2,
           sort: (i: number) => n(i) / td(i, 24) / sf(i) / t[i],
@@ -248,6 +295,7 @@ class CulturesGenerator {
         },
         {
           name: "Carnatic",
+          development: 33,
           base: 26,
           odd: 0.5,
           sort: (i: number) => n(i) / td(i, 26),
@@ -255,6 +303,7 @@ class CulturesGenerator {
         },
         {
           name: "Vietic",
+          development: 32,
           base: 29,
           odd: 0.8,
           sort: (i: number) => n(i) / td(i, 25) / bd(i, [7], 7) / t[i],
@@ -262,6 +311,7 @@ class CulturesGenerator {
         },
         {
           name: "Guantzu",
+          development: 38,
           base: 30,
           odd: 0.5,
           sort: (i: number) => n(i) / td(i, 17),
@@ -269,6 +319,7 @@ class CulturesGenerator {
         },
         {
           name: "Ulus",
+          development: 26,
           base: 31,
           odd: 1,
           sort: (i: number) => (n(i) / td(i, 5) / bd(i, [2, 4, 10], 7)) * t[i],
@@ -277,26 +328,27 @@ class CulturesGenerator {
       ];
     }
 
-    if (options.map.cultures.set === "english") {
+    if (set === "english") {
       const getName = () => Names.getBase(1, 5, 9, "");
       return [
-        { name: getName(), base: 1, odd: 1, shield: "heater" },
-        { name: getName(), base: 1, odd: 1, shield: "wedged" },
-        { name: getName(), base: 1, odd: 1, shield: "swiss" },
-        { name: getName(), base: 1, odd: 1, shield: "oldFrench" },
-        { name: getName(), base: 1, odd: 1, shield: "swiss" },
-        { name: getName(), base: 1, odd: 1, shield: "spanish" },
-        { name: getName(), base: 1, odd: 1, shield: "hessen" },
-        { name: getName(), base: 1, odd: 1, shield: "fantasy5" },
-        { name: getName(), base: 1, odd: 1, shield: "fantasy4" },
-        { name: getName(), base: 1, odd: 1, shield: "fantasy1" }
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "heater" },
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "wedged" },
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "swiss" },
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "oldFrench" },
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "swiss" },
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "spanish" },
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "hessen" },
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "fantasy5" },
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "fantasy4" },
+        { name: getName(), development: 36, base: 1, odd: 1, shield: "fantasy1" }
       ];
     }
 
-    if (options.map.cultures.set === "antique") {
+    if (set === "antique") {
       return [
         {
           name: "Roman",
+          development: 24,
           base: 8,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 14) / t[i],
@@ -304,6 +356,7 @@ class CulturesGenerator {
         }, // Roman
         {
           name: "Roman",
+          development: 24,
           base: 8,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 15) / sf(i),
@@ -311,6 +364,7 @@ class CulturesGenerator {
         }, // Roman
         {
           name: "Roman",
+          development: 24,
           base: 8,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 16) / sf(i),
@@ -318,6 +372,7 @@ class CulturesGenerator {
         }, // Roman
         {
           name: "Roman",
+          development: 24,
           base: 8,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 17) / t[i],
@@ -325,6 +380,7 @@ class CulturesGenerator {
         }, // Roman
         {
           name: "Hellenic",
+          development: 23,
           base: 7,
           odd: 1,
           sort: (i: number) => (n(i) / td(i, 18) / sf(i)) * h[i],
@@ -332,6 +388,7 @@ class CulturesGenerator {
         }, // Greek
         {
           name: "Hellenic",
+          development: 23,
           base: 7,
           odd: 1,
           sort: (i: number) => (n(i) / td(i, 19) / sf(i)) * h[i],
@@ -339,6 +396,7 @@ class CulturesGenerator {
         }, // Greek
         {
           name: "Macedonian",
+          development: 21,
           base: 7,
           odd: 0.5,
           sort: (i: number) => (n(i) / td(i, 12)) * h[i],
@@ -346,6 +404,7 @@ class CulturesGenerator {
         }, // Greek
         {
           name: "Celtic",
+          development: 18,
           base: 22,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 11) ** 0.5 / bd(i, [6, 8]),
@@ -353,6 +412,7 @@ class CulturesGenerator {
         },
         {
           name: "Germanic",
+          development: 16,
           base: 0,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 10) ** 0.5 / bd(i, [6, 8]),
@@ -360,6 +420,7 @@ class CulturesGenerator {
         },
         {
           name: "Persian",
+          development: 21,
           base: 24,
           odd: 0.8,
           sort: (i: number) => (n(i) / td(i, 18)) * h[i],
@@ -367,6 +428,7 @@ class CulturesGenerator {
         }, // Iranian
         {
           name: "Scythian",
+          development: 15,
           base: 24,
           odd: 0.5,
           sort: (i: number) => n(i) / td(i, 11) ** 0.5 / bd(i, [4]),
@@ -374,6 +436,7 @@ class CulturesGenerator {
         }, // Iranian
         {
           name: "Cantabrian",
+          development: 16,
           base: 20,
           odd: 0.5,
           sort: (i: number) => (n(i) / td(i, 16)) * h[i],
@@ -381,6 +444,7 @@ class CulturesGenerator {
         }, // Basque
         {
           name: "Estian",
+          development: 12,
           base: 9,
           odd: 0.2,
           sort: (i: number) => (n(i) / td(i, 5)) * t[i],
@@ -388,6 +452,7 @@ class CulturesGenerator {
         }, // Finnic
         {
           name: "Carthaginian",
+          development: 21,
           base: 42,
           odd: 0.3,
           sort: (i: number) => n(i) / td(i, 20) / sf(i),
@@ -395,6 +460,7 @@ class CulturesGenerator {
         }, // Levantine
         {
           name: "Hebrew",
+          development: 19,
           base: 42,
           odd: 0.2,
           sort: (i: number) => (n(i) / td(i, 19)) * sf(i),
@@ -402,6 +468,7 @@ class CulturesGenerator {
         }, // Levantine
         {
           name: "Mesopotamian",
+          development: 19,
           base: 23,
           odd: 0.2,
           sort: (i: number) => n(i) / td(i, 22) / bd(i, [1, 2, 3]),
@@ -410,11 +477,12 @@ class CulturesGenerator {
       ];
     }
 
-    if (options.map.cultures.set === "highFantasy") {
+    if (set === "highFantasy") {
       return [
         // fantasy races
         {
           name: "Quenian",
+          development: 44,
           ancestry: "Elfish",
           base: 33,
           odd: 1,
@@ -423,6 +491,7 @@ class CulturesGenerator {
         }, // Elves
         {
           name: "Eldar",
+          development: 46,
           ancestry: "Elfish",
           base: 33,
           odd: 1,
@@ -431,6 +500,7 @@ class CulturesGenerator {
         }, // Elves
         {
           name: "Trow",
+          development: 36,
           ancestry: "Dark Elfish",
           base: 34,
           odd: 0.9,
@@ -439,6 +509,7 @@ class CulturesGenerator {
         }, // Dark Elves
         {
           name: "Lothian",
+          development: 36,
           ancestry: "Dark Elfish",
           base: 34,
           odd: 0.3,
@@ -447,6 +518,7 @@ class CulturesGenerator {
         }, // Dark Elves
         {
           name: "Dunirr",
+          development: 50,
           ancestry: "Dwarven",
           base: 35,
           odd: 1,
@@ -455,6 +527,7 @@ class CulturesGenerator {
         }, // Dwarfs
         {
           name: "Khazadur",
+          development: 53,
           ancestry: "Dwarven",
           base: 35,
           odd: 1,
@@ -463,6 +536,7 @@ class CulturesGenerator {
         }, // Dwarfs
         {
           name: "Kobold",
+          development: 18,
           ancestry: "Goblin",
           base: 36,
           odd: 1,
@@ -471,6 +545,7 @@ class CulturesGenerator {
         }, // Goblin
         {
           name: "Uruk",
+          development: 18,
           ancestry: "Orkish",
           base: 37,
           odd: 1,
@@ -479,6 +554,7 @@ class CulturesGenerator {
         }, // Orc
         {
           name: "Ugluk",
+          development: 15,
           ancestry: "Orkish",
           base: 37,
           odd: 0.5,
@@ -487,6 +563,7 @@ class CulturesGenerator {
         }, // Orc
         {
           name: "Yotunn",
+          development: 8,
           ancestry: "Giants",
           base: 38,
           odd: 0.7,
@@ -495,6 +572,7 @@ class CulturesGenerator {
         }, // Giant
         {
           name: "Rake",
+          development: 28,
           ancestry: "Drakonic",
           base: 39,
           odd: 0.7,
@@ -503,6 +581,7 @@ class CulturesGenerator {
         }, // Draconic
         {
           name: "Arago",
+          development: 12,
           ancestry: "Arachnid",
           base: 40,
           odd: 0.7,
@@ -511,6 +590,7 @@ class CulturesGenerator {
         }, // Arachnid
         {
           name: "Aj'Snaga",
+          development: 22,
           ancestry: "Serpents",
           base: 41,
           odd: 0.7,
@@ -520,6 +600,7 @@ class CulturesGenerator {
         // fantasy human
         {
           name: "Anor",
+          development: 36,
           ancestry: "Human",
           base: 32,
           odd: 1,
@@ -528,6 +609,7 @@ class CulturesGenerator {
         },
         {
           name: "Dail",
+          development: 32,
           ancestry: "Human",
           base: 32,
           odd: 1,
@@ -536,6 +618,7 @@ class CulturesGenerator {
         },
         {
           name: "Rohand",
+          development: 30,
           ancestry: "Human",
           base: 16,
           odd: 1,
@@ -544,6 +627,7 @@ class CulturesGenerator {
         },
         {
           name: "Dulandir",
+          development: 34,
           ancestry: "Human",
           base: 31,
           odd: 1,
@@ -553,11 +637,12 @@ class CulturesGenerator {
       ];
     }
 
-    if (options.map.cultures.set === "darkFantasy") {
+    if (set === "darkFantasy") {
       return [
         // common real-world English
         {
           name: "Angshire",
+          development: 36,
           base: 1,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 10) / sf(i),
@@ -565,6 +650,7 @@ class CulturesGenerator {
         },
         {
           name: "Enlandic",
+          development: 35,
           base: 1,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 12),
@@ -572,6 +658,7 @@ class CulturesGenerator {
         },
         {
           name: "Westen",
+          development: 35,
           base: 1,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 10),
@@ -579,6 +666,7 @@ class CulturesGenerator {
         },
         {
           name: "Nortumbic",
+          development: 33,
           base: 1,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 7),
@@ -586,6 +674,7 @@ class CulturesGenerator {
         },
         {
           name: "Mercian",
+          development: 35,
           base: 1,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 9),
@@ -593,6 +682,7 @@ class CulturesGenerator {
         },
         {
           name: "Kentian",
+          development: 35,
           base: 1,
           odd: 1,
           sort: (i: number) => n(i) / td(i, 12),
@@ -601,6 +691,7 @@ class CulturesGenerator {
         // rare real-world western
         {
           name: "Norse",
+          development: 30,
           base: 6,
           odd: 0.7,
           sort: (i: number) => n(i) / td(i, 5) / sf(i),
@@ -608,6 +699,7 @@ class CulturesGenerator {
         },
         {
           name: "Schwarzen",
+          development: 36,
           base: 0,
           odd: 0.3,
           sort: (i: number) => n(i) / td(i, 10) / bd(i, [6, 8]),
@@ -615,6 +707,7 @@ class CulturesGenerator {
         },
         {
           name: "Luarian",
+          development: 40,
           base: 2,
           odd: 0.3,
           sort: (i: number) => n(i) / td(i, 12) / bd(i, [6, 8]),
@@ -622,6 +715,7 @@ class CulturesGenerator {
         },
         {
           name: "Hetallian",
+          development: 42,
           base: 3,
           odd: 0.3,
           sort: (i: number) => n(i) / td(i, 15),
@@ -629,6 +723,7 @@ class CulturesGenerator {
         },
         {
           name: "Astellian",
+          development: 36,
           base: 4,
           odd: 0.3,
           sort: (i: number) => n(i) / td(i, 16),
@@ -637,6 +732,7 @@ class CulturesGenerator {
         // rare real-world exotic
         {
           name: "Kiswaili",
+          development: 28,
           base: 28,
           odd: 0.05,
           sort: (i: number) => n(i) / td(i, 29) / bd(i, [1, 3, 5, 7]),
@@ -644,6 +740,7 @@ class CulturesGenerator {
         },
         {
           name: "Yoruba",
+          development: 27,
           base: 21,
           odd: 0.05,
           sort: (i: number) => n(i) / td(i, 15) / bd(i, [5, 7]),
@@ -651,6 +748,7 @@ class CulturesGenerator {
         },
         {
           name: "Koryo",
+          development: 36,
           base: 10,
           odd: 0.05,
           sort: (i: number) => n(i) / td(i, 12) / t[i],
@@ -658,6 +756,7 @@ class CulturesGenerator {
         },
         {
           name: "Hantzu",
+          development: 42,
           base: 11,
           odd: 0.05,
           sort: (i: number) => n(i) / td(i, 13),
@@ -665,6 +764,7 @@ class CulturesGenerator {
         },
         {
           name: "Yamoto",
+          development: 35,
           base: 12,
           odd: 0.05,
           sort: (i: number) => n(i) / td(i, 15) / t[i],
@@ -672,6 +772,7 @@ class CulturesGenerator {
         },
         {
           name: "Guantzu",
+          development: 38,
           base: 30,
           odd: 0.05,
           sort: (i: number) => n(i) / td(i, 17),
@@ -679,6 +780,7 @@ class CulturesGenerator {
         },
         {
           name: "Ulus",
+          development: 26,
           base: 31,
           odd: 0.05,
           sort: (i: number) => (n(i) / td(i, 5) / bd(i, [2, 4, 10], 7)) * t[i],
@@ -686,6 +788,7 @@ class CulturesGenerator {
         },
         {
           name: "Turan",
+          development: 30,
           base: 16,
           odd: 0.05,
           sort: (i: number) => n(i) / td(i, 12),
@@ -693,6 +796,7 @@ class CulturesGenerator {
         },
         {
           name: "Amazi",
+          development: 28,
           base: 17,
           odd: 0.05,
           sort: (i: number) => (n(i) / td(i, 19) / bd(i, [1, 2, 3], 7)) * t[i],
@@ -700,6 +804,7 @@ class CulturesGenerator {
         },
         {
           name: "Eurabic",
+          development: 40,
           base: 18,
           odd: 0.05,
           sort: (i: number) => (n(i) / td(i, 26) / bd(i, [1, 2], 7)) * t[i],
@@ -707,6 +812,7 @@ class CulturesGenerator {
         },
         {
           name: "Slovan",
+          development: 32,
           base: 5,
           odd: 0.05,
           sort: (i: number) => (n(i) / td(i, 6)) * t[i],
@@ -714,6 +820,7 @@ class CulturesGenerator {
         },
         {
           name: "Keltan",
+          development: 30,
           base: 22,
           odd: 0.1,
           sort: (i: number) => n(i) / td(i, 11) ** 0.5 / bd(i, [6, 8]),
@@ -721,6 +828,7 @@ class CulturesGenerator {
         },
         {
           name: "Elladan",
+          development: 36,
           base: 7,
           odd: 0.2,
           sort: (i: number) => (n(i) / td(i, 18) / sf(i)) * h[i],
@@ -728,6 +836,7 @@ class CulturesGenerator {
         },
         {
           name: "Romian",
+          development: 36,
           base: 8,
           odd: 0.2,
           sort: (i: number) => n(i) / td(i, 14) / t[i],
@@ -736,6 +845,7 @@ class CulturesGenerator {
         // fantasy races
         {
           name: "Eldar",
+          development: 46,
           ancestry: "Elfish",
           base: 33,
           odd: 0.5,
@@ -744,6 +854,7 @@ class CulturesGenerator {
         }, // Elves
         {
           name: "Trow",
+          development: 36,
           ancestry: "Dark Elfish",
           base: 34,
           odd: 0.8,
@@ -752,6 +863,7 @@ class CulturesGenerator {
         }, // Dark Elves
         {
           name: "Durinn",
+          development: 53,
           ancestry: "Dwarven",
           base: 35,
           odd: 0.8,
@@ -760,6 +872,7 @@ class CulturesGenerator {
         }, // Dwarven
         {
           name: "Kobblin",
+          development: 18,
           ancestry: "Goblin",
           base: 36,
           odd: 0.8,
@@ -768,6 +881,7 @@ class CulturesGenerator {
         }, // Goblin
         {
           name: "Uruk",
+          development: 18,
           ancestry: "Orkish",
           base: 37,
           odd: 0.8,
@@ -776,6 +890,7 @@ class CulturesGenerator {
         }, // Orc
         {
           name: "Yotunn",
+          development: 8,
           ancestry: "Giants",
           base: 38,
           odd: 0.8,
@@ -784,6 +899,7 @@ class CulturesGenerator {
         }, // Giant
         {
           name: "Drake",
+          development: 28,
           ancestry: "Drakonic",
           base: 39,
           odd: 0.9,
@@ -792,6 +908,7 @@ class CulturesGenerator {
         }, // Draconic
         {
           name: "Rakhnid",
+          development: 12,
           ancestry: "Arachnid",
           base: 40,
           odd: 0.9,
@@ -800,6 +917,7 @@ class CulturesGenerator {
         }, // Arachnid
         {
           name: "Aj'Snaga",
+          development: 22,
           ancestry: "Serpents",
           base: 41,
           odd: 0.9,
@@ -809,11 +927,11 @@ class CulturesGenerator {
       ];
     }
 
-    if (options.map.cultures.set === "random") {
+    if (set === "random") {
       return range(count).map(() => {
         const rnd = rand(Names.nameBases.length - 1);
         const name = Names.getBaseShort(rnd);
-        return { name, base: rnd, odd: 1, shield: this.getRandomShield() };
+        return { name, development: getNameDevelopment(name), base: rnd, odd: 1, shield: this.getRandomShield() };
       });
     }
 
@@ -821,6 +939,7 @@ class CulturesGenerator {
     return [
       {
         name: "Shwazen",
+        development: 36,
         base: 0,
         odd: 0.7,
         sort: (i: number) => n(i) / td(i, 10) / bd(i, [6, 8]),
@@ -828,6 +947,7 @@ class CulturesGenerator {
       },
       {
         name: "Angshire",
+        development: 36,
         base: 1,
         odd: 1,
         sort: (i: number) => n(i) / td(i, 10) / sf(i),
@@ -835,6 +955,7 @@ class CulturesGenerator {
       },
       {
         name: "Luari",
+        development: 40,
         base: 2,
         odd: 0.6,
         sort: (i: number) => n(i) / td(i, 12) / bd(i, [6, 8]),
@@ -842,6 +963,7 @@ class CulturesGenerator {
       },
       {
         name: "Tallian",
+        development: 42,
         base: 3,
         odd: 0.6,
         sort: (i: number) => n(i) / td(i, 15),
@@ -849,6 +971,7 @@ class CulturesGenerator {
       },
       {
         name: "Astellian",
+        development: 36,
         base: 4,
         odd: 0.6,
         sort: (i: number) => n(i) / td(i, 16),
@@ -856,6 +979,7 @@ class CulturesGenerator {
       },
       {
         name: "Slovan",
+        development: 32,
         base: 5,
         odd: 0.7,
         sort: (i: number) => (n(i) / td(i, 6)) * t[i],
@@ -863,6 +987,7 @@ class CulturesGenerator {
       },
       {
         name: "Norse",
+        development: 30,
         base: 6,
         odd: 0.7,
         sort: (i: number) => n(i) / td(i, 5),
@@ -870,6 +995,7 @@ class CulturesGenerator {
       },
       {
         name: "Elladan",
+        development: 36,
         base: 7,
         odd: 0.7,
         sort: (i: number) => (n(i) / td(i, 18)) * h[i],
@@ -877,6 +1003,7 @@ class CulturesGenerator {
       },
       {
         name: "Romian",
+        development: 36,
         base: 8,
         odd: 0.7,
         sort: (i: number) => n(i) / td(i, 15),
@@ -884,6 +1011,7 @@ class CulturesGenerator {
       },
       {
         name: "Soumi",
+        development: 28,
         base: 9,
         odd: 0.3,
         sort: (i: number) => (n(i) / td(i, 5) / bd(i, [9])) * t[i],
@@ -891,6 +1019,7 @@ class CulturesGenerator {
       },
       {
         name: "Koryo",
+        development: 36,
         base: 10,
         odd: 0.1,
         sort: (i: number) => n(i) / td(i, 12) / t[i],
@@ -898,6 +1027,7 @@ class CulturesGenerator {
       },
       {
         name: "Hantzu",
+        development: 42,
         base: 11,
         odd: 0.1,
         sort: (i: number) => n(i) / td(i, 13),
@@ -905,6 +1035,7 @@ class CulturesGenerator {
       },
       {
         name: "Yamoto",
+        development: 35,
         base: 12,
         odd: 0.1,
         sort: (i: number) => n(i) / td(i, 15) / t[i],
@@ -912,6 +1043,7 @@ class CulturesGenerator {
       },
       {
         name: "Portuzian",
+        development: 36,
         base: 13,
         odd: 0.4,
         sort: (i: number) => n(i) / td(i, 17) / sf(i),
@@ -919,6 +1051,7 @@ class CulturesGenerator {
       },
       {
         name: "Nawatli",
+        development: 18,
         base: 14,
         odd: 0.1,
         sort: (i: number) => h[i] / td(i, 18) / bd(i, [7]),
@@ -926,6 +1059,7 @@ class CulturesGenerator {
       },
       {
         name: "Vengrian",
+        development: 33,
         base: 15,
         odd: 0.2,
         sort: (i: number) => (n(i) / td(i, 11) / bd(i, [4])) * t[i],
@@ -933,6 +1067,7 @@ class CulturesGenerator {
       },
       {
         name: "Turchian",
+        development: 35,
         base: 16,
         odd: 0.2,
         sort: (i: number) => n(i) / td(i, 13),
@@ -940,6 +1075,7 @@ class CulturesGenerator {
       },
       {
         name: "Amazi",
+        development: 28,
         base: 17,
         odd: 0.1,
         sort: (i: number) => (n(i) / td(i, 19) / bd(i, [1, 2, 3], 7)) * t[i],
@@ -947,6 +1083,7 @@ class CulturesGenerator {
       },
       {
         name: "Eurabic",
+        development: 40,
         base: 18,
         odd: 0.2,
         sort: (i: number) => (n(i) / td(i, 26) / bd(i, [1, 2], 7)) * t[i],
@@ -954,6 +1091,7 @@ class CulturesGenerator {
       },
       {
         name: "Inuk",
+        development: 6,
         base: 19,
         odd: 0.05,
         sort: (i: number) => td(i, -1) / bd(i, [10, 11]) / sf(i),
@@ -961,6 +1099,7 @@ class CulturesGenerator {
       },
       {
         name: "Euskati",
+        development: 30,
         base: 20,
         odd: 0.05,
         sort: (i: number) => (n(i) / td(i, 15)) * h[i],
@@ -968,6 +1107,7 @@ class CulturesGenerator {
       },
       {
         name: "Yoruba",
+        development: 27,
         base: 21,
         odd: 0.05,
         sort: (i: number) => n(i) / td(i, 15) / bd(i, [5, 7]),
@@ -975,6 +1115,7 @@ class CulturesGenerator {
       },
       {
         name: "Keltan",
+        development: 30,
         base: 22,
         odd: 0.05,
         sort: (i: number) => (n(i) / td(i, 11) / bd(i, [6, 8])) * t[i],
@@ -982,6 +1123,7 @@ class CulturesGenerator {
       },
       {
         name: "Efratic",
+        development: 35,
         base: 23,
         odd: 0.05,
         sort: (i: number) => (n(i) / td(i, 22)) * t[i],
@@ -989,6 +1131,7 @@ class CulturesGenerator {
       },
       {
         name: "Tehrani",
+        development: 38,
         base: 24,
         odd: 0.1,
         sort: (i: number) => (n(i) / td(i, 18)) * h[i],
@@ -996,6 +1139,7 @@ class CulturesGenerator {
       },
       {
         name: "Maui",
+        development: 12,
         base: 25,
         odd: 0.05,
         sort: (i: number) => n(i) / td(i, 24) / sf(i) / t[i],
@@ -1003,6 +1147,7 @@ class CulturesGenerator {
       },
       {
         name: "Carnatic",
+        development: 33,
         base: 26,
         odd: 0.05,
         sort: (i: number) => n(i) / td(i, 26),
@@ -1010,6 +1155,7 @@ class CulturesGenerator {
       },
       {
         name: "Inqan",
+        development: 20,
         base: 27,
         odd: 0.05,
         sort: (i: number) => h[i] / td(i, 13),
@@ -1017,6 +1163,7 @@ class CulturesGenerator {
       },
       {
         name: "Kiswaili",
+        development: 28,
         base: 28,
         odd: 0.1,
         sort: (i: number) => n(i) / td(i, 29) / bd(i, [1, 3, 5, 7]),
@@ -1024,6 +1171,7 @@ class CulturesGenerator {
       },
       {
         name: "Vietic",
+        development: 32,
         base: 29,
         odd: 0.1,
         sort: (i: number) => n(i) / td(i, 25) / bd(i, [7], 7) / t[i],
@@ -1031,6 +1179,7 @@ class CulturesGenerator {
       },
       {
         name: "Guantzu",
+        development: 38,
         base: 30,
         odd: 0.1,
         sort: (i: number) => n(i) / td(i, 17),
@@ -1038,6 +1187,7 @@ class CulturesGenerator {
       },
       {
         name: "Ulus",
+        development: 26,
         base: 31,
         odd: 0.1,
         sort: (i: number) => (n(i) / td(i, 5) / bd(i, [2, 4, 10], 7)) * t[i],
@@ -1045,6 +1195,7 @@ class CulturesGenerator {
       },
       {
         name: "Levent",
+        development: 35,
         base: 42,
         odd: 0.2,
         sort: (i: number) => (n(i) / td(i, 18)) * sf(i),
@@ -1207,6 +1358,7 @@ class CulturesGenerator {
       c.color = colors[i];
       c.type = defineCultureType(center);
       c.expansionism = defineCultureExpansionism(c.type);
+      c.development ??= DEFAULT_DEVELOPMENT;
       c.origins = [0];
       c.code = abbreviate(c.name, codes);
       codes.push(c.code);
@@ -1246,7 +1398,7 @@ class CulturesGenerator {
     if (pack.cultures.some(c => c.i && !c.removed && c.center === center))
       throw new Error(`Cell ${center} is already a culture center`);
     const defaultCultures = this.getDefault();
-    let culture: number, base: number, name: string, ancestry: string | undefined;
+    let culture: number, base: number, name: string, ancestry: string | undefined, development: number | undefined;
 
     if (pack.cultures.length < defaultCultures.length) {
       // add one of the default cultures
@@ -1254,12 +1406,14 @@ class CulturesGenerator {
       base = defaultCultures[culture].base;
       name = defaultCultures[culture].name;
       ancestry = defaultCultures[culture].ancestry;
+      development = defaultCultures[culture].development;
     } else {
       // add random culture based on one of the current ones
       culture = rand(pack.cultures.length - 1);
       name = Names.getCulture(culture, 5, 8, "");
       base = pack.cultures[culture].base;
       ancestry = pack.cultures[culture].ancestry;
+      development = pack.cultures[culture].development;
     }
 
     const code = abbreviate(name, pack.cultures.map(c => c.code) as string[]);
@@ -1273,6 +1427,7 @@ class CulturesGenerator {
       center,
       i,
       expansionism: 1,
+      development: development ?? DEFAULT_DEVELOPMENT,
       type: DEFAULT_CULTURE_TYPE,
       cells: 0,
       area: 0,
@@ -1441,6 +1596,13 @@ class CulturesGenerator {
     this.living(cultureId).expansionism = expansionism;
   }
 
+  /** Set a culture's development at its center, a whole number from 1 to 100; takes effect when development is regenerated */
+  setDevelopment(cultureId: number, development: number): void {
+    if (!Number.isInteger(development) || development < 1 || development > 100)
+      throw new Error("The development must be a whole number from 1 to 100");
+    this.living(cultureId).development = development;
+  }
+
   /** Redraw culture borders from their centers, types and expansionism; burgs take their cell's culture */
   recalculate(): void {
     this.expand();
@@ -1542,8 +1704,14 @@ class CulturesGenerator {
   }
 
   regenerate(): void {
+    const kept = pack.cultures?.filter(culture => culture.i && culture.lock && !culture.removed) ?? [];
+    const previousIds = kept.map(culture => culture.i!);
     this.generate();
     this.expand();
+    Goods.remapEntityMultipliers(
+      "culture",
+      new Map([[0, 0], ...kept.map((culture, at): [number, number] => [previousIds[at], culture.i!])])
+    );
 
     pack.states = pack.states.map(state =>
       !state.i || state.removed ? state : { ...state, culture: pack.cells.culture[state.center] }

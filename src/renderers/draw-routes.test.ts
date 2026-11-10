@@ -38,7 +38,7 @@ const getPath = vi.fn(({ points }: { points: number[][] }) => `M${points.map(([x
 beforeEach(() => {
   mocks.layerOn = true;
   document.body.innerHTML = /* html */ `<svg id="map">
-      <g id="routes"><g id="roads"></g><g id="trails"></g><g id="searoutes"></g></g>
+      <g id="routes"><g data-group="roads"></g><g data-group="trails"></g><g data-group="searoutes"></g></g>
     </svg>`;
   globalThis.pack = { routes: [route(1, 0), route(2, 500), route(3, 0, "trails")] } as never;
   Object.assign(Routes, { getPath });
@@ -51,11 +51,11 @@ beforeEach(() => {
 
 test("routes are materialized into their own group and culled on panning", () => {
   drawRoutes(routesLayer);
-  expect(document.querySelector("#roads > #route1")).not.toBeNull();
-  expect(document.querySelector("#trails > #route3")).not.toBeNull();
+  expect(document.querySelector('[data-group="roads"] > #route1')).not.toBeNull();
+  expect(document.querySelector('[data-group="trails"] > #route3')).not.toBeNull();
   expect(document.getElementById("route2")).toBeNull();
   expect(document.getElementById("routes")!.getAttribute("fill")).toBe("none");
-  expect(document.getElementById("roads")!.dataset.group).toBe("roads");
+  expect(document.querySelector("#routes g[id]")).toBeNull();
 
   const first = document.getElementById("route1");
   ViewportLayers.renderNow();
@@ -65,19 +65,19 @@ test("routes are materialized into their own group and culled on panning", () =>
   setViewportTransform(1, -500, 0);
   ViewportLayers.renderNow();
   expect(document.getElementById("route1")).toBeNull();
-  expect(document.querySelector("#roads > #route2")?.getAttribute("d")).toBe("M500,10L540,50");
+  expect(document.querySelector('[data-group="roads"] > #route2')?.getAttribute("d")).toBe("M500,10L540,50");
   expect(getPath).toHaveBeenCalledTimes(3);
 });
 
 test("the edited route stays rendered off-screen and follows a group change", () => {
   drawRoutes(routesLayer);
   setEditedRoute(2);
-  expect(document.querySelector("#roads > #route2")).not.toBeNull();
+  expect(document.querySelector('[data-group="roads"] > #route2')).not.toBeNull();
 
   pack.routes[1].group = "searoutes";
   redrawRoute(pack.routes[1]);
-  expect(document.querySelector("#roads > #route2")).toBeNull();
-  expect(document.querySelector("#searoutes > #route2")).not.toBeNull();
+  expect(document.querySelector('[data-group="roads"] > #route2')).toBeNull();
+  expect(document.querySelector('[data-group="searoutes"] > #route2')).not.toBeNull();
 
   setEditedRoute(null);
   ViewportLayers.renderNow();
@@ -105,7 +105,7 @@ test("the creator's temporary route renders in the selected group and never in a
       [10, 10, 2]
     ]
   });
-  expect(document.querySelector("#trails > #routeTemp")?.getAttribute("d")).toBe("M0,0L10,10");
+  expect(document.querySelector('[data-group="trails"] > #routeTemp')?.getAttribute("d")).toBe("M0,0L10,10");
 
   const clone = document.getElementById("map")!.cloneNode(true) as SVGSVGElement;
   ViewportLayers.renderTo(clone);
@@ -143,7 +143,7 @@ test("erasing the layer keeps the groups, which carry the user's styles", () => 
 test("viewport rendering leaves a disabled layer empty", () => {
   drawRoutes(routesLayer);
   mocks.layerOn = false;
-  document.getElementById("roads")!.replaceChildren(); // the layer registry erases the content when hidden
+  document.querySelector('[data-group="roads"]')!.replaceChildren(); // the layer registry erases the content when hidden
   ViewportLayers.renderNow();
   expect(document.getElementById("route1")).toBeNull();
 
@@ -164,13 +164,15 @@ test("type sub-groups take their line style from the store, marked for Styles.wr
   styles.routes.types.royal.attrs["stroke-dasharray"] = "9 1";
   drawRoutes(routesLayer);
 
-  const royal = document.querySelector<SVGGElement>("#routes > #roads > g#royal")!;
+  const royal = document.querySelector<SVGGElement>("#routes > [data-group=roads] > g#royal")!;
   expect(royal.dataset.type).toBe("royal");
   expect(royal.getAttribute("stroke-width")).toBe("3.5");
   expect(royal.getAttribute("stroke-dasharray")).toBe("9 1");
   expect(royal.hasAttribute("stroke")).toBe(false); // inherits the group's colour
   expect(royal.querySelector("#route1")).not.toBeNull();
-  expect(document.querySelector("#routes > #trails > g#footpath")?.getAttribute("stroke-linecap")).toBe("round");
+  expect(document.querySelector("#routes > [data-group=trails] > g#footpath")?.getAttribute("stroke-linecap")).toBe(
+    "round"
+  );
 
   styles.routes.types.royal.attrs["stroke-width"] = 1;
   Styles.write("routes");
@@ -180,7 +182,7 @@ test("type sub-groups take their line style from the store, marked for Styles.wr
 test("a type the store does not know falls back to the built-in table, then the group", () => {
   pack.routes = [{ ...route(1, 0), type: "mystery" }];
   drawRoutes(routesLayer);
-  const mystery = document.querySelector<SVGGElement>("#routes > #roads > g#mystery")!;
+  const mystery = document.querySelector<SVGGElement>("#routes > [data-group=roads] > g#mystery")!;
   expect(mystery.dataset.type).toBe("mystery");
   expect(mystery.hasAttribute("stroke-width")).toBe(false);
 });

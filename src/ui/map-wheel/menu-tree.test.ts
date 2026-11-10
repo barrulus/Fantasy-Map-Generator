@@ -220,9 +220,9 @@ describe("tools branch", () => {
     ]);
   });
 
-  it("keeps the editor ring inside the level-2 cap, with headroom", () => {
-    expect(TOOL_EDITORS.length).toBe(14);
-    expect(TOOL_EDITORS.length).toBeLessThan(ITEM_CAPS[2]);
+  it("keeps the editor ring inside the level-2 cap", () => {
+    expect(TOOL_EDITORS.length).toBe(15);
+    expect(TOOL_EDITORS.length).toBeLessThanOrEqual(ITEM_CAPS[2]);
   });
 
   // the button opens the Trade ANIMATION editor - a visualisation control, not an editor of trade

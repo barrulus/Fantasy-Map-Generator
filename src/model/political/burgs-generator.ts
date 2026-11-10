@@ -1,6 +1,6 @@
-import { quadtree } from "d3-quadtree";
+import { quadtree } from "d3";
+import { CULTURE_TYPES, type CultureType, DEFAULT_CULTURE_TYPE } from "@/data/culture-types";
 import type { Label } from "@/model/annotations/labels-generator";
-import type { ProductionRecord } from "@/model/economy/production-generator";
 import { Routes } from "@/model/economy/routes-generator";
 import { Pack } from "@/model/graph/pack-generator";
 import type { Point } from "@/model/graph/voronoi";
@@ -9,19 +9,20 @@ import { NON_NAVIGABLE_LAKE_SUBTYPES } from "@/model/physical/features-generator
 import type { River } from "@/model/physical/river-generator";
 import { Rivers } from "@/model/physical/river-generator";
 import { Emblems } from "@/model/political/emblems-generator";
-import type { CultureType } from "@/model/society/cultures-generator";
-import { CULTURE_TYPES, DEFAULT_CULTURE_TYPE } from "@/model/society/cultures-generator";
+import type { Province } from "@/model/political/provinces-generator";
+import { Development } from "@/model/society/development-generator";
 import { Names } from "@/model/society/names-generator";
 import { Population } from "@/model/society/population-generator";
 import { createSettlemakerPreview } from "@/services/previews/settlemaker-burg";
 import type { BurgGroup } from "@/types/burg-groups";
+import type { BurgProduction } from "@/types/economy";
 import type { Emblem } from "@/types/emblems";
 import type { IconSet } from "@/types/icons";
 import { log } from "@/utils/logger";
 import { minmax, normalize, rn } from "@/utils/number-utils";
 import { each, gauss, P } from "@/utils/probability-utils";
 import { safeParseJSON } from "@/utils/string-utils";
-import { requireName, requireOneOf } from "@/utils/validation-utils";
+import { requireAdjustments, requireName, requireOneOf } from "@/utils/validation-utils";
 
 const BUILDINGS = ["citadel", "plaza", "shanty", "temple", "walls"] as const;
 
@@ -63,10 +64,11 @@ export interface Burg {
   altitude?: number;
   tradeRole?: "hub" | "waystation";
   tradeRoleManual?: boolean;
-  production?: ProductionRecord[]; // per-burg production/trade records from the last production run
+  production?: BurgProduction; // units of each good made in the last production run
   product?: number; // gross product from the last production run
-  treasury?: number; // accumulated cash balance
-  market?: number;
+  treasury?: number; // cash balance from the last economy run
+  adjustments?: { name: string; value: number }[]; // income a day besides trade; negative for debts or upkeep. The user's, kept on regeneration
+  pollTaxPaid?: number; // poll tax paid to its state in the last economy run
   label?: Label;
   note?: string;
   tags?: string[];
@@ -127,16 +129,6 @@ export function cellSlotAfterRemoval(currentSlot: number, burg: Burg, burgs: Bur
 export function groundSlotOnPlacement(currentSlot: number, burgId: number, flying: boolean): number {
   if (flying) return currentSlot;
   return currentSlot || burgId;
-}
-
-// When a slot-owning burg is removed and a co-located ground burg is promoted,
-// the megalopolis treasury pool moves to the promoted successor.
-export function transferTreasuryOnRemoval(burg: Burg, successorId: number, burgs: Burg[]): void {
-  if (!successorId || successorId === burg.i || !burg.treasury) return;
-  const successor = burgs.find(b => b && b.i === successorId);
-  if (!successor) return;
-  successor.treasury = rn((successor.treasury || 0) + burg.treasury, 2);
-  burg.treasury = 0;
 }
 
 // Id of the burg (among `ids`) closest to (ax, ay); -1 if ids is empty.
@@ -1546,6 +1538,8 @@ class BurgModule {
     } else {
       Routes.connect(cellId as number);
     }
+    if (!flying) Development.settle(cellId);
+    Pack.markChanged();
 
     return burgId;
   }
@@ -1558,6 +1552,9 @@ class BurgModule {
 
     const newBurgs: Burg[] = [0 as unknown as Burg];
     const burgsTree = quadtree<[number, number]>();
+    const oldCells = burgs.filter(burg => burg.i && !burg.removed).map(burg => burg.cell);
+    const seatOf = new Map(provinces.filter(province => province.i && province.burg).map(p => [p.burg, p]));
+    const newIds = new Map<number, number>();
     cells.burg = new Uint32Array(cells.i.length);
     states
       .filter(state => state.i)
@@ -1570,40 +1567,27 @@ class BurgModule {
         province.burg = 0;
       });
 
-    const lockedBurgs = burgs.filter(burg => burg.i && !burg.removed && burg.lock);
-    for (const lockedBurg of lockedBurgs) {
+    // Keep market centers and sky capitals as well as locked burgs: a sky state has no ground seat.
+    const marketCenters = new Set(pack.markets.map(market => market.centerBurgId));
+    for (const burg of burgs.filter(
+      burg => burg.i && !burg.removed && (burg.lock || marketCenters.has(burg.i) || (burg.capital && burg.flying))
+    )) {
       const newId = newBurgs.length;
-      lockedBurg.i = newId;
-      newBurgs.push(lockedBurg);
-      burgsTree.add([lockedBurg.x, lockedBurg.y]);
-      if (!lockedBurg.flying) cells.burg[lockedBurg.cell] = newId;
+      newIds.set(burg.i!, newId);
+      const seat = seatOf.get(burg.i!);
+      if (seat) seat.burg = newId;
+      burg.i = newId;
+      newBurgs.push(burg);
+      burgsTree.add([burg.x, burg.y]);
+      cells.burg[burg.cell] = groundSlotOnPlacement(cells.burg[burg.cell], newId, Boolean(burg.flying));
 
-      if (lockedBurg.capital && lockedBurg.state !== undefined) {
-        states[lockedBurg.state].capital = newId;
-        states[lockedBurg.state].center = lockedBurg.cell;
+      if (burg.capital && burg.state !== undefined) {
+        states[burg.state].capital = newId;
+        states[burg.state].center = burg.cell;
       }
     }
 
-    const marketCenterIds = new Set(pack.markets.map(market => market.centerBurgId));
-    const unlockedMarketCenters = burgs.filter(
-      burg => burg.i && !burg.removed && !burg.lock && marketCenterIds.has(burg.i)
-    );
-    for (const centerBurg of unlockedMarketCenters) {
-      const oldId = centerBurg.i;
-      const newId = newBurgs.length;
-      const market = pack.markets.find(market => market.centerBurgId === oldId);
-      if (market) market.centerBurgId = newId;
-
-      centerBurg.i = newId;
-      newBurgs.push(centerBurg);
-      burgsTree.add([centerBurg.x, centerBurg.y]);
-      if (!centerBurg.flying) cells.burg[centerBurg.cell] = newId;
-
-      if (centerBurg.capital && centerBurg.state !== undefined) {
-        states[centerBurg.state].capital = newId;
-        states[centerBurg.state].center = centerBurg.cell;
-      }
-    }
+    for (const market of pack.markets ?? []) market.centerBurgId = newIds.get(market.centerBurgId) ?? 0;
 
     const score = new Int16Array(cells.s.map(value => value * Math.random()));
     const sorted = cells.i.filter(i => score[i] > 0 && cells.culture[i]).sort((a, b) => score[b] - score[a]);
@@ -1619,7 +1603,7 @@ class BurgModule {
       const cell = sorted[index];
       const [x, y] = cells.p[cell];
       const minDistance = spacing * gauss(1, 0.3, 0.2, 2, 2);
-      if (burgsTree.find(x, y, minDistance) !== undefined) continue;
+      if (cells.burg[cell] || burgsTree.find(x, y, minDistance) !== undefined) continue; // a locked one can stand here
 
       const stateId = cells.state[cell];
       const capital = Number(Boolean(stateId && !states[stateId].capital));
@@ -1630,9 +1614,21 @@ class BurgModule {
 
       const culture = cells.culture[cell];
       const name = Names.getCulture(culture);
-      newBurgs.push({ cell, x, y, state: stateId, i: id, culture, name, capital, feature: cells.f[cell] });
+      newBurgs.push({
+        cell,
+        x,
+        y,
+        state: stateId,
+        i: id,
+        culture,
+        name,
+        capital,
+        skyPort: capital,
+        feature: cells.f[cell]
+      });
       burgsTree.add([x, y]);
       cells.burg[cell] = id;
+      Development.settle(cell);
     }
 
     pack.burgs = newBurgs;
@@ -1651,8 +1647,31 @@ class BurgModule {
         this.changeGroup(burg, null);
       });
 
+    for (const cell of oldCells) Development.vacate(cell); // land a dropped burg stood on alone
     this.specify();
+    for (const province of provinces)
+      if (province.i && !province.removed && !province.burg) this.seatProvince(province);
     Routes.regenerate();
+  }
+
+  /** A province takes the capital in its lands as its seat, or else its biggest burg, or none */
+  seatProvince(province: Province): void {
+    const { cells, burgs } = pack;
+    let seat: Burg | undefined;
+    for (const burg of burgs) {
+      if (!burg.i || burg.removed || cells.province[burg.cell] !== province.i) continue;
+      const rank = (Number(burg.capital) || 0) - (Number(seat?.capital) || 0);
+      if (!seat || rank > 0 || (!rank && burg.population! > seat.population!)) seat = burg;
+    }
+    province.burg = seat?.i ?? 0;
+    province.center = seat?.cell ?? cells.i.find(cell => cells.province[cell] === province.i) ?? province.center;
+  }
+
+  /** Ports on water that is gone stop being ports, as when rivers change */
+  syncPorts(): void {
+    for (const burg of pack.burgs) {
+      if (burg.i && !burg.removed && burg.port) burg.port = this.getPortWater(burg.cell);
+    }
   }
 
   changeGroup(burg: Burg, group: string | null = null) {
@@ -1680,6 +1699,7 @@ class BurgModule {
     const { scale, urbanization } = options.map.units.population;
     if (!Number.isFinite(people) || people < 0) throw new Error("The population must be a non-negative number");
     burg.population = rn(people / scale / urbanization.rate, 4);
+    Pack.markChanged();
   }
 
   /** Move a burg to an existing burg group */
@@ -1766,17 +1786,49 @@ class BurgModule {
 
     cells.burg[burg.cell] = cellSlotAfterRemoval(cells.burg[burg.cell], burg, pack.burgs);
     cells.burg[cell] = groundSlotOnPlacement(cells.burg[cell], burgId, Boolean(burg.flying));
+    if (!burg.flying) {
+      if (!cells.burg[burg.cell]) Development.vacate(burg.cell);
+      Development.settle(cell);
+    }
     Object.assign(burg, { cell, state, x: rn(x, 2), y: rn(y, 2), feature: cells.f[cell] });
+    Pack.markChanged();
     if (burg.capital) pack.states[state].center = cell;
     if (province) province.center = cell;
+    // a market center takes its market along, any other burg joins the market of its new cell
+    const centered = pack.markets?.find(market => market.centerBurgId === burgId);
+    if (centered) cells.market[cell] = centered.i;
     if (burg.port) burg.port = this.getPortWater(cell); // a port moved inland stops being one
+    if (burg.flying) Routes.rebuildAirroutes();
+    else if (!Routes.isConnected(cell)) Routes.connect(cell); // off the network it cannot trade
     if (burg.label) Object.assign(burg.label, { dx: 0, dy: 0, pathPoints: undefined }); // a custom path no longer fits
   }
 
-  /** Set a burg's treasury, in the map's currency */
-  setTreasury(burgId: number, amount: number): void {
-    if (typeof amount !== "number" || !Number.isFinite(amount)) throw new Error("The treasury must be a number");
-    this.living(burgId).treasury = rn(amount, 2);
+  setFlying(burgId: number, flying: boolean, altitude = 500): void {
+    const burg = this.living(burgId);
+    const { cells } = pack;
+    if (Boolean(burg.flying) === flying) return;
+    if (flying) {
+      cells.burg[burg.cell] = cellSlotAfterRemoval(cells.burg[burg.cell], burg, pack.burgs);
+      Object.assign(burg, { flying: 1, skyPort: 1, altitude, port: 0 });
+      if (!cells.burg[burg.cell]) Development.vacate(burg.cell);
+    } else {
+      if (cells.h[burg.cell] < 20) throw new Error("A burg cannot be placed in the water");
+      if (cells.burg[burg.cell] && cells.burg[burg.cell] !== burgId)
+        throw new Error("There is already a ground burg in this cell");
+      delete burg.flying;
+      delete burg.skyPort;
+      delete burg.altitude;
+      cells.burg[burg.cell] = burgId;
+      Development.settle(burg.cell);
+    }
+    this.changeGroup(burg);
+    Routes.rebuildAirroutes();
+    Pack.markChanged();
+  }
+
+  /** Set adjustments: named amounts a day besides trade in the map's currency, e.g. [{ name: "Rents", value: 12 }], negative for debts or upkeep. They replace its lines and take effect when production is regenerated */
+  setAdjustments(burgId: number, adjustments: { name: string; value: number }[]): void {
+    this.living(burgId).adjustments = requireAdjustments(adjustments);
   }
 
   /** Lock a burg so regeneration keeps it, or unlock it */
@@ -1811,14 +1863,13 @@ class BurgModule {
     if (pack.markets?.some(market => market.centerBurgId === burgId))
       throw new Error(`Burg ${burgId} is a market center; remove the market first`);
 
-    const ownedSlot = pack.cells.burg[burg.cell] === burg.i;
-    const newSlot = cellSlotAfterRemoval(pack.cells.burg[burg.cell], burg, pack.burgs);
-    if (ownedSlot) transferTreasuryOnRemoval(burg, newSlot, pack.burgs);
-    pack.cells.burg[burg.cell] = newSlot;
+    pack.cells.burg[burg.cell] = cellSlotAfterRemoval(pack.cells.burg[burg.cell], burg, pack.burgs);
+    if (!burg.flying && !pack.cells.burg[burg.cell]) Development.vacate(burg.cell);
     burg.removed = true;
     delete burg.note;
     delete burg.coa;
     for (const province of pack.provinces ?? []) if (province.burg === burgId) province.burg = 0;
+    if (pack.deals) pack.deals = pack.deals.filter(([dealBurg]) => dealBurg !== burgId); // its trade is gone too
   }
 }
 

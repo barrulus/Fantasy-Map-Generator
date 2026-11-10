@@ -51,11 +51,11 @@ At tens of thousands of settlements the SVG burg layer alone is tens of thousand
 - Hit-testing (click, hover, relocate) runs against a quadtree instead of the DOM, so editing behaves the same as with SVG burgs.
 - Controlled by **Options → WebGL burgs** (`auto` / `on` / `off`); `auto` switches on above ~5000 burgs. Measured on a dense map: pan −55%, zoom −65%, burg DOM nodes 24.5K → 0.
 
-## Multiple burgs per cell & megalopolises
+## Multiple burgs per cell
 
 A cell is no longer limited to one settlement. `cells.burg` still records the primary ground burg, with slot helpers for the rest, which lets dense maps place clustered settlements (and sky burgs above ground ones) where upstream would refuse.
 
-Same-cell clusters are derived into a **megalopolis**: below zoom 4 the group renders as a single composite icon and pooled label (population, treasury, production and trade are aggregated onto the anchor), and splits back into its members as you zoom in. Skyburgs are excluded from membership, and composites are gated to the capital tier.
+Each burg keeps its own icon, label and economy. Skyburgs can share a cell with ground settlements and other skyburgs without taking over the primary ground slot. Megalopolis composites and economy pooling have been retired.
 
 ## Burg previews (settlemaker) & preview zoom
 
@@ -130,7 +130,7 @@ npm test         # vitest (src/**/*.test.ts)
 npm run lint     # biome (also runs as a pre-commit hook)
 ```
 
-New systems live as TypeScript modules under `src/`: generators in `src/generators/` (e.g. `burgs-generator`, `routes-generator`, `trade-network-generator`, `air-routes-generator`, `megalopolis`, `burg-context`), editor controllers in `src/controllers/`, IO and integrations in `src/services/` (e.g. `services/previews/settlemaker`), and renderers in `src/renderers/`; the remaining legacy upstream code is vanilla JS in `public/`. The codebase follows upstream's gradual TS migration: world data and styles (state) → generators (model) → editors (controllers) → renderers (view), keeping compatibility with old `.map` files.
+New systems live as TypeScript modules under `src/`: generators in `src/model/` (e.g. `burgs-generator`, `routes-generator`, `trade-network-generator`, `air-routes-generator`, `burg-context`), editor controllers in `src/controllers/`, IO and integrations in `src/services/` (e.g. `services/previews/settlemaker`), and renderers in `src/renderers/`; the remaining legacy upstream code is vanilla JS in `public/`. The codebase follows upstream's gradual TS migration: world data and styles (state) → generators (model) → editors (controllers) → renderers (view), keeping compatibility with old `.map` files.
 
 ## Credits
 

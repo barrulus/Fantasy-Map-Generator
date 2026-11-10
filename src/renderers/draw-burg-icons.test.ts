@@ -37,7 +37,7 @@ test("drawBurgIcons styles groups from the store, ignoring stale DOM attrs", asy
   styles.burgIcons.groups.town.groups.icons.options.size = 3;
 
   await drawBurgIcons();
-  const first = document.querySelector<SVGGElement>('#burgIcons > g#town > [data-group="icons"]')!;
+  const first = document.querySelector<SVGGElement>('#burgIcons > [data-group="town"] > [data-group="icons"]')!;
   expect(first.getAttribute("fill")).toBe("#123456");
 
   // simulate the retired editor-writes-DOM model leaving a stale value
@@ -45,7 +45,7 @@ test("drawBurgIcons styles groups from the store, ignoring stale DOM attrs", asy
   styles.burgIcons.groups.town.groups.icons.attrs.fill = "#123456";
 
   await drawBurgIcons();
-  const redrawn = document.querySelector<SVGGElement>('#burgIcons > g#town > [data-group="icons"]')!;
+  const redrawn = document.querySelector<SVGGElement>('#burgIcons > [data-group="town"] > [data-group="icons"]')!;
   expect(redrawn.getAttribute("fill")).toBe("#123456");
   expect(styles.burgIcons.groups.town.groups.icons.attrs.fill).toBe("#123456");
   expect(redrawn.getAttribute("font-size")).toBe("3%");
@@ -109,17 +109,23 @@ test("group order, fallback styles and empty groups survive culling and reassign
   pack.burgs[1].group = "custom";
   pack.burgs[1].port = 1;
   await drawBurgIcons();
-  expect(Array.from(document.querySelectorAll("#burgIcons > g"), group => group.id)).toEqual(["custom", "town"]);
-  expect(document.querySelector('#burgIcons > #custom > [data-group="icons"]')?.getAttribute("font-size")).toBe("3%");
-  expect(document.querySelector('#burgIcons > #custom > [data-group="anchors"] > #anchor1')).not.toBeNull();
-  expect(document.querySelectorAll("#burgIcons > #town use")).toHaveLength(0);
+  expect(
+    Array.from(document.querySelectorAll("#burgIcons > g"), group => (group as SVGGElement).dataset.group)
+  ).toEqual(["custom", "town"]);
+  expect(
+    document.querySelector('#burgIcons > [data-group="custom"] > [data-group="icons"]')?.getAttribute("font-size")
+  ).toBe("3%");
+  expect(
+    document.querySelector('#burgIcons > [data-group="custom"] > [data-group="anchors"] > #anchor1')
+  ).not.toBeNull();
+  expect(document.querySelectorAll('#burgIcons > [data-group="town"] use')).toHaveLength(0);
 
   pack.burgs[1].group = "town";
   options.map.burgs.groups = options.map.burgs.groups.filter(group => group.name !== "custom");
   await drawBurgIcons();
-  expect(document.querySelector("#burgIcons > #custom")).toBeNull();
-  expect(document.querySelector('#burgIcons > #town > [data-group="icons"] > #burg1')).not.toBeNull();
-  expect(document.querySelector('#burgIcons > #town > [data-group="anchors"] > #anchor1')).not.toBeNull();
+  expect(document.querySelector('#burgIcons > [data-group="custom"]')).toBeNull();
+  expect(document.querySelector('#burgIcons > [data-group="town"] > [data-group="icons"] > #burg1')).not.toBeNull();
+  expect(document.querySelector('#burgIcons > [data-group="town"] > [data-group="anchors"] > #anchor1')).not.toBeNull();
 });
 
 test("symbol and size edits apply to offscreen icons and account for overflowing artwork", async () => {
@@ -177,7 +183,7 @@ test("markup preserves special characters in group names, symbols and styles", a
   await drawBurgIcons();
   const group = document.querySelector("#burgIcons > g")!;
   const icons = group.querySelector('[data-group="icons"]')!;
-  expect(group.id).toBe(name);
+  expect(group.hasAttribute("id")).toBe(false);
   expect(group.getAttribute("data-group")).toBe(name);
   expect(icons.getAttribute("data-icon")).toBe(icon);
   expect(icons.getAttribute("fill")).toBe(fill);
@@ -273,16 +279,15 @@ test("fork zoom gates hide burgs until their label tier and exports retain every
   expect(document.getElementById("burg1")).not.toBeNull();
 });
 
-test("shared-cell ground burgs swap from a composite to individual icons while sky burgs stay separate", async () => {
+test("shared-cell ground and sky burgs render independently and survive export", async () => {
   pack.cells = { burg: new Uint32Array([1]) } as never;
   pack.burgs[1].cell = 0;
   pack.burgs.push({ ...pack.burgs[1], i: 2, x: 11 }, { ...pack.burgs[1], i: 3, flying: 1, x: 12 });
   setViewportTransform(3, 0, 0);
   await drawBurgIcons();
-  expect(document.querySelectorAll(".megalopolis-composite")).toHaveLength(1);
-  expect(document.querySelector(".megalopolis-composite use")?.getAttribute("href")).toBe("#burgs-atlas-circle");
-  expect(document.getElementById("burg1")).toBeNull();
-  expect(document.getElementById("burg2")).toBeNull();
+  expect(document.querySelectorAll(".megalopolis-composite")).toHaveLength(0);
+  expect(document.getElementById("burg1")).not.toBeNull();
+  expect(document.getElementById("burg2")).not.toBeNull();
   expect(document.getElementById("burg3")).not.toBeNull();
   setViewportTransform(4, 0, 0);
   ViewportLayers.renderNow();

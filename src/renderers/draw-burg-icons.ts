@@ -1,20 +1,11 @@
 import { IconSets } from "@/model/icon-sets";
 import { Icons } from "@/model/icons";
-import type { Megalopolis } from "@/model/physical/megalopolis";
-import {
-  COMPOSITE_ICON_SCALE,
-  findMegalopolises,
-  MEGALOPOLIS_MIN_ZOOM,
-  MEGALOPOLIS_SPLIT_ZOOM,
-  RING_ICON_SCALE
-} from "@/model/physical/megalopolis";
 import type { Burg } from "@/model/political/burgs-generator";
 import { Burgs } from "@/model/political/burgs-generator";
 import { groupMinZoom } from "@/renderers/labeling/tier-table";
 import { Layers } from "@/renderers/layers";
 import { zoomFontSize } from "@/renderers/viewport/viewport";
-import type { ViewportRenderContext } from "@/renderers/viewport/viewport-renderer";
-import { ViewportLayers } from "@/renderers/viewport/viewport-renderer";
+import { ViewportLayers, type ViewportRenderContext } from "@/renderers/viewport/viewport-renderer";
 import type { StylesData } from "@/types/styles";
 import { log } from "@/utils/logger";
 import { rn } from "@/utils/number-utils";
@@ -54,10 +45,6 @@ function reconcileBurgIcons({ root, bounds }: ViewportRenderContext): void {
   const container = root.querySelector<SVGGElement>("#burgIcons");
   if (!container) return;
 
-  const unbounded = bounds.x0 === -Infinity;
-  const composites = pack.cells?.burg ? [...findMegalopolises(pack.burgs, pack.cells.burg).values()] : [];
-  const memberIds = new Set(composites.flatMap(mega => mega.members.map(burg => burg.i)));
-  const compositeMode = !unbounded && bounds.scale < MEGALOPOLIS_SPLIT_ZOOM;
   const stylesByGroup = styles.burgIcons.groups;
   const fallback = stylesByGroup.town ?? Object.values(stylesByGroup)[0];
   const markup: string[] = [];
@@ -67,17 +54,11 @@ function reconcileBurgIcons({ root, bounds }: ViewportRenderContext): void {
     if (!entry) continue;
     const groupName = escapeHtml(name);
     const minZoom = options.map.labels.groups.find(group => group.name === name)?.zoom?.min ?? groupMinZoom(name);
-    const visible = unbounded || options.app.labels.showAll || bounds.scale >= minZoom;
-    const burgs = visible
-      ? (burgsByGroup.get(name) ?? []).filter(burg => !compositeMode || !memberIds.has(burg.i))
-      : [];
-    markup.push(`<g id="${groupName}" data-group="${groupName}">`);
+    const visible = bounds.x0 === -Infinity || options.app.labels.showAll || bounds.scale >= minZoom;
+    const burgs = visible ? (burgsByGroup.get(name) ?? []) : [];
+    markup.push(`<g data-group="${groupName}">`);
     markup.push(part("icons", entry.groups.icons, burgs, bounds, false));
     markup.push(part("anchors", entry.groups.anchors, burgs, bounds, true));
-    if (compositeMode && bounds.scale >= MEGALOPOLIS_MIN_ZOOM) {
-      for (const mega of composites.filter(mega => mega.anchor.group === name))
-        markup.push(composite(mega, entry.groups.icons, bounds));
-    }
     markup.push("</g>");
   }
 
@@ -124,23 +105,6 @@ function part(name: "icons" | "anchors", style: BurgPart, burgs: Burg[], bounds:
 
   markup.push("</g>");
   return markup.join("");
-}
-
-function composite(mega: Megalopolis, style: BurgPart, bounds: Bounds): string {
-  const { x, y, i } = mega.anchor;
-  const em = ((style.options.size ?? 1) * zoomFontSize("burgIcons", bounds.scale)) / 100;
-  const radius = (em * RING_ICON_SCALE) / 2;
-  if (x + radius < bounds.x0 || x - radius > bounds.x1 || y + radius < bounds.y0 || y - radius > bounds.y1) return "";
-  const [bx, by, width, height] = Icons.anchoredBox(style.options.icon) ?? [-0.5, -0.5, 1, 1];
-  const size = em * COMPOSITE_ICON_SCALE;
-  const attrs = Object.entries(style.attrs)
-    .filter(([, value]) => value !== null && value !== undefined)
-    .map(([key, value]) => ` ${key}="${escapeHtml(String(value))}"`)
-    .join("");
-  return `<g class="megalopolis-composite" data-cell="${mega.cell}"${attrs}>
-    <use data-id="${i}" href="${escapeHtml(Icons.href(style.options.icon))}" x="${x + bx * size}" y="${y + by * size}" width="${width * size}" height="${height * size}"/>
-    <circle data-id="${i}" cx="${x}" cy="${y}" r="${radius}" fill="none" stroke="#fff" stroke-width="${em * 0.12}"/>
-  </g>`;
 }
 
 // Keep keyed icons alive through zoom reconciliation so a click's target does not disappear.

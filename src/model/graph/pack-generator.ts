@@ -10,6 +10,7 @@ import { findAllInQuadtree } from "@/utils/quadtree";
 // The packed graph: a second Voronoi diagram built from the grid points that actually matter for the map
 
 class PackModule {
+  revision = 0; // bumped when burgs or cells change hands or people move, so sums read from them sum again
   private readonly quadtreeCache = new WeakMap<object, Quadtree<[number, number, number]>>();
 
   /** deep ocean points dropped and coastal cells split so packed graph has a higher resolution where needed */
@@ -72,6 +73,11 @@ class PackModule {
   }
 
   /** generate does clean pack graph so clear data where required */
+  /** Burgs or cells changed hands, or people moved, without a new pack */
+  markChanged(): void {
+    this.revision++;
+  }
+
   clear(): void {
     // At 500K cells with 100K burgs one map's live heap reaches ~1.5-2GB. Reassigning pack drops the
     // parent reference, but V8 keeps the typed-array buffers until the next major GC, so during a

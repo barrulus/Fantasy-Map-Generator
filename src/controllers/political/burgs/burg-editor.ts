@@ -1,25 +1,23 @@
 import type { Selection } from "d3";
 import { select } from "d3";
 import { Controllers } from "@/controllers";
-import { Goods } from "@/model/economy/goods-generator";
-import type { Market } from "@/model/economy/markets-generator";
 import { Markets } from "@/model/economy/markets-generator";
-import { Production } from "@/model/economy/production-generator";
+import { Prosperity } from "@/model/economy/prosperity";
 import { Routes } from "@/model/economy/routes-generator";
-import { Icons } from "@/model/icons";
-import { findMegalopolises, megalopolisName } from "@/model/physical/megalopolis";
 import type { Burg } from "@/model/political/burgs-generator";
 import { Burgs } from "@/model/political/burgs-generator";
 import { Names } from "@/model/society/names-generator";
 import { Tags } from "@/model/tags";
 import { convertTemperature, getHeight, getTemperatureLikeness } from "@/model/units";
 import { removeEmblem } from "@/renderers/draw-emblems";
-import { goodIconLines } from "@/renderers/draw-goods";
 import { EmblemRenderer } from "@/renderers/emblems/renderer";
 import { Layers } from "@/renderers/layers";
 import { speak } from "@/services/speech";
+import type { Market } from "@/types/economy";
+import { renderDevelopment } from "@/ui/development-view";
 import { Dialog } from "@/ui/dialog/dialog";
-import { noteButton } from "@/ui/dialog/dialog-helpers";
+import { closeEntityDialogs, noteButton } from "@/ui/dialog/dialog-helpers";
+import { EconomyTerms, prosperityTip, renderProsperity } from "@/ui/economy-view";
 import { applyDefaultViewboxEvents } from "@/ui/map/viewbox-events";
 import { zoomTo } from "@/ui/map/zoom";
 import { clearMainTip, tip } from "@/ui/tooltips";
@@ -69,7 +67,7 @@ function renderDialog(): void {
           <svg data-tip="${sentences(t("Burg emblem"), t("Click to edit"))}" class="pointer" viewBox="0 0 200 200" width="13em" height="13em">
             <use id="burgEmblem"></use>
           </svg>
-          <div style="display: grid; grid-auto-rows: minmax(1.6em, auto)">
+          <div style="display: grid; grid-auto-rows: minmax(2em, auto)">
             <div id="burgProvinceAndState" style="font-weight: bold; max-width: 16em"></div>
             <div>
               <div class="label">${t("Name")}:</div>
@@ -213,17 +211,18 @@ function renderDialog(): void {
               <div class="label">Altitude:</div>
               <input id="burgAltitude" type="number" min="0" step="50" value="500" style="width: 9em" /> ft
             </div>
-            <div data-tip="${t("Burg average daily production")}">
-              <div class="label">${t("Production")}:</div>
-              <span id="burgProduction" style="display: inline-flex; flex-wrap: wrap; column-gap: 0.3em; max-width: 110px;"></span>
+            <div id="burgDevelopmentLine" data-tip="${t("Development of the burg's land, 0–100, and its era: what it can make")}">
+              <div class="label">${t("Development")}:</div>
+              <span id="burgDevelopment"></span>
             </div>
-            <div data-tip="${t("Gross product per population point, daily average")}">
-              <div class="label">${t("Wealth")}</div>
+            <div id="burgProsperityLine">
+              <div class="label">${t("Prosperity")}:</div>
+              <span id="burgProsperity"></span>
+            </div>
+            <div data-tip="${sentences(EconomyTerms.wealth(), EconomyTerms.product())}">
+              <div class="label">${t("Wealth")}:</div>
               <span id="burgWealth"></span>
-            </div>
-            <div data-tip="${t("Set treasury balance. Production won't be changed automatically")}">
-              <div class="label"><label for="burgTreasury">${t("Treasury")}:</label></div>
-              <input id="burgTreasury" type="number" step="0.01" style="width: 9em" /> 🟡
+              <span id="burgWealthEconomy" data-tip="${EconomyTerms.open()}" class="icon-chart-bar pointer" style="margin-left: 0.3em"></span>
             </div>
             <div data-tip="${t("Burg tags (comma-separated)")}">
               <div class="label"><label for="burgTags">${t("Tags")}:</label></div>
@@ -271,8 +270,8 @@ function renderDialog(): void {
         <button id="burgSetPreviewLink" data-tip="${t("Set custom burg map URL")}" class="icon-map-o"></button>
         <button id="burgLocate" data-tip="${t("Zoom map and center view in the burg")}" class="icon-target"></button>
         <button
-          id="burgProductionOverview"
-          data-tip="${t("Show production overview for this burg")}"
+          id="burgEconomyButton"
+          data-tip="${EconomyTerms.open()}"
           class="icon-chart-bar"
         ></button>
         <button
@@ -303,7 +302,7 @@ function renderDialog(): void {
   ensureEl("burgPopulation").addEventListener("change", changePopulation);
   ensureEl("burgAltitude").addEventListener("change", changeAltitude);
   ensureEl("burgTradeRole").addEventListener("change", changeTradeRole);
-  ensureEl("burgTreasury").addEventListener("change", changeTreasury);
+  ensureEl("burgWealthEconomy").addEventListener("click", showBurgEconomy);
   ensureEl("burgTags").addEventListener("change", changeTags);
   ensureEl("burgBody")
     .querySelectorAll<HTMLElement>(".burgFeature")
@@ -329,7 +328,7 @@ function renderDialog(): void {
   ensureEl("burgLock").addEventListener("click", toggleBurgLockButton);
   ensureEl("burgRemove").addEventListener("click", removeSelectedBurg);
   ensureEl("burgTemperatureGraph").addEventListener("click", showTemperatureGraph);
-  ensureEl("burgProductionOverview").addEventListener("click", showProductionOverview);
+  ensureEl("burgEconomyButton").addEventListener("click", showBurgEconomy);
 }
 
 function getSelectedId(): number {
@@ -350,15 +349,7 @@ function updateBurgValues(): void {
   const province = pack.cells.province[b.cell];
   const provinceName = province ? `${pack.provinces[province].fullName}, ` : "";
   const stateName = pack.states[b.state!].fullName || pack.states[b.state!].name;
-  const mega = findMegalopolises(pack.burgs, pack.cells.burg).get(b.cell);
-  const megaNote = mega
-    ? `<div style="font-weight: normal; font-style: italic">${
-        mega.anchor.i === id
-          ? `${megalopolisName(b)} — ${mega.members.length} burgs share this cell`
-          : `Part of ${megalopolisName(mega.anchor)} (${mega.members.length} burgs)`
-      }</div>`
-    : "";
-  ensureEl("burgProvinceAndState").innerHTML = provinceName + stateName + megaNote;
+  ensureEl("burgProvinceAndState").textContent = provinceName + stateName;
 
   ensureEl<HTMLInputElement>("burgName").value = b.name!;
   ensureEl<HTMLSelectElement>("burgGroup").value = b.group!;
@@ -367,7 +358,6 @@ function updateBurgValues(): void {
     rn(b.population! * options.map.units.population.scale * options.map.units.population.urbanization.rate)
   );
   ensureEl("burgWealth").innerHTML = `🟡 ${rn(b.population! > 0 ? (b.product || 0) / b.population! : 0, 2)}`;
-  ensureEl<HTMLInputElement>("burgTreasury").value = String(rn(b.treasury || 0, 2));
   ensureEl<HTMLInputElement>("burgTags").value = Tags.format(b.tags);
 
   // update list and select culture
@@ -396,7 +386,11 @@ function updateBurgValues(): void {
   ensureEl("burgAltitudeRow").style.display = b.flying ? "block" : "none";
   ensureEl<HTMLInputElement>("burgAltitude").value = String(b.altitude || 500);
   updateTradeRoleControl(b);
-  ensureEl("burgProduction").innerHTML = getProduction(Production.getBurgProduction(b));
+  const living = Prosperity.getBurg(b.i!);
+  ensureEl("burgProsperity").innerHTML = living ? renderProsperity(living.prosperity) : "—";
+  ensureEl("burgProsperityLine").dataset.tip = living ? prosperityTip(living.prosperity) : EconomyTerms.noData();
+  const development = pack.cells.development?.[b.cell];
+  ensureEl("burgDevelopment").textContent = development === undefined ? "—" : renderDevelopment(development);
 
   updateBurgLockIcon();
 
@@ -452,16 +446,6 @@ function changePopulation(): void {
   const people = ensureEl<HTMLInputElement>("burgPopulation").valueAsNumber;
   if (Number.isFinite(people) && people >= 0) Burgs.setPopulation(id, people);
   updateBurgPreview(burg);
-}
-
-function changeTreasury(this: HTMLInputElement): void {
-  const burg = pack.burgs[getSelectedId()];
-  try {
-    Burgs.setTreasury(burg.i, this.valueAsNumber);
-  } catch {
-    tip(t("Enter a valid treasury amount"), false, "error");
-  }
-  this.value = String(rn(burg.treasury || 0, 2));
 }
 
 function changeTags(): void {
@@ -523,19 +507,12 @@ function changeTradeRole(this: HTMLSelectElement): void {
 }
 
 function toggleFlying(burgId: number): void {
-  const burg = pack.burgs[burgId];
-  if (burg.flying) {
-    delete burg.flying;
-    delete burg.skyPort;
-    delete burg.altitude;
-  } else {
-    burg.flying = 1;
-    burg.skyPort = 1;
-    burg.altitude = +ensureEl<HTMLInputElement>("burgAltitude").value || 500;
+  try {
+    Burgs.setFlying(burgId, !pack.burgs[burgId].flying, +ensureEl<HTMLInputElement>("burgAltitude").value || 500);
+    Layers.draw("routes", "burgIcons", "labels");
+  } catch (error) {
+    tip(error instanceof Error ? error.message : String(error), false, "error");
   }
-  Burgs.changeGroup(burg);
-  Routes.rebuildAirroutes();
-  Layers.draw("routes");
 }
 
 function toggleSkyPort(burgId: number): void {
@@ -571,7 +548,8 @@ function confirmRemoveMarket(market: Market): void {
     confirm: t("Remove"),
     onConfirm: () => {
       Markets.removeMarket(market.i);
-      Layers.draw("markets");
+      closeEntityDialogs();
+      Layers.draw("markets", "goods", "trade");
       updateBurgValues();
     }
   });
@@ -860,7 +838,7 @@ function toggleRelocateBurg(): void {
 function relocateBurgOnClick(this: SVGGElement, event: MouseEvent): void {
   const [x, y] = getPointer(event, this);
   if (!tryEdit(() => Burgs.move(getSelectedId(), x, y))) return;
-  Layers.draw("burgIcons", "labels");
+  Layers.draw("burgIcons", "labels", "routes", "goods", "markets", "trade");
   if (event.shiftKey === false) toggleRelocateBurg();
 }
 
@@ -873,9 +851,9 @@ function showTemperatureGraph(): void {
   void Controllers.TemperatureGraph.open(id);
 }
 
-function showProductionOverview(): void {
+function showBurgEconomy(): void {
   const id = getSelectedId();
-  Controllers.ProductionOverview.open(id);
+  Controllers.BurgEconomyOverview.open(id);
 }
 
 function removeSelectedBurg(): void {
@@ -899,8 +877,9 @@ function removeSelectedBurg(): void {
       confirm: t("Remove"),
       onConfirm: () => {
         Burgs.remove(burgId);
+        closeEntityDialogs();
         removeEmblem("burg", burgId);
-        Layers.draw("burgIcons", "labels");
+        Layers.draw("burgIcons", "labels", "goods", "trade");
         Dialog.close("burgEditor");
       }
     });
@@ -917,23 +896,6 @@ function closeBurgEditor(): void {
   selected = null;
   ensureEl("burgPreviewObject").replaceChildren();
   Dialog.destroy("burgEditor");
-}
-
-function getProduction(pool: Record<number, number>): string {
-  if (!pool) return "";
-  let html = "";
-  const sorted = Object.entries(pool).sort(([, a], [, b]) => b - a);
-  for (const [resourceId, production] of sorted) {
-    const resource = Goods.get(+resourceId);
-    if (!resource) continue;
-    const { name, unit, icon } = resource;
-    const unitName = production === 1 ? unit : `${unit}s`;
-    html += `<span data-tip="${t("{{good}}: {{amount}} {{unit}} per day", { good: name, amount: production, unit: unitName })}">
-      <svg class="resIcon" width="1em" height="1em"><use href="${Icons.href(icon)}"${goodIconLines()}></use></svg>
-      <span style="margin: 0 0.2em 0 -0.2em">${production}</span>
-    </span>`;
-  }
-  return html;
 }
 
 export const BurgEditor = { open };

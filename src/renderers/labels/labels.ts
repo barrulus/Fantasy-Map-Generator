@@ -16,7 +16,7 @@ export interface LabelData {
   letterSpacing?: number;
   dx?: number;
   dy?: number;
-  // per-label gates on top of the per-group ones, for the megalopolis composite swap
+  // Per-label visibility bounds, in addition to the group bounds.
   minZoom?: number;
   maxZoom?: number;
 }

@@ -23,15 +23,15 @@ test.describe("controller launchers", () => {
 
   test("opens Goods Editor when some goods have no production", async ({page}) => {
     await page.evaluate(() => {
-      const { pack, FMG } = window as any;
+      const { FMG } = window as any;
       const { Goods } = FMG;
-      const good = structuredClone(pack.goods[0]);
-      good.i = Math.max(...pack.goods.map(({i}: {i: number}) => i)) + 1;
+      const good = structuredClone(options.map.goods[0]);
+      good.i = Math.max(...options.map.goods.map(({i}: {i: number}) => i)) + 1;
       good.name = "No Production";
       good.visible = false;
       delete good.distribution;
       delete good.recipes;
-      pack.goods.push(good);
+      options.map.goods.push(good);
       Goods.sync();
     });
 
@@ -70,7 +70,7 @@ test.describe("controller launchers", () => {
   test("builds the Units Editor from the map options on open", async ({page}) => {
     // a unit the user named themselves is not among the select's options until the editor puts it back
     await page.evaluate(() => {
-      FMG.Options.set(options => {
+      FMG.Options.set((options: any) => {
         options.map.units.distance.unit = "leagues";
         options.map.units.distance.scale = 7;
       });

@@ -1,3 +1,4 @@
+import { Markets } from "@/model/economy/markets-generator";
 import type { Burg } from "@/model/political/burgs-generator";
 import { getKmInDistanceUnit } from "@/model/units";
 import { rn } from "@/utils/number-utils";
@@ -675,15 +676,10 @@ export function buildBurgContext(burg: Burg): BurgContext {
     burgId: burg.i,
     tradeRole: burg.tradeRole,
     treasury: burg.treasury,
-    marketId: burg.market,
+    marketId: Markets.ofBurg(burg)?.i,
     marketById: id => indexById(pack.markets).get(id),
-    // Both gathered (LocalRecord) and manufactured (MfgRecord) output counts: a tannery
-    // or smithy characterises a settlement more than its hinterland's raw yield does.
-    // Both carry goodId and units; DealRecord carries neither and drops out here.
-    producedGoods: (burg.production ?? []).flatMap(record =>
-      "goodId" in record && "units" in record ? [{ goodId: record.goodId, units: record.units }] : []
-    ),
-    goodNameById: id => indexById(pack.goods).get(id)?.name
+    producedGoods: (burg.production ?? []).map(([goodId, units]) => ({ goodId, units })),
+    goodNameById: id => indexById(options.map.goods).get(id)?.name
   });
 
   return {

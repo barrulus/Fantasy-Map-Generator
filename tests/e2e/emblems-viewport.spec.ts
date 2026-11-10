@@ -34,10 +34,10 @@ test.describe("emblems viewport rendering", () => {
     // different map for this seed than upstream's, and a hardcoded target lands in open ocean,
     // where culling everything away is the correct answer and the assertion below is meaningless.
     const pole = await page.evaluate(() => {
-      const states = (window as Win).pack.states.filter((s: any) => s.i && !s.removed && s.pole);
+      const states = FMG.pack.states.filter((s: any) => s.i && !s.removed && s.pole);
       return states[Math.floor(states.length / 2)].pole as [number, number];
     });
-    await page.evaluate(([x, y]) => (window as Win).zoomTo(x, y, 8, 0), pole);
+    await page.evaluate(([x, y]) => FMG.zoomTo(x, y, 8, 0), pole);
     await expect.poll(async () => page.evaluate(countUses), { timeout: 15000 }).toBeLessThan(full);
     expect(await page.evaluate(countUses)).toBeGreaterThan(0);
 

@@ -175,6 +175,7 @@ export const TOOL_EDITORS: Tool[] = [
   ["Biomes", "icon-tree", "editBiomesButton"],
   ["Coastlines", "icon-anchor", "editCoastlineSettings"],
   ["Cultures", "icon-users", "editCulturesButton"],
+  ["Development", "icon-chart-bar", "editDevelopmentButton"],
   ["Diplomacy", "icon-user-friends", "editDiplomacyButton"],
   ["Emblems", "icon-coa", "editEmblemButton"],
   ["Goods", "icon-store", "editGoods"],
@@ -265,9 +266,6 @@ export const TOOL_REGENERATE: Array<{ label: string; icon: string; items: Tool[]
     icon: "icon-exchange",
     items: [
       ["Economy", "icon-exchange", "regenerateEconomy"],
-      ["Goods", "icon-store", "regenerateGoods"],
-      ["Markets", "icon-bank", "regenerateMarkets"],
-      ["Production", "icon-hammer", "regenerateProduction"],
       ["Routes", "icon-map-signs", "regenerateRoutes"],
       ["Markers", "icon-map-pin", "regenerateMarkers"]
     ]
