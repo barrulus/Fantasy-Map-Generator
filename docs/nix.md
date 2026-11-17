@@ -87,6 +87,48 @@ nix build                          # result/ symlinks the built app
 working on the source, not a way to run the packaged app. See the Development
 section of the [README](../README.md).
 
+## CI and the binary cache
+
+The [Nix package workflow](../.github/workflows/nix-build.yml) builds the Electron
+desktop package on native `x86_64-linux` and `aarch64-linux` runners. It runs for
+all pull requests targeting `main` and pushes to `main`, for release tags
+matching `v[0-9]*`, and from **Actions → Nix package → Run workflow**.
+
+Builds work without Cachix configured. To enable publishing:
+
+1. Create a **public** cache in the [Cachix dashboard](https://app.cachix.org/),
+   using Cachix-managed signing keys. Choose any available cache name.
+2. In that cache's settings, generate a token with write access to this cache.
+3. In the GitHub repository's **Settings → Secrets and variables → Actions**,
+   add the token as a repository **secret** named `CACHIX_AUTH_TOKEN`, then add
+   the cache name as a repository **variable** named `CACHIX_CACHE`.
+4. Once the workflow is on `main`, run **Nix package** manually against `main`
+   to populate the cache. Check both architecture jobs, including their Cachix
+   post-job upload steps.
+
+Pushes and manual runs on `main` or release tags publish newly built store
+paths, including the app and its built dependencies. Pull requests (including
+forks) and manual runs on feature branches can download from the public cache,
+but receive no Cachix token and cannot upload. If `CACHIX_CACHE` is unset,
+the Cachix steps are skipped; if it is set but the token is missing, publishing
+runs fail with a setup error. See the
+[Cachix action documentation](https://github.com/cachix/cachix-action) for its
+upload behavior.
+
+To use the public `bazgaars-fmg` cache locally:
+
+```sh
+nix run nixpkgs#cachix -- use bazgaars-fmg
+nix run github:barrulus/Fantasy-Map-Generator
+```
+
+On NixOS, follow the configuration instructions printed by `cachix use` and
+rebuild your system. The cache's public signing key and URL are also available
+in its dashboard. Consumers of a public cache do not need the upload token.
+
+Cache hits require the same package inputs and architecture as CI. Overriding
+the flake's nixpkgs input or changing the source may require a local build.
+
 ## What you get
 
 A wrapper around nixpkgs' `electron_43` running the renderer built from this
@@ -106,8 +148,9 @@ electron-builder, which means:
 
 ## Platform support
 
-Linux only. `x86_64-linux` is what the package is built and tested on;
-`aarch64-linux` is exposed and evaluates, but has not been run.
+Linux only. CI builds and checks the package contents for `x86_64-linux` and
+`aarch64-linux`; it does not launch the graphical app. Interactive testing has
+been done on `x86_64-linux`, not on `aarch64-linux`.
 
 macOS is deliberately excluded. The package wraps a bare Electron binary, which
 is not a macOS `.app` bundle — the dock, the menu bar and file associations all
